@@ -1259,6 +1259,51 @@ function battleTurn(cmd){
   if(b.pHP<=0){addMsg('system',`💀 あなたは倒れた… ${curNPC.name}の勝ち`);battleState=null;return;}
 }
 
+function _fallbackReply(npc,input){
+  const p=npc.personality||'';
+  const name=npc.name||'???';
+  // 口癖を抽出
+  const catchM=p.match(/口癖[：:]\s*「([^」]+)」/);
+  const catchPhrase=catchM?catchM[1]:null;
+  // 職業を抽出
+  const classM=p.match(/という「?(.{2,8}?)」?(?:です|だ|じゃ|で)/);
+  const cls=classM?classM[1]:'';
+  // 一人称を推測（わし・俺・私・僕 など）
+  const pronoun=p.includes('わし')||p.includes('じゃ')?'わし':p.includes('俺')||p.includes('おれ')?'俺':p.includes('僕')||p.includes('ぼく')?'僕':'私';
+  // 語尾スタイルを推測
+  const oldStyle=p.includes('じゃ')||p.includes('わし');
+  const roughStyle=p.includes('だぜ')||p.includes('だぞ')||p.includes('俺');
+  const politeStyle=p.includes('ます')||p.includes('でございます')||p.includes('ですわ');
+  const end=oldStyle?'じゃ':roughStyle?'ぞ':politeStyle?'ですわ':'ね';
+  // 入力に応じた反応テンプレート
+  const q=input;
+  const isQuestion=q.includes('?')||q.includes('？')||q.includes('か');
+  const isGreet=/(こんにち|はじめ|よろしく|こんばん|おはよ)/i.test(q);
+  const candidates=[];
+  if(catchPhrase){
+    candidates.push(`「${catchPhrase}」`);
+    candidates.push(`${catchPhrase}…${isQuestion?'難しいことを聞くな':'そういうことだ'}。`);
+  }
+  if(isGreet){
+    candidates.push(`ああ、${pronoun}は${name}だ。よく来た${end}。`);
+    candidates.push(`${pronoun}に話しかけてくるとは、なかなか度胸があるな${end}。`);
+  }
+  if(isQuestion){
+    candidates.push(`ふむ…${pronoun}にもよくわからん${end}。`);
+    candidates.push(`それは${pronoun}も気になっていた${end}。`);
+    candidates.push(`難しい問いじゃ${end}…少し考えさせてくれ。`);
+  }
+  if(cls){
+    candidates.push(`${pronoun}は${cls}として長く生きてきたが、そういう話は初めて聞く${end}。`);
+    candidates.push(`${cls}として言わせてもらうと、それは一筋縄ではいかぬ話じゃ${end}。`);
+  }
+  candidates.push(`…なるほど${end}。`);
+  candidates.push(`そうか、${pronoun}もそう思う${end}。`);
+  candidates.push(`今は少し忙しい${end}。また話しかけてくれ。`);
+  candidates.push(`${pronoun}には関係ない話じゃが…まあ、聞いてやろう${end}。`);
+  return candidates[Math.floor(Math.random()*candidates.length)];
+}
+
 async function send(){
   if(streaming||!curNPC)return;
   const txt=ci.value.trim();if(!txt)return;
@@ -1273,19 +1318,7 @@ async function send(){
   const key=document.getElementById('api-key').value.trim();
   ci.value='';addMsg('player',txt);curNPC.messages.push({role:'user',content:txt});saveState();
   if(!key){
-    const FALLBACK=[
-      'ちょっと今は忙しいんだ。また今度話しかけてくれ。',
-      'ふむ…それについては何とも言えないな。',
-      'この街も最近変わったな。あんたはどう思う？',
-      'そうか。まあ、気をつけて旅を続けるといい。',
-      '今日はいい天気だ。旅人には最高だな。',
-      'わしには関係ない話じゃ。',
-      '…少し疲れているんだ。また今度にしてくれ。',
-      'なかなか面白いことを言うな。',
-      'ここらへんはモンスターが出るから気をつけろよ。',
-      'うーむ、難しい質問だな…。',
-    ];
-    const reply=FALLBACK[Math.floor(Math.random()*FALLBACK.length)];
+    const reply=_fallbackReply(curNPC,txt);
     addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
     ci.focus();return;
   }
