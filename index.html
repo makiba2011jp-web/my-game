@@ -1262,6 +1262,27 @@ function battleTurn(cmd){
 function _fallbackReply(npc,input){
   const p=npc.personality||'';
   const name=npc.name||'???';
+  // プヨン専用：5歳くらいの子どもの話し方
+  if(name==='プヨン'){
+    const q=input;
+    const isQuestion=q.includes('?')||q.includes('？')||q.includes('か');
+    const isGreet=/(こんにち|はじめ|よろしく|こんばん|おはよ)/i.test(q);
+    const puyonLines=[
+      'ぷよん、それしらないー！',
+      'ねえねえ、いっしょにあそぼ！',
+      'ぷよん、おなかすいたー。',
+      'えーとね、えーとね…わかんない！',
+      'ぷよんはげんきだよ！',
+      'それってたのしいの？',
+      'ぷよんにはむずかしくてわかんないもん。',
+      'やだやだ、もっとはなして！',
+      'ぷよんのことすき？すきでしょ？',
+      'ねえ、それなあに？',
+    ];
+    if(isGreet)return ['ぷよん、こんにちはー！','ねえねえ、ともだちになろ！','わーい、はなしかけてくれた！'][Math.floor(Math.random()*3)];
+    if(isQuestion)return ['ぷよんもそれしりたい！','わかんない、でもきになるー！','むずかしいこときいてるねー。'][Math.floor(Math.random()*3)];
+    return puyonLines[Math.floor(Math.random()*puyonLines.length)];
+  }
   // 口癖を抽出
   const catchM=p.match(/口癖[：:]\s*「([^」]+)」/);
   const catchPhrase=catchM?catchM[1]:null;
