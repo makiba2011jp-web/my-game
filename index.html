@@ -91,6 +91,7 @@
   #btn-form-cancel:hover{background:linear-gradient(180deg,#803030,#602020)}
   .npc-empty{color:#556;font-size:13px;text-align:center;padding:16px 0}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div id="player-panel">
@@ -788,9 +789,34 @@ const player={x:10,y:8,dir:0,frame:0,px:10,py:8};
 const npcs=[];
 
 // ================================================================
-//  PERSISTENCE (localStorage)
+//  PERSISTENCE (localStorage for player, Supabase for NPCs)
 // ================================================================
 const SAVE_KEY='my-game:state:v1';
+const API_KEY_STORAGE='my-game:api-key';
+const MSG_KEY='my-game:messages:v1';
+
+// Supabase
+const _sb=supabase.createClient(
+  'https://ubvqdkiujoiegujwipus.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVidnFka2l1am9pZWd1andpcHVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNTkwOTQsImV4cCI6MjA5MDkzNTA5NH0.r-Xoiirz8CbivvrD_bBYy6_F7tokSGPHGu-9q6bVJwA'
+);
+
+// メッセージ（会話履歴）はlocalStorageに保存
+function saveMsgs(){
+  try{
+    const map={};
+    npcs.forEach(n=>{if(n.messages&&n.messages.length)map[n.id]=n.messages;});
+    localStorage.setItem(MSG_KEY,JSON.stringify(map));
+  }catch(e){}
+}
+function loadMsgs(){
+  try{
+    const raw=localStorage.getItem(MSG_KEY);
+    return raw?JSON.parse(raw):{};
+  }catch(e){return {};}
+}
+
+// プレイヤー位置のみlocalStorageに保存
 let _saveTimer=null;
 function saveState(){
   if(_saveTimer)return;
@@ -799,22 +825,61 @@ function saveState(){
     try{
       localStorage.setItem(SAVE_KEY,JSON.stringify({
         player:{x:player.x,y:player.y,dir:player.dir},
-        npcs:npcs,
         npcIdCounter:npcIdCounter
       }));
+      saveMsgs();
     }catch(e){console.warn('save failed',e);}
   },200);
 }
-function loadState(){
-  try{
-    const raw=localStorage.getItem(SAVE_KEY);if(!raw)return;
-    const d=JSON.parse(raw);
-    if(d.player){player.x=d.player.x;player.y=d.player.y;player.dir=d.player.dir||0;player.px=player.x;player.py=player.y;}
-    if(Array.isArray(d.npcs)){npcs.length=0;d.npcs.forEach(n=>npcs.push(n));}
-    if(typeof d.npcIdCounter==='number')npcIdCounter=d.npcIdCounter;
-  }catch(e){console.warn('load failed',e);}
+
+// Supabase NPC操作
+async function dbAddNPC(npc){
+  const row={id:npc.id,name:npc.name,x:npc.x,y:npc.y,color:npc.color,hair:npc.hair,skin:npc.skin,acc:npc.acc,personality:npc.personality,stats:npc.stats};
+  const{error}=await _sb.from('npcs').upsert(row);
+  if(error)console.warn('Supabase insert error',error);
 }
-const API_KEY_STORAGE='my-game:api-key';
+async function dbRemoveNPC(id){
+  const{error}=await _sb.from('npcs').delete().eq('id',id);
+  if(error)console.warn('Supabase delete error',error);
+}
+
+async function loadState(){
+  // プレイヤー位置をlocalStorageから
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(raw){
+      const d=JSON.parse(raw);
+      if(d.player){player.x=d.player.x;player.y=d.player.y;player.dir=d.player.dir||0;player.px=player.x;player.py=player.y;}
+      if(typeof d.npcIdCounter==='number')npcIdCounter=d.npcIdCounter;
+    }
+  }catch(e){console.warn('load failed',e);}
+  // NPCをSupabaseから
+  const msgs=loadMsgs();
+  const{data,error}=await _sb.from('npcs').select('*');
+  if(!error&&Array.isArray(data)){
+    npcs.length=0;
+    data.forEach(row=>{
+      const npc={...row,messages:msgs[row.id]||[]};
+      npcs.push(npc);
+      if(row.id&&row.id.startsWith('npc_')){
+        const n=parseInt(row.id.slice(4));
+        if(!isNaN(n)&&n>=npcIdCounter)npcIdCounter=n+1;
+      }
+    });
+  }
+  renderNPCList();
+  // リアルタイム同期
+  _sb.channel('npcs-changes').on('postgres_changes',{event:'INSERT',schema:'public',table:'npcs'},payload=>{
+    if(!npcs.find(n=>n.id===payload.new.id)){
+      const msgs=loadMsgs();
+      npcs.push({...payload.new,messages:msgs[payload.new.id]||[]});
+      renderNPCList();
+    }
+  }).on('postgres_changes',{event:'DELETE',schema:'public',table:'npcs'},payload=>{
+    const idx=npcs.findIndex(n=>n.id===payload.old.id);
+    if(idx>=0){npcs.splice(idx,1);renderNPCList();}
+  }).subscribe();
+}
 
 // ================================================================
 //  SMOOTH MOVEMENT & PARTICLES
@@ -1161,7 +1226,9 @@ function renderNPCList(){
   });
   list.querySelectorAll('.npc-del').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      npcs.splice(parseInt(btn.dataset.idx),1);
+      const idx=parseInt(btn.dataset.idx);
+      dbRemoveNPC(npcs[idx].id);
+      npcs.splice(idx,1);
       renderNPCList();saveState();
     });
   });
@@ -1255,6 +1322,7 @@ cv.addEventListener('click',e=>{
   placingNPC.x=tx;
   placingNPC.y=ty;
   npcs.push(placingNPC);
+  dbAddNPC(placingNPC);
   endPlacement();
   renderNPCList();saveState();
 });
@@ -1345,13 +1413,11 @@ _fImg.addEventListener('change',async e=>{
 });
 
 // Load persisted state on startup
-loadState();
+loadState();  // async, renders NPC list when done
 // API key persistence
 const _apiKeyInput=document.getElementById('api-key');
 try{const k=localStorage.getItem(API_KEY_STORAGE);if(k)_apiKeyInput.value=k;}catch(e){}
 _apiKeyInput.addEventListener('input',()=>{try{localStorage.setItem(API_KEY_STORAGE,_apiKeyInput.value);}catch(e){}});
-
-renderNPCList();
 
 // ================================================================
 //  PLAYER STATUS PANEL
