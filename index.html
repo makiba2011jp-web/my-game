@@ -1184,8 +1184,24 @@ async function send(){
     battleTurn(cmd);updateBattleUI();return;
   }
   const key=document.getElementById('api-key').value.trim();
-  if(!key){addMsg('system','APIキーを上部の入力欄に設定してください。');return;}
   ci.value='';addMsg('player',txt);curNPC.messages.push({role:'user',content:txt});saveState();
+  if(!key){
+    const FALLBACK=[
+      'ちょっと今は忙しいんだ。また今度話しかけてくれ。',
+      'ふむ…それについては何とも言えないな。',
+      'この街も最近変わったな。あんたはどう思う？',
+      'そうか。まあ、気をつけて旅を続けるといい。',
+      '今日はいい天気だ。旅人には最高だな。',
+      'わしには関係ない話じゃ。',
+      '…少し疲れているんだ。また今度にしてくれ。',
+      'なかなか面白いことを言うな。',
+      'ここらへんはモンスターが出るから気をつけろよ。',
+      'うーむ、難しい質問だな…。',
+    ];
+    const reply=FALLBACK[Math.floor(Math.random()*FALLBACK.length)];
+    addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
+    ci.focus();return;
+  }
   const ld=addMsg('system','');ld.innerHTML='<span class="typing-indicator">考え中...</span>';
   streaming=true;sb2.disabled=true;
   try{
