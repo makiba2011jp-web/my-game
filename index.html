@@ -22,7 +22,8 @@
   .pp-section-title{font-size:11px;color:#668;text-transform:uppercase;letter-spacing:1px;margin-top:4px;margin-bottom:4px}
   #api-bar{display:flex;align-items:center;gap:10px;margin-bottom:6px;z-index:100}
   #api-bar label{font-size:14px;color:#aaa}
-  #api-bar input{width:380px;padding:5px 10px;font-family:monospace;font-size:14px;background:#12121e;color:#0f0;border:1px solid #444;border-radius:4px}
+  #api-bar input{width:260px;padding:5px 10px;font-family:monospace;font-size:14px;background:#12121e;color:#0f0;border:1px solid #444;border-radius:4px}
+  #api-bar select{padding:5px 8px;font-family:'DotGothic16',monospace;font-size:13px;background:#12121e;color:#0f0;border:1px solid #444;border-radius:4px}
   #game-wrapper{position:relative}
   canvas{display:block;border:4px solid #556;border-radius:6px;box-shadow:0 0 60px rgba(0,0,0,.7);max-width:calc(100vw - 620px);max-height:calc(100vh - 80px);object-fit:contain}
   #chat-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:rgba(0,0,0,.6)}
@@ -64,6 +65,8 @@
   .npc-info{flex:1;min-width:0}
   .npc-card-name{color:#fff;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .npc-card-pos{color:#667;font-size:10px;margin-top:2px}
+  .npc-edit{background:#203060;color:#aaf;border:1px solid #448;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
+  .npc-edit:hover{background:#304080}
   .npc-del{background:#602020;color:#faa;border:1px solid #844;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
   .npc-del:hover{background:#803030}
   #npc-create-btn{width:100%;padding:10px;font-family:'DotGothic16',monospace;font-size:14px;background:linear-gradient(180deg,#2a3a70,#1a2a60);color:#fff;border:2px solid #88a;border-radius:8px;cursor:pointer;text-align:center}
@@ -154,7 +157,7 @@
   </div>
 </div>
 <div id="game-area">
-<div id="api-bar"><label>Anthropic API Key:</label><input type="password" id="api-key" placeholder="sk-ant-..."></div>
+<div id="api-bar"><label>チャットAI:</label><select id="chat-ai-select"><option value="gemini">Gemini（無料）</option><option value="claude">Claude</option></select> <label>モデル:</label><select id="model-select"></select> <label>Anthropic API Key:</label><input type="password" id="api-key" placeholder="sk-ant-..."> <label>Gemini API Key:</label><input type="password" id="gemini-key" placeholder="AIza..."></div>
 <div id="game-wrapper">
   <canvas id="game"></canvas>
   <div id="chat-overlay">
@@ -882,8 +885,9 @@ function saveState(){
 // Supabase NPC操作
 async function dbAddNPC(npc){
   const row={id:npc.id,name:npc.name,x:npc.x,y:npc.y,color:npc.color,hair:npc.hair,skin:npc.skin,acc:npc.acc,personality:npc.personality,stats:npc.stats};
-  const{error}=await _sb.from('npcs').upsert(row);
-  if(error)console.warn('Supabase insert error',error);
+  await _sb.from('npcs').delete().eq('id',npc.id);
+  const{error}=await _sb.from('npcs').insert(row);
+  if(error)console.warn('Supabase save error',error);
 }
 async function dbRemoveNPC(id){
   const{error}=await _sb.from('npcs').delete().eq('id',id);
@@ -1341,24 +1345,38 @@ async function send(){
     if(!cmd){addMsg('system','右のコマンドパネルから行動を選択');return;}
     battleTurn(cmd);updateBattleUI();return;
   }
-  const key=document.getElementById('api-key').value.trim();
+  const chatAI=document.getElementById('chat-ai-select').value;
   ci.value='';addMsg('player',txt);curNPC.messages.push({role:'user',content:txt});saveState();
-  if(!key){
-    const reply=_fallbackReply(curNPC,txt);
-    addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
-    ci.focus();return;
+  if(chatAI==='claude'){
+    const key=document.getElementById('api-key').value.trim();
+    if(!key){const reply=_fallbackReply(curNPC,txt);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();ci.focus();return;}
+    const ld=addMsg('system','');ld.innerHTML='<span class="typing-indicator">考え中...</span>';
+    streaming=true;sb2.disabled=true;
+    try{
+      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:_modelSelect.value,max_tokens:800,system:curNPC.personality,messages:curNPC.messages.slice(-20)})});
+      if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${res.status}`);}
+      const data=await res.json();const reply=data.content?.[0]?.text||'（返答なし）';
+      lb.removeChild(ld);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
+    }catch(err){lb.removeChild(ld);addMsg('system',`エラー: ${err.message}`);}
+    finally{streaming=false;sb2.disabled=false;ci.focus();}
+  }else{
+    const gKey=document.getElementById('gemini-key').value.trim();
+    if(!gKey){const reply=_fallbackReply(curNPC,txt);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();ci.focus();return;}
+    const ld=addMsg('system','');ld.innerHTML='<span class="typing-indicator">考え中...</span>';
+    streaming=true;sb2.disabled=true;
+    try{
+      const geminiMsgs=[{role:'user',parts:[{text:'【設定】'+curNPC.personality}]},{role:'model',parts:[{text:'了解しました。この設定で会話します。'}]},...curNPC.messages.slice(-20).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}))];
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contents:geminiMsgs})});
+      if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${res.status}`);}
+      const data=await res.json();const reply=data.candidates?.[0]?.content?.parts?.[0]?.text||'（返答なし）';
+      lb.removeChild(ld);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
+    }catch(err){lb.removeChild(ld);addMsg('system',`エラー: ${err.message}`);}
+    finally{streaming=false;sb2.disabled=false;ci.focus();}
   }
-  const ld=addMsg('system','');ld.innerHTML='<span class="typing-indicator">考え中...</span>';
-  streaming=true;sb2.disabled=true;
-  try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,system:curNPC.personality,messages:curNPC.messages.slice(-20)})});
-    if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${res.status}`);}
-    const data=await res.json();const reply=data.content?.[0]?.text||'（返答なし）';
-    lb.removeChild(ld);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
-  }catch(err){lb.removeChild(ld);addMsg('system',`エラー: ${err.message}`);}
-  finally{streaming=false;sb2.disabled=false;ci.focus();}
 }
 sb2.addEventListener('click',send);
 ci.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();send();}if(e.key==='Escape')closeChat();e.stopPropagation();});
@@ -1383,8 +1401,15 @@ function renderNPCList(){
       +`<div class="npc-info"><div class="npc-card-name">${esc(npc.name)}</div>`
       +stLine
       +`<div class="npc-card-pos">(${npc.x}, ${npc.y})</div></div>`
+      +`<button class="npc-edit" data-idx="${i}">編集</button>`
       +`<button class="npc-del" data-idx="${i}">削除</button>`;
     list.appendChild(card);
+  });
+  list.querySelectorAll('.npc-edit').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const idx=parseInt(btn.dataset.idx);
+      editNPC(idx);
+    });
   });
   list.querySelectorAll('.npc-del').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -1396,7 +1421,10 @@ function renderNPCList(){
   });
 }
 
+let editingNPCIdx=-1;
+
 function showCreateForm(){
+  editingNPCIdx=-1;
   const form=document.getElementById('npc-form');
   form.style.display='flex';
   document.getElementById('npc-create-btn').style.display='none';
@@ -1407,6 +1435,28 @@ function showCreateForm(){
   document.querySelectorAll('.acc-grid input[type="checkbox"]').forEach(cb=>cb.checked=false);
   importedStats=null;
   const is=document.getElementById('import-status');if(is)is.textContent='';
+  document.getElementById('btn-form-ok').textContent='配置モードへ';
+  document.getElementById('f-name').focus();
+}
+
+function editNPC(idx){
+  editingNPCIdx=idx;
+  const npc=npcs[idx];
+  const form=document.getElementById('npc-form');
+  form.style.display='flex';
+  document.getElementById('npc-create-btn').style.display='none';
+  document.getElementById('f-name').value=npc.name;
+  document.getElementById('f-personality').value=npc.personality||'';
+  document.getElementById('f-color').value=npc.color||'#cc7030';
+  document.getElementById('f-hair').value=npc.hair||'#6b4226';
+  const accKeys=['hat','apron','cape','staff','bow','shield'];
+  accKeys.forEach(k=>{
+    const el=document.getElementById('acc-'+k);
+    if(el)el.checked=!!(npc.acc&&npc.acc[k]);
+  });
+  importedStats=npc.stats||null;
+  const is=document.getElementById('import-status');if(is)is.textContent='';
+  document.getElementById('btn-form-ok').textContent='保存';
   document.getElementById('f-name').focus();
 }
 
@@ -1428,6 +1478,21 @@ function createNPCFromForm(){
   if(document.getElementById('acc-staff').checked)acc.staff=true;
   if(document.getElementById('acc-bow').checked)acc.bow='#ff6090';
   if(document.getElementById('acc-shield').checked)acc.shield=true;
+  const accObj=Object.keys(acc).length?acc:null;
+  if(editingNPCIdx>=0){
+    const npc=npcs[editingNPCIdx];
+    npc.name=name;
+    npc.personality=personality||`あなたは${name}です。短く簡潔に、2〜3文程度で返答してください。`;
+    npc.color=color;
+    npc.hair=hair;
+    npc.acc=accObj;
+    npc.stats=importedStats;
+    dbAddNPC(npc);
+    hideCreateForm();
+    renderNPCList();saveState();
+    editingNPCIdx=-1;
+    return;
+  }
   const npcData={
     id:'npc_'+(npcIdCounter++),
     name:name,
@@ -1435,7 +1500,7 @@ function createNPCFromForm(){
     color:color,
     hair:hair,
     skin:'#f0d0b0',
-    acc:Object.keys(acc).length?acc:null,
+    acc:accObj,
     personality:personality||`あなたは${name}です。短く簡潔に、2〜3文程度で返答してください。`,
     stats:importedStats,
     messages:[]
@@ -1509,8 +1574,14 @@ const _importStatus=document.getElementById('import-status');
 _btnImport.addEventListener('click',()=>_fImg.click());
 _fImg.addEventListener('change',async e=>{
   const file=e.target.files[0];if(!file)return;
-  const key=document.getElementById('api-key').value.trim();
-  if(!key){alert('先に上部のAPIキーを設定してください');_fImg.value='';return;}
+  const scanAI=document.getElementById('chat-ai-select').value;
+  if(scanAI==='gemini'){
+    const gKey=document.getElementById('gemini-key').value.trim();
+    if(!gKey){alert('先に上部のGemini APIキーを設定してください');_fImg.value='';return;}
+  }else{
+    const cKey=document.getElementById('api-key').value.trim();
+    if(!cKey){alert('先に上部のAnthropic APIキーを設定してください');_fImg.value='';return;}
+  }
   _btnImport.disabled=true;_importStatus.textContent='解析中...';
   try{
     const b64=await new Promise((resolve,reject)=>{
@@ -1534,15 +1605,30 @@ _fImg.addEventListener('change',async e=>{
       '  "hair": "髪色のhex (#rrggbb)",\n'+
       '  "accessories": {"hat":false,"apron":false,"cape":false,"staff":false,"bow":false,"shield":false}\n'+
       '}\n\n職業からアクセサリを推測してください。例: 魔法使い→staff, 騎士→shield, マジックナイト→shield+staff, 弓兵→bow, 商人→apron。';
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,
-        messages:[{role:'user',content:[
-          {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
-          {type:'text',text:prompt}]}]})});
-    if(!res.ok){const er=await res.json().catch(()=>({}));throw new Error(er.error?.message||('API Error '+res.status));}
-    const data=await res.json();
-    let text=(data.content?.[0]?.text||'').trim();
+    let res,data,text;
+    if(scanAI==='gemini'){
+      const gKey=document.getElementById('gemini-key').value.trim();
+      res=await fetch(`https://generativelanguage.googleapis.com/v1/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contents:[{parts:[
+          {inline_data:{mime_type:mediaType,data:b64}},
+          {text:prompt}
+        ]}]})});
+      if(!res.ok){const er=await res.json().catch(()=>({}));throw new Error(er.error?.message||('API Error '+res.status));}
+      data=await res.json();
+      text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
+    }else{
+      const cKey=document.getElementById('api-key').value.trim();
+      res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':cKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:_modelSelect.value,max_tokens:800,
+          messages:[{role:'user',content:[
+            {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
+            {type:'text',text:prompt}]}]})});
+      if(!res.ok){const er=await res.json().catch(()=>({}));throw new Error(er.error?.message||('API Error '+res.status));}
+      data=await res.json();
+      text=(data.content?.[0]?.text||'').trim();
+    }
     text=text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'');
     const m=text.match(/\{[\s\S]*\}/);if(m)text=m[0];
     const info=JSON.parse(text);
@@ -1580,6 +1666,34 @@ loadState();  // async, renders NPC list when done
 const _apiKeyInput=document.getElementById('api-key');
 try{const k=localStorage.getItem(API_KEY_STORAGE);if(k)_apiKeyInput.value=k;}catch(e){}
 _apiKeyInput.addEventListener('input',()=>{try{localStorage.setItem(API_KEY_STORAGE,_apiKeyInput.value);}catch(e){}});
+const _geminiKeyInput=document.getElementById('gemini-key');
+const GEMINI_KEY_STORAGE='my-game:gemini-key';
+try{const gk=localStorage.getItem(GEMINI_KEY_STORAGE);if(gk)_geminiKeyInput.value=gk;}catch(e){}
+_geminiKeyInput.addEventListener('input',()=>{try{localStorage.setItem(GEMINI_KEY_STORAGE,_geminiKeyInput.value);}catch(e){}});
+_geminiKeyInput.addEventListener('keydown',e=>e.stopPropagation());
+const MODELS={
+  gemini:[
+    {value:'gemini-2.0-flash',label:'2.0 Flash'},
+    {value:'gemini-2.0-flash-lite',label:'2.0 Flash Lite'},
+    {value:'gemini-1.5-flash',label:'1.5 Flash'},
+  ],
+  claude:[
+    {value:'claude-sonnet-4-20250514',label:'Sonnet 4'},
+    {value:'claude-haiku-4-5-20251001',label:'Haiku 4.5'},
+  ]
+};
+const _chatAISelect=document.getElementById('chat-ai-select');
+const _modelSelect=document.getElementById('model-select');
+function updateModelOptions(){
+  const ai=_chatAISelect.value;
+  _modelSelect.innerHTML='';
+  MODELS[ai].forEach(m=>{const o=document.createElement('option');o.value=m.value;o.textContent=m.label;_modelSelect.appendChild(o);});
+  try{const saved=localStorage.getItem('my-game:model-'+ai);if(saved)_modelSelect.value=saved;}catch(e){}
+}
+try{const v=localStorage.getItem('my-game:chat-ai');if(v)_chatAISelect.value=v;}catch(e){}
+updateModelOptions();
+_chatAISelect.addEventListener('change',()=>{try{localStorage.setItem('my-game:chat-ai',_chatAISelect.value);}catch(e){} updateModelOptions();});
+_modelSelect.addEventListener('change',()=>{try{localStorage.setItem('my-game:model-'+_chatAISelect.value,_modelSelect.value);}catch(e){}});
 
 // ================================================================
 //  PLAYER STATUS PANEL
