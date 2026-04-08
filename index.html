@@ -1384,10 +1384,17 @@ async function send(){
     const ld=addMsg('system','');ld.innerHTML='<span class="typing-indicator">考え中...</span>';
     streaming=true;sb2.disabled=true;
     try{
-      const geminiMsgs=[{role:'user',parts:[{text:'【設定】'+curNPC.personality}]},{role:'model',parts:[{text:'了解しました。この設定で会話します。'}]},...curNPC.messages.slice(-20).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}))];
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
+      const rawMsgs=curNPC.messages.slice(-20).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
+      const geminiMsgs=[];
+      for(const m of rawMsgs){
+        if(geminiMsgs.length>0&&geminiMsgs[geminiMsgs.length-1].role===m.role){
+          geminiMsgs[geminiMsgs.length-1].parts[0].text+='\n'+m.parts[0].text;
+        }else{geminiMsgs.push({role:m.role,parts:[{text:m.parts[0].text}]});}
+      }
+      if(geminiMsgs.length>0&&geminiMsgs[0].role==='model'){geminiMsgs.unshift({role:'user',parts:[{text:'（会話開始）'}]});}
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${gKey}`,{method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contents:geminiMsgs})});
+        body:JSON.stringify({system_instruction:{parts:[{text:curNPC.personality}]},contents:geminiMsgs})});
       if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${res.status}`);}
       const data=await res.json();const reply=data.candidates?.[0]?.content?.parts?.[0]?.text||'（返答なし）';
       lb.removeChild(ld);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
@@ -1647,7 +1654,7 @@ _fImg.addEventListener('change',async e=>{
     let res,data,text;
     if(scanAI==='gemini'){
       const gKey=document.getElementById('gemini-key').value.trim();
-      res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
+      res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${gKey}`,{method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({contents:[{parts:[
           {inline_data:{mime_type:mediaType,data:b64}},
@@ -1712,9 +1719,9 @@ _geminiKeyInput.addEventListener('input',()=>{try{localStorage.setItem(GEMINI_KE
 _geminiKeyInput.addEventListener('keydown',e=>e.stopPropagation());
 const MODELS={
   gemini:[
+    {value:'gemini-1.5-flash',label:'1.5 Flash'},
     {value:'gemini-2.0-flash',label:'2.0 Flash'},
     {value:'gemini-2.0-flash-lite',label:'2.0 Flash Lite'},
-    {value:'gemini-1.5-flash',label:'1.5 Flash'},
   ],
   claude:[
     {value:'claude-sonnet-4-20250514',label:'Sonnet 4'},
