@@ -1341,6 +1341,16 @@ function _fallbackReply(npc,input){
   return candidates[Math.floor(Math.random()*candidates.length)];
 }
 
+function _jaError(msg){
+  if(/quota/i.test(msg)||/rate.?limit/i.test(msg))return'API利用制限に達しました。しばらく待ってから再度お試しください。';
+  if(/api.?key/i.test(msg)&&/invalid/i.test(msg))return'APIキーが無効です。正しいキーを入力してください。';
+  if(/unauthorized|401/i.test(msg))return'認証エラー：APIキーを確認してください。';
+  if(/forbidden|403/i.test(msg))return'アクセスが拒否されました。APIキーの権限を確認してください。';
+  if(/not.?found|404/i.test(msg))return'モデルが見つかりません。別のモデルを選択してください。';
+  if(/network|fetch|failed/i.test(msg))return'通信エラー：インターネット接続を確認してください。';
+  if(/timeout/i.test(msg))return'タイムアウト：サーバーの応答がありません。再度お試しください。';
+  return`エラー: ${msg}`;
+}
 async function send(){
   if(streaming||!curNPC)return;
   const txt=ci.value.trim();if(!txt)return;
@@ -1366,7 +1376,7 @@ async function send(){
       if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${res.status}`);}
       const data=await res.json();const reply=data.content?.[0]?.text||'（返答なし）';
       lb.removeChild(ld);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
-    }catch(err){lb.removeChild(ld);addMsg('system',`エラー: ${err.message}`);}
+    }catch(err){lb.removeChild(ld);addMsg('system',_jaError(err.message));}
     finally{streaming=false;sb2.disabled=false;ci.focus();}
   }else{
     const gKey=document.getElementById('gemini-key').value.trim();
@@ -1375,13 +1385,13 @@ async function send(){
     streaming=true;sb2.disabled=true;
     try{
       const geminiMsgs=[{role:'user',parts:[{text:'【設定】'+curNPC.personality}]},{role:'model',parts:[{text:'了解しました。この設定で会話します。'}]},...curNPC.messages.slice(-20).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}))];
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({contents:geminiMsgs})});
       if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${res.status}`);}
       const data=await res.json();const reply=data.candidates?.[0]?.content?.parts?.[0]?.text||'（返答なし）';
       lb.removeChild(ld);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
-    }catch(err){lb.removeChild(ld);addMsg('system',`エラー: ${err.message}`);}
+    }catch(err){lb.removeChild(ld);addMsg('system',_jaError(err.message));}
     finally{streaming=false;sb2.disabled=false;ci.focus();}
   }
 }
@@ -1637,7 +1647,7 @@ _fImg.addEventListener('change',async e=>{
     let res,data,text;
     if(scanAI==='gemini'){
       const gKey=document.getElementById('gemini-key').value.trim();
-      res=await fetch(`https://generativelanguage.googleapis.com/v1/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
+      res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({contents:[{parts:[
           {inline_data:{mime_type:mediaType,data:b64}},
