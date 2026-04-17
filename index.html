@@ -122,6 +122,8 @@
   #dot-close:hover{background:linear-gradient(180deg,#803030,#602020)}
   #dot-grid-toggle{font-size:11px;color:#888;cursor:pointer;user-select:none}
   #dot-target-label{color:#ccc;font-size:12px}
+  #dot-img-section{width:100%;text-align:center}
+  #dot-img-section label{color:#aac;font-size:12px}
   #player-sprite-btn{width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:linear-gradient(180deg,#3a2a60,#2a1a50);color:#fff;border:2px solid #86a;border-radius:6px;cursor:pointer}
   #player-sprite-btn:hover{background:linear-gradient(180deg,#4a3a80,#3a2a60);border-color:#a8c}
   .sprite-upload-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:4px 0}
@@ -241,13 +243,6 @@
   <h2>NPC リスト</h2>
   <div id="npc-list"><div class="npc-empty">NPCがいません</div></div>
   <button id="player-sprite-btn">キャラ編集（主人公）</button>
-  <div class="sprite-upload-row">
-    <label>主人公画像:</label>
-    <input type="file" id="player-img-file" accept="image/*" style="display:none">
-    <button type="button" id="player-img-btn">画像アップロード</button>
-    <button type="button" id="player-img-clear" style="display:none">画像削除</button>
-    <div id="player-img-preview"></div>
-  </div>
   <button id="npc-create-btn">＋ NPCを作成</button>
   <div id="npc-form">
     <label>画像から自動入力（キャラステータスSS）</label>
@@ -260,13 +255,6 @@
     <input type="text" id="f-name" placeholder="NPCの名前" maxlength="20">
     <label>性格・設定（AIプロンプト）</label>
     <textarea id="f-personality" placeholder="このNPCの性格や背景を入力...&#10;例: 陽気な商人。「いらっしゃい！」が口癖。" rows="4"></textarea>
-    <label>スプライト画像（任意）</label>
-    <div class="sprite-upload-row">
-      <input type="file" id="f-sprite-img" accept="image/*" style="display:none">
-      <button type="button" id="btn-sprite-img">画像アップロード</button>
-      <button type="button" id="btn-sprite-img-clear" style="display:none">削除</button>
-      <div id="f-sprite-preview"></div>
-    </div>
     <label>外見</label>
     <div class="color-row">
       <input type="color" id="f-color" value="#cc7030">
@@ -301,6 +289,15 @@
       <button id="dtool-eraser">消しゴム</button>
       <button id="dtool-fill">塗りつぶし</button>
       <button id="dtool-undo">元に戻す</button>
+    </div>
+    <div id="dot-img-section">
+      <label>画像からスプライト設定:</label>
+      <div class="sprite-upload-row">
+        <input type="file" id="dot-img-file" accept="image/*" style="display:none">
+        <button type="button" id="dot-img-btn">画像アップロード</button>
+        <button type="button" id="dot-img-clear" style="display:none">画像削除</button>
+        <div id="dot-img-preview"></div>
+      </div>
     </div>
     <div id="dot-actions">
       <button id="dot-apply">キャラに反映</button>
@@ -2025,38 +2022,6 @@ function closeDotEditor(){
   dotTarget=null;
 }
 
-// Apply sprite
-document.getElementById('dot-apply').addEventListener('click',()=>{
-  if(!dotTarget)return;
-  const hasPixels=dotPixels.some(p=>p!==null);
-  const spriteData=hasPixels?[...dotPixels]:null;
-  if(dotTarget.type==='player'){
-    player.sprite=spriteData;
-    player.spriteCanvas=spriteData?dotToImageData():null;
-    try{localStorage.setItem('my-game:player-sprite',JSON.stringify(spriteData));}catch(e){}
-  }else{
-    const npc=npcs[dotTarget.index];
-    npc.sprite=spriteData;
-    npc.spriteCanvas=spriteData?dotToImageData():null;
-    saveNpcSprites();
-  }
-  closeDotEditor();
-});
-
-document.getElementById('dot-reset').addEventListener('click',()=>{
-  if(!dotTarget)return;
-  if(dotTarget.type==='player'){
-    player.sprite=null;
-    player.spriteCanvas=null;
-    try{localStorage.removeItem('my-game:player-sprite');}catch(e){}
-  }else{
-    const npc=npcs[dotTarget.index];
-    npc.sprite=null;
-    npc.spriteCanvas=null;
-    saveNpcSprites();
-  }
-  closeDotEditor();
-});
 document.getElementById('dot-close').addEventListener('click',closeDotEditor);
 
 // Player sprite button
@@ -2150,7 +2115,7 @@ loadState=async function(){
 };
 
 // ================================================================
-//  SPRITE IMAGE UPLOAD
+//  SPRITE IMAGE UPLOAD (inside dot editor)
 // ================================================================
 function b64ToImg(dataUrl){
   return new Promise(resolve=>{
@@ -2161,96 +2126,92 @@ function b64ToImg(dataUrl){
   });
 }
 
-// --- Player image upload ---
-const _pImgFile=document.getElementById('player-img-file');
-const _pImgBtn=document.getElementById('player-img-btn');
-const _pImgClear=document.getElementById('player-img-clear');
-const _pImgPreview=document.getElementById('player-img-preview');
+const _dotImgFile=document.getElementById('dot-img-file');
+const _dotImgBtn=document.getElementById('dot-img-btn');
+const _dotImgClear=document.getElementById('dot-img-clear');
+const _dotImgPreview=document.getElementById('dot-img-preview');
+let dotImgData=null; // current image in editor
 
-function updatePlayerImgUI(){
-  if(player.spriteImgData){
-    _pImgClear.style.display='';
-    _pImgPreview.innerHTML=`<img src="${player.spriteImgData}" class="sprite-preview">`;
+function updateDotImgUI(){
+  if(dotImgData){
+    _dotImgClear.style.display='';
+    _dotImgPreview.innerHTML=`<img src="${dotImgData}" class="sprite-preview">`;
   }else{
-    _pImgClear.style.display='none';
-    _pImgPreview.innerHTML='';
+    _dotImgClear.style.display='none';
+    _dotImgPreview.innerHTML='';
   }
 }
 
-_pImgBtn.addEventListener('click',()=>_pImgFile.click());
-_pImgFile.addEventListener('change',async e=>{
+_dotImgBtn.addEventListener('click',()=>_dotImgFile.click());
+_dotImgFile.addEventListener('change',async e=>{
   const file=e.target.files[0];if(!file)return;
   const dataUrl=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file);});
-  player.spriteImgData=dataUrl;
-  player.spriteImg=await b64ToImg(dataUrl);
-  try{localStorage.setItem('my-game:player-img',dataUrl);}catch(e){}
-  updatePlayerImgUI();
-  _pImgFile.value='';
+  dotImgData=dataUrl;
+  updateDotImgUI();
+  _dotImgFile.value='';
 });
-_pImgClear.addEventListener('click',()=>{
-  player.spriteImgData=null;
-  player.spriteImg=null;
-  try{localStorage.removeItem('my-game:player-img');}catch(e){}
-  updatePlayerImgUI();
+_dotImgClear.addEventListener('click',()=>{
+  dotImgData=null;
+  updateDotImgUI();
 });
 
-// Load player image on startup
-try{
-  const pImg=localStorage.getItem('my-game:player-img');
-  if(pImg){
-    player.spriteImgData=pImg;
-    b64ToImg(pImg).then(img=>{if(img)player.spriteImg=img;});
-  }
-}catch(e){}
-updatePlayerImgUI();
-
-// --- NPC image upload in form ---
-let npcFormImgData=null;
-const _fSpriteImg=document.getElementById('f-sprite-img');
-const _btnSpriteImg=document.getElementById('btn-sprite-img');
-const _btnSpriteImgClear=document.getElementById('btn-sprite-img-clear');
-const _fSpritePreview=document.getElementById('f-sprite-preview');
-
-function updateNpcFormImgUI(){
-  if(npcFormImgData){
-    _btnSpriteImgClear.style.display='';
-    _fSpritePreview.innerHTML=`<img src="${npcFormImgData}" class="sprite-preview">`;
-  }else{
-    _btnSpriteImgClear.style.display='none';
-    _fSpritePreview.innerHTML='';
-  }
-}
-
-_btnSpriteImg.addEventListener('click',()=>_fSpriteImg.click());
-_fSpriteImg.addEventListener('change',async e=>{
-  const file=e.target.files[0];if(!file)return;
-  const dataUrl=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file);});
-  npcFormImgData=dataUrl;
-  updateNpcFormImgUI();
-  _fSpriteImg.value='';
-});
-_btnSpriteImgClear.addEventListener('click',()=>{
-  npcFormImgData=null;
-  updateNpcFormImgUI();
-});
-
-// Patch createNPCFromForm to include image
-const _origCreateNPCFromForm=createNPCFromForm;
-createNPCFromForm=async function(){
-  const imgData=npcFormImgData;
-  _origCreateNPCFromForm();
-  // Find the NPC just created/edited and attach image
-  if(imgData){
-    const npc=npcs[npcs.length-1];
-    if(npc){
-      npc.spriteImgData=imgData;
-      npc.spriteImg=await b64ToImg(imgData);
-      saveNpcImages();
-    }
-  }
-  npcFormImgData=null;
-  updateNpcFormImgUI();
+// Patch openDotEditor to load existing image
+const _origOpenDotEditor=openDotEditor;
+openDotEditor=function(target,existingPixels){
+  // Load existing image for this target
+  if(target.type==='player'){dotImgData=player.spriteImgData||null;}
+  else{dotImgData=npcs[target.index].spriteImgData||null;}
+  updateDotImgUI();
+  _origOpenDotEditor(target,existingPixels);
 };
+
+// Patch dot-apply to also save uploaded image
+const _origDotApply=document.getElementById('dot-apply').onclick;
+document.getElementById('dot-apply').onclick=null;
+document.getElementById('dot-apply').addEventListener('click',async()=>{
+  if(!dotTarget)return;
+  // Save dot pixels
+  const hasPixels=dotPixels.some(p=>p!==null);
+  const spriteData=hasPixels?[...dotPixels]:null;
+  if(dotTarget.type==='player'){
+    player.sprite=spriteData;
+    player.spriteCanvas=spriteData?dotToImageData():null;
+    try{localStorage.setItem('my-game:player-sprite',JSON.stringify(spriteData));}catch(e){}
+    // Save uploaded image
+    player.spriteImgData=dotImgData;
+    player.spriteImg=dotImgData?await b64ToImg(dotImgData):null;
+    try{if(dotImgData)localStorage.setItem('my-game:player-img',dotImgData);else localStorage.removeItem('my-game:player-img');}catch(e){}
+  }else{
+    const npc=npcs[dotTarget.index];
+    npc.sprite=spriteData;
+    npc.spriteCanvas=spriteData?dotToImageData():null;
+    saveNpcSprites();
+    // Save uploaded image
+    npc.spriteImgData=dotImgData;
+    npc.spriteImg=dotImgData?await b64ToImg(dotImgData):null;
+    saveNpcImages();
+  }
+  closeDotEditor();
+});
+
+// Patch dot-reset to also clear uploaded image
+const _dotResetEl=document.getElementById('dot-reset');
+const _dotResetClone=_dotResetEl.cloneNode(true);
+_dotResetEl.parentNode.replaceChild(_dotResetClone,_dotResetEl);
+_dotResetClone.addEventListener('click',()=>{
+  if(!dotTarget)return;
+  if(dotTarget.type==='player'){
+    player.sprite=null;player.spriteCanvas=null;
+    player.spriteImgData=null;player.spriteImg=null;
+    try{localStorage.removeItem('my-game:player-sprite');localStorage.removeItem('my-game:player-img');}catch(e){}
+  }else{
+    const npc=npcs[dotTarget.index];
+    npc.sprite=null;npc.spriteCanvas=null;
+    npc.spriteImgData=null;npc.spriteImg=null;
+    saveNpcSprites();saveNpcImages();
+  }
+  closeDotEditor();
+});
 
 // Save/load NPC images to localStorage
 function saveNpcImages(){
@@ -2272,34 +2233,14 @@ function loadNpcImages(){
   }catch(e){}
 }
 
-// Add image upload/clear to NPC card buttons
-const _origRenderNPCList2=renderNPCList;
-renderNPCList=function(){
-  _origRenderNPCList2();
-  const list=document.getElementById('npc-list');
-  list.querySelectorAll('.npc-sprite').forEach(btn=>{
-    const idx=parseInt(btn.dataset.idx);
-    const npc=npcs[idx];
-    if(!npc)return;
-    // Add small image indicator
-    if(npc.spriteImgData){
-      const ind=document.createElement('img');
-      ind.src=npc.spriteImgData;
-      ind.className='sprite-preview';
-      ind.style.cssText='width:24px;height:24px;vertical-align:middle;margin-left:4px';
-      btn.parentNode.insertBefore(ind,btn);
-    }
-  });
-};
-renderNPCList();
-
-// Reset form image when opening
-const _origShowCreateForm=showCreateForm;
-showCreateForm=function(){
-  npcFormImgData=null;
-  updateNpcFormImgUI();
-  _origShowCreateForm();
-};
+// Load player image on startup
+try{
+  const pImg=localStorage.getItem('my-game:player-img');
+  if(pImg){
+    player.spriteImgData=pImg;
+    b64ToImg(pImg).then(img=>{if(img)player.spriteImg=img;});
+  }
+}catch(e){}
 
 </script>
 </body>
