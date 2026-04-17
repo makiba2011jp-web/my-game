@@ -105,8 +105,8 @@
   #dot-editor{background:linear-gradient(180deg,#101030,#0a0a20);border:4px solid #88a;border-radius:14px;padding:16px;max-width:95vw;max-height:95vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;align-items:center}
   #dot-editor h3{color:#aaf;font-size:16px;margin:0;text-align:center}
   #dot-canvas{border:2px solid #556;cursor:crosshair;image-rendering:pixelated;touch-action:none}
-  #dot-palette{display:flex;flex-wrap:wrap;gap:3px;max-width:320px;justify-content:center}
-  .pal-color{width:28px;height:28px;border:2px solid #333;border-radius:4px;cursor:pointer}
+  #dot-palette{display:flex;flex-wrap:wrap;gap:3px;max-width:520px;justify-content:center}
+  .pal-color{width:24px;height:24px;border:2px solid #333;border-radius:3px;cursor:pointer}
   .pal-color.active{border-color:#fff;box-shadow:0 0 6px #fff}
   #dot-tools{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
   #dot-tools button{padding:6px 12px;font-family:'DotGothic16',monospace;font-size:12px;background:linear-gradient(180deg,#2a3a60,#1a2a50);color:#fff;border:2px solid #556;border-radius:6px;cursor:pointer}
@@ -1817,9 +1817,23 @@ updatePlayerPanel();
 // ================================================================
 const DOT_SIZE=32, DOT_PX=16;
 const DOT_PALETTE=[
-  '#000000','#ffffff','#ff0000','#00aa00','#0000ff','#ffff00',
-  '#ff8800','#aa00ff','#00cccc','#ff66aa','#884400','#668844',
-  '#3366cc','#cc7030','#fdd8c0','#c8a040'
+  // 基本
+  '#000000','#333333','#666666','#999999','#cccccc','#ffffff',
+  // 赤系
+  '#ff0000','#cc0000','#880000','#ff6666','#ff3366','#ff66aa',
+  // オレンジ・黄系
+  '#ff8800','#ffaa00','#ffcc00','#ffff00','#ffee66','#ffffaa',
+  // 緑系
+  '#00ff00','#00aa00','#006600','#668844','#44cc44','#aaffaa',
+  // 青系
+  '#0000ff','#3366cc','#0066cc','#00aaff','#6688ff','#aaccff',
+  // 紫・ピンク系
+  '#aa00ff','#6600aa','#cc44ff','#ff44cc','#ff88dd','#ddaaff',
+  // シアン・水色
+  '#00cccc','#00ffff','#66ffff','#008888',
+  // 肌・茶系
+  '#fdd8c0','#f5c4a0','#d4a070','#c8a040','#cc7030','#884400',
+  '#663300','#442200','#6b4226','#a0522d'
 ];
 const dotOverlay=document.getElementById('dot-editor-overlay');
 const dotCv=document.getElementById('dot-canvas');
