@@ -1769,8 +1769,7 @@ _fImg.addEventListener('change',async e=>{
   }finally{_btnImport.disabled=false;_fImg.value='';}
 });
 
-// Load persisted state on startup
-loadState();  // async, renders NPC list when done
+// loadState is called at the end of the script after all patches are applied
 // API key persistence
 const _apiKeyInput=document.getElementById('api-key');
 try{const k=localStorage.getItem(API_KEY_STORAGE);if(k)_apiKeyInput.value=k;}catch(e){}
@@ -2266,6 +2265,9 @@ try{
     b64ToImg(pImg).then(img=>{if(img)player.spriteImg=img;});
   }
 }catch(e){}
+
+// Load persisted state (must be after all patches)
+loadState();
 
 </script>
 </body>
