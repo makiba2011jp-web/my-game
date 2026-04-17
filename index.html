@@ -124,6 +124,11 @@
   #dot-target-label{color:#ccc;font-size:12px}
   #player-sprite-btn{width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:linear-gradient(180deg,#3a2a60,#2a1a50);color:#fff;border:2px solid #86a;border-radius:6px;cursor:pointer}
   #player-sprite-btn:hover{background:linear-gradient(180deg,#4a3a80,#3a2a60);border-color:#a8c}
+  .sprite-upload-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:4px 0}
+  .sprite-upload-row label{color:#aac;font-size:12px;width:100%}
+  .sprite-upload-row button{padding:4px 10px;font-family:'DotGothic16',monospace;font-size:11px;background:#2a3a60;color:#fff;border:1px solid #556;border-radius:4px;cursor:pointer}
+  .sprite-upload-row button:hover{background:#3a4a80}
+  .sprite-preview{width:48px;height:48px;image-rendering:pixelated;border:1px solid #556;border-radius:4px;background:#0a0a20}
 
   /* ---- Mobile ---- */
   #dpad{display:none;align-items:center;justify-content:space-between;padding:8px 12px;background:#08081a;border-top:2px solid #334;gap:10px;flex-shrink:0}
@@ -236,6 +241,13 @@
   <h2>NPC リスト</h2>
   <div id="npc-list"><div class="npc-empty">NPCがいません</div></div>
   <button id="player-sprite-btn">キャラ編集（主人公）</button>
+  <div class="sprite-upload-row">
+    <label>主人公画像:</label>
+    <input type="file" id="player-img-file" accept="image/*" style="display:none">
+    <button type="button" id="player-img-btn">画像アップロード</button>
+    <button type="button" id="player-img-clear" style="display:none">画像削除</button>
+    <div id="player-img-preview"></div>
+  </div>
   <button id="npc-create-btn">＋ NPCを作成</button>
   <div id="npc-form">
     <label>画像から自動入力（キャラステータスSS）</label>
@@ -248,6 +260,13 @@
     <input type="text" id="f-name" placeholder="NPCの名前" maxlength="20">
     <label>性格・設定（AIプロンプト）</label>
     <textarea id="f-personality" placeholder="このNPCの性格や背景を入力...&#10;例: 陽気な商人。「いらっしゃい！」が口癖。" rows="4"></textarea>
+    <label>スプライト画像（任意）</label>
+    <div class="sprite-upload-row">
+      <input type="file" id="f-sprite-img" accept="image/*" style="display:none">
+      <button type="button" id="btn-sprite-img">画像アップロード</button>
+      <button type="button" id="btn-sprite-img-clear" style="display:none">削除</button>
+      <div id="f-sprite-preview"></div>
+    </div>
     <label>外見</label>
     <div class="color-row">
       <input type="color" id="f-color" value="#cc7030">
@@ -2086,38 +2105,39 @@ try{
   }
 }catch(e){}
 
-// Patch drawPlayer2 to use custom sprite
+// Patch drawPlayer2 to use custom sprite or uploaded image
 const _origDrawPlayer2=drawPlayer2;
 drawPlayer2=function(){
+  if(player.spriteImg){drawCustomSprite(player.px,player.py,player.spriteImg);return;}
   if(player.spriteCanvas){drawCustomSprite(player.px,player.py,player.spriteCanvas);return;}
   _origDrawPlayer2();
 };
 
-// Patch drawNPC2 to use custom sprite
+// NPC name/bubble overlay helper
+function drawNpcOverlay(npc){
+  c.save();c.translate(npc.x*S,npc.y*S);c.scale(SC,SC);
+  const dx=Math.abs(player.x-npc.x),dy=Math.abs(player.y-npc.y);
+  if(dx+dy<=2&&!chatOpen){
+    const bx=48,by=-26+Math.sin(Date.now()/400)*4;
+    c.fillStyle='rgba(255,255,255,.88)';c.beginPath();c.arc(bx,by,13,0,Math.PI*2);c.fill();
+    c.beginPath();c.moveTo(bx-4,by+11);c.lineTo(bx+4,by+11);c.lineTo(bx,by+18);c.fill();
+    c.fillStyle='#d44';c.font='bold 16px "DotGothic16",monospace';c.textAlign='center';
+    c.fillText('!',bx,by+6);
+  }
+  c.font='bold 11px "DotGothic16",monospace';c.textAlign='center';
+  const nm=npc.name||'NPC';
+  const tw=c.measureText(nm).width;
+  c.fillStyle='rgba(0,0,20,.7)';c.fillRect(48-tw/2-4,-6,tw+8,14);
+  c.strokeStyle='#446';c.lineWidth=1;c.strokeRect(48-tw/2-4,-6,tw+8,14);
+  c.fillStyle='#eef';c.fillText(nm,48,5);
+  c.restore();
+}
+
+// Patch drawNPC2 to use custom sprite or uploaded image
 const _origDrawNPC2=drawNPC2;
 drawNPC2=function(npc){
-  if(npc.spriteCanvas){
-    drawCustomSprite(npc.x,npc.y,npc.spriteCanvas);
-    // Still draw name bubble
-    c.save();c.translate(npc.x*S,npc.y*S);c.scale(SC,SC);
-    const dx=Math.abs(player.x-npc.x),dy=Math.abs(player.y-npc.y);
-    if(dx+dy<=2&&!chatOpen){
-      const bx=48,by=-26+Math.sin(Date.now()/400)*4;
-      c.fillStyle='rgba(255,255,255,.88)';c.beginPath();c.arc(bx,by,13,0,Math.PI*2);c.fill();
-      c.beginPath();c.moveTo(bx-4,by+11);c.lineTo(bx+4,by+11);c.lineTo(bx,by+18);c.fill();
-      c.fillStyle='#d44';c.font='bold 16px "DotGothic16",monospace';c.textAlign='center';
-      c.fillText('!',bx,by+6);
-    }
-    // name label
-    c.font='bold 11px "DotGothic16",monospace';c.textAlign='center';
-    const nm=npc.name||'NPC';
-    const tw=c.measureText(nm).width;
-    c.fillStyle='rgba(0,0,20,.7)';c.fillRect(48-tw/2-4,-6,tw+8,14);
-    c.strokeStyle='#446';c.lineWidth=1;c.strokeRect(48-tw/2-4,-6,tw+8,14);
-    c.fillStyle='#eef';c.fillText(nm,48,5);
-    c.restore();
-    return;
-  }
+  if(npc.spriteImg){drawCustomSprite(npc.x,npc.y,npc.spriteImg);drawNpcOverlay(npc);return;}
+  if(npc.spriteCanvas){drawCustomSprite(npc.x,npc.y,npc.spriteCanvas);drawNpcOverlay(npc);return;}
   _origDrawNPC2(npc);
 };
 
@@ -2126,8 +2146,160 @@ const _origLoadState=loadState;
 loadState=async function(){
   await _origLoadState();
   loadNpcSprites();
+  loadNpcImages();
 };
 
+// ================================================================
+//  SPRITE IMAGE UPLOAD
+// ================================================================
+function b64ToImg(dataUrl){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>resolve(null);
+    img.src=dataUrl;
+  });
+}
+
+// --- Player image upload ---
+const _pImgFile=document.getElementById('player-img-file');
+const _pImgBtn=document.getElementById('player-img-btn');
+const _pImgClear=document.getElementById('player-img-clear');
+const _pImgPreview=document.getElementById('player-img-preview');
+
+function updatePlayerImgUI(){
+  if(player.spriteImgData){
+    _pImgClear.style.display='';
+    _pImgPreview.innerHTML=`<img src="${player.spriteImgData}" class="sprite-preview">`;
+  }else{
+    _pImgClear.style.display='none';
+    _pImgPreview.innerHTML='';
+  }
+}
+
+_pImgBtn.addEventListener('click',()=>_pImgFile.click());
+_pImgFile.addEventListener('change',async e=>{
+  const file=e.target.files[0];if(!file)return;
+  const dataUrl=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file);});
+  player.spriteImgData=dataUrl;
+  player.spriteImg=await b64ToImg(dataUrl);
+  try{localStorage.setItem('my-game:player-img',dataUrl);}catch(e){}
+  updatePlayerImgUI();
+  _pImgFile.value='';
+});
+_pImgClear.addEventListener('click',()=>{
+  player.spriteImgData=null;
+  player.spriteImg=null;
+  try{localStorage.removeItem('my-game:player-img');}catch(e){}
+  updatePlayerImgUI();
+});
+
+// Load player image on startup
+try{
+  const pImg=localStorage.getItem('my-game:player-img');
+  if(pImg){
+    player.spriteImgData=pImg;
+    b64ToImg(pImg).then(img=>{if(img)player.spriteImg=img;});
+  }
+}catch(e){}
+updatePlayerImgUI();
+
+// --- NPC image upload in form ---
+let npcFormImgData=null;
+const _fSpriteImg=document.getElementById('f-sprite-img');
+const _btnSpriteImg=document.getElementById('btn-sprite-img');
+const _btnSpriteImgClear=document.getElementById('btn-sprite-img-clear');
+const _fSpritePreview=document.getElementById('f-sprite-preview');
+
+function updateNpcFormImgUI(){
+  if(npcFormImgData){
+    _btnSpriteImgClear.style.display='';
+    _fSpritePreview.innerHTML=`<img src="${npcFormImgData}" class="sprite-preview">`;
+  }else{
+    _btnSpriteImgClear.style.display='none';
+    _fSpritePreview.innerHTML='';
+  }
+}
+
+_btnSpriteImg.addEventListener('click',()=>_fSpriteImg.click());
+_fSpriteImg.addEventListener('change',async e=>{
+  const file=e.target.files[0];if(!file)return;
+  const dataUrl=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file);});
+  npcFormImgData=dataUrl;
+  updateNpcFormImgUI();
+  _fSpriteImg.value='';
+});
+_btnSpriteImgClear.addEventListener('click',()=>{
+  npcFormImgData=null;
+  updateNpcFormImgUI();
+});
+
+// Patch createNPCFromForm to include image
+const _origCreateNPCFromForm=createNPCFromForm;
+createNPCFromForm=async function(){
+  const imgData=npcFormImgData;
+  _origCreateNPCFromForm();
+  // Find the NPC just created/edited and attach image
+  if(imgData){
+    const npc=npcs[npcs.length-1];
+    if(npc){
+      npc.spriteImgData=imgData;
+      npc.spriteImg=await b64ToImg(imgData);
+      saveNpcImages();
+    }
+  }
+  npcFormImgData=null;
+  updateNpcFormImgUI();
+};
+
+// Save/load NPC images to localStorage
+function saveNpcImages(){
+  const sd={};
+  npcs.forEach(n=>{if(n.spriteImgData)sd[n.id]=n.spriteImgData;});
+  try{localStorage.setItem('my-game:npc-images',JSON.stringify(sd));}catch(e){}
+}
+function loadNpcImages(){
+  try{
+    const raw=localStorage.getItem('my-game:npc-images');
+    if(!raw)return;
+    const sd=JSON.parse(raw);
+    npcs.forEach(n=>{
+      if(sd[n.id]){
+        n.spriteImgData=sd[n.id];
+        b64ToImg(sd[n.id]).then(img=>{if(img)n.spriteImg=img;});
+      }
+    });
+  }catch(e){}
+}
+
+// Add image upload/clear to NPC card buttons
+const _origRenderNPCList2=renderNPCList;
+renderNPCList=function(){
+  _origRenderNPCList2();
+  const list=document.getElementById('npc-list');
+  list.querySelectorAll('.npc-sprite').forEach(btn=>{
+    const idx=parseInt(btn.dataset.idx);
+    const npc=npcs[idx];
+    if(!npc)return;
+    // Add small image indicator
+    if(npc.spriteImgData){
+      const ind=document.createElement('img');
+      ind.src=npc.spriteImgData;
+      ind.className='sprite-preview';
+      ind.style.cssText='width:24px;height:24px;vertical-align:middle;margin-left:4px';
+      btn.parentNode.insertBefore(ind,btn);
+    }
+  });
+};
+renderNPCList();
+
+// Reset form image when opening
+const _origShowCreateForm=showCreateForm;
+showCreateForm=function(){
+  npcFormImgData=null;
+  updateNpcFormImgUI();
+  _origShowCreateForm();
+};
 
 </script>
 </body>
