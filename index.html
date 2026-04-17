@@ -2190,25 +2190,23 @@ const _origDotApply=document.getElementById('dot-apply').onclick;
 document.getElementById('dot-apply').onclick=null;
 document.getElementById('dot-apply').addEventListener('click',async()=>{
   if(!dotTarget)return;
-  // Save dot pixels
   const hasPixels=dotPixels.some(p=>p!==null);
   const spriteData=hasPixels?[...dotPixels]:null;
+  // Always use dot canvas result — clear uploaded image so canvas takes priority
   if(dotTarget.type==='player'){
     player.sprite=spriteData;
     player.spriteCanvas=spriteData?dotToImageData():null;
     try{localStorage.setItem('my-game:player-sprite',JSON.stringify(spriteData));}catch(e){}
-    // Save uploaded image
-    player.spriteImgData=dotImgData;
-    player.spriteImg=dotImgData?await b64ToImg(dotImgData):null;
-    try{if(dotImgData)localStorage.setItem('my-game:player-img',dotImgData);else localStorage.removeItem('my-game:player-img');}catch(e){}
+    player.spriteImgData=null;
+    player.spriteImg=null;
+    try{localStorage.removeItem('my-game:player-img');}catch(e){}
   }else{
     const npc=npcs[dotTarget.index];
     npc.sprite=spriteData;
     npc.spriteCanvas=spriteData?dotToImageData():null;
     saveNpcSprites();
-    // Save uploaded image
-    npc.spriteImgData=dotImgData;
-    npc.spriteImg=dotImgData?await b64ToImg(dotImgData):null;
+    npc.spriteImgData=null;
+    npc.spriteImg=null;
     saveNpcImages();
   }
   closeDotEditor();
