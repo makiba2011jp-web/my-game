@@ -97,6 +97,30 @@
   #btn-form-cancel:hover{background:linear-gradient(180deg,#803030,#602020)}
   .npc-empty{color:#556;font-size:13px;text-align:center;padding:16px 0}
 
+  /* ---- Dot Editor ---- */
+  #dot-editor-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center}
+  #dot-editor-overlay.open{display:flex}
+  #dot-editor{background:linear-gradient(180deg,#101030,#0a0a20);border:4px solid #88a;border-radius:14px;padding:16px;max-width:95vw;max-height:95vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;align-items:center}
+  #dot-editor h3{color:#aaf;font-size:16px;margin:0;text-align:center}
+  #dot-canvas{border:2px solid #556;cursor:crosshair;image-rendering:pixelated;touch-action:none}
+  #dot-palette{display:flex;flex-wrap:wrap;gap:3px;max-width:320px;justify-content:center}
+  .pal-color{width:28px;height:28px;border:2px solid #333;border-radius:4px;cursor:pointer}
+  .pal-color.active{border-color:#fff;box-shadow:0 0 6px #fff}
+  #dot-tools{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+  #dot-tools button{padding:6px 12px;font-family:'DotGothic16',monospace;font-size:12px;background:linear-gradient(180deg,#2a3a60,#1a2a50);color:#fff;border:2px solid #556;border-radius:6px;cursor:pointer}
+  #dot-tools button.active{border-color:#8af;background:linear-gradient(180deg,#3a5a90,#2a4a70)}
+  #dot-tools button:hover{border-color:#88c}
+  #dot-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  #dot-actions button{padding:8px 16px;font-family:'DotGothic16',monospace;font-size:13px;border-radius:6px;cursor:pointer}
+  #dot-apply{background:linear-gradient(180deg,#2a6a30,#1a5a20);color:#fff;border:2px solid #6a6}
+  #dot-apply:hover{background:linear-gradient(180deg,#3a8a40,#2a6a30)}
+  #dot-close{background:linear-gradient(180deg,#602020,#501818);color:#fff;border:2px solid #a66}
+  #dot-close:hover{background:linear-gradient(180deg,#803030,#602020)}
+  #dot-grid-toggle{font-size:11px;color:#888;cursor:pointer;user-select:none}
+  #dot-target-label{color:#ccc;font-size:12px}
+  #player-sprite-btn{width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:linear-gradient(180deg,#3a2a60,#2a1a50);color:#fff;border:2px solid #86a;border-radius:6px;cursor:pointer}
+  #player-sprite-btn:hover{background:linear-gradient(180deg,#4a3a80,#3a2a60);border-color:#a8c}
+
   /* ---- Mobile ---- */
   #dpad{display:none;align-items:center;justify-content:space-between;padding:8px 12px;background:#08081a;border-top:2px solid #334;gap:10px;flex-shrink:0}
   #dpad-grid{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,56px);gap:3px}
@@ -207,6 +231,7 @@
   <button id="mobile-close-panel">✕ 閉じる</button>
   <h2>NPC リスト</h2>
   <div id="npc-list"><div class="npc-empty">NPCがいません</div></div>
+  <button id="player-sprite-btn">キャラ編集（主人公）</button>
   <button id="npc-create-btn">＋ NPCを作成</button>
   <div id="npc-form">
     <label>画像から自動入力（キャラステータスSS）</label>
@@ -238,6 +263,25 @@
     <div class="form-btns">
       <button id="btn-form-ok">作成して配置</button>
       <button id="btn-form-cancel">キャンセル</button>
+    </div>
+  </div>
+</div>
+<div id="dot-editor-overlay">
+  <div id="dot-editor">
+    <h3 id="dot-editor-title">ドット絵エディタ</h3>
+    <span id="dot-target-label"></span>
+    <canvas id="dot-canvas" width="512" height="512"></canvas>
+    <label id="dot-grid-toggle"><input type="checkbox" id="dot-grid-chk" checked> グリッド表示</label>
+    <div id="dot-palette"></div>
+    <div id="dot-tools">
+      <button id="dtool-pen" class="active">ペン</button>
+      <button id="dtool-eraser">消しゴム</button>
+      <button id="dtool-fill">塗りつぶし</button>
+      <button id="dtool-undo">元に戻す</button>
+    </div>
+    <div id="dot-actions">
+      <button id="dot-apply">キャラに反映</button>
+      <button id="dot-close">閉じる</button>
     </div>
   </div>
 </div>
@@ -1755,6 +1799,317 @@ saveState=function(){_origSaveState();updatePlayerPanel();};
 const _origUpdateBattleUI=updateBattleUI;
 updateBattleUI=function(){_origUpdateBattleUI();updatePlayerPanel();};
 updatePlayerPanel();
+
+// ================================================================
+//  DOT EDITOR
+// ================================================================
+const DOT_SIZE=32, DOT_PX=16;
+const DOT_PALETTE=[
+  '#000000','#ffffff','#ff0000','#00aa00','#0000ff','#ffff00',
+  '#ff8800','#aa00ff','#00cccc','#ff66aa','#884400','#668844',
+  '#3366cc','#cc7030','#fdd8c0','#c8a040'
+];
+const dotOverlay=document.getElementById('dot-editor-overlay');
+const dotCv=document.getElementById('dot-canvas');
+const dotCtx=dotCv.getContext('2d');
+let dotPixels=new Array(DOT_SIZE*DOT_SIZE).fill(null);
+let dotHistory=[];
+let dotTool='pen';
+let dotColor=DOT_PALETTE[0];
+let dotGridOn=true;
+let dotTarget=null; // {type:'player'} or {type:'npc',index:number}
+let dotDrawing=false;
+
+// Build palette UI
+const palEl=document.getElementById('dot-palette');
+DOT_PALETTE.forEach((col,i)=>{
+  const d=document.createElement('div');
+  d.className='pal-color'+(i===0?' active':'');
+  d.style.background=col;
+  d.addEventListener('click',()=>{
+    dotColor=col;
+    palEl.querySelectorAll('.pal-color').forEach(e=>e.classList.remove('active'));
+    d.classList.add('active');
+    if(dotTool==='eraser')setDotTool('pen');
+  });
+  palEl.appendChild(d);
+});
+
+function setDotTool(t){
+  dotTool=t;
+  document.querySelectorAll('#dot-tools button').forEach(b=>b.classList.remove('active'));
+  const id={pen:'dtool-pen',eraser:'dtool-eraser',fill:'dtool-fill'}[t];
+  if(id)document.getElementById(id).classList.add('active');
+}
+document.getElementById('dtool-pen').addEventListener('click',()=>setDotTool('pen'));
+document.getElementById('dtool-eraser').addEventListener('click',()=>setDotTool('eraser'));
+document.getElementById('dtool-fill').addEventListener('click',()=>setDotTool('fill'));
+document.getElementById('dtool-undo').addEventListener('click',()=>{
+  if(dotHistory.length>0){dotPixels=dotHistory.pop();renderDotCanvas();}
+});
+
+document.getElementById('dot-grid-chk').addEventListener('change',e=>{
+  dotGridOn=e.target.checked;renderDotCanvas();
+});
+
+function pushDotHistory(){
+  dotHistory.push([...dotPixels]);
+  if(dotHistory.length>50)dotHistory.shift();
+}
+
+function renderDotCanvas(){
+  dotCtx.clearRect(0,0,dotCv.width,dotCv.height);
+  // draw checkerboard bg for transparency
+  for(let y=0;y<DOT_SIZE;y++)for(let x=0;x<DOT_SIZE;x++){
+    const even=(x+y)%2===0;
+    dotCtx.fillStyle=even?'#2a2a3a':'#222238';
+    dotCtx.fillRect(x*DOT_PX,y*DOT_PX,DOT_PX,DOT_PX);
+  }
+  // draw pixels
+  for(let i=0;i<dotPixels.length;i++){
+    if(dotPixels[i]){
+      dotCtx.fillStyle=dotPixels[i];
+      dotCtx.fillRect((i%DOT_SIZE)*DOT_PX,Math.floor(i/DOT_SIZE)*DOT_PX,DOT_PX,DOT_PX);
+    }
+  }
+  // grid
+  if(dotGridOn){
+    dotCtx.strokeStyle='rgba(255,255,255,.12)';
+    dotCtx.lineWidth=0.5;
+    for(let i=0;i<=DOT_SIZE;i++){
+      dotCtx.beginPath();dotCtx.moveTo(i*DOT_PX,0);dotCtx.lineTo(i*DOT_PX,DOT_SIZE*DOT_PX);dotCtx.stroke();
+      dotCtx.beginPath();dotCtx.moveTo(0,i*DOT_PX);dotCtx.lineTo(DOT_SIZE*DOT_PX,i*DOT_PX);dotCtx.stroke();
+    }
+  }
+}
+
+function getDotPos(e){
+  const rect=dotCv.getBoundingClientRect();
+  const sx=dotCv.width/rect.width, sy=dotCv.height/rect.height;
+  let cx,cy;
+  if(e.touches){cx=e.touches[0].clientX;cy=e.touches[0].clientY;}
+  else{cx=e.clientX;cy=e.clientY;}
+  const x=Math.floor((cx-rect.left)*sx/DOT_PX);
+  const y=Math.floor((cy-rect.top)*sy/DOT_PX);
+  if(x<0||y<0||x>=DOT_SIZE||y>=DOT_SIZE)return null;
+  return {x,y};
+}
+
+function dotPaint(pos){
+  if(!pos)return;
+  const i=pos.y*DOT_SIZE+pos.x;
+  if(dotTool==='pen'){dotPixels[i]=dotColor;}
+  else if(dotTool==='eraser'){dotPixels[i]=null;}
+  renderDotCanvas();
+}
+
+function dotFloodFill(pos){
+  if(!pos)return;
+  const i=pos.y*DOT_SIZE+pos.x;
+  const target=dotPixels[i];
+  if(target===dotColor)return;
+  pushDotHistory();
+  const stack=[i];
+  const visited=new Set();
+  while(stack.length>0){
+    const ci=stack.pop();
+    if(ci<0||ci>=DOT_SIZE*DOT_SIZE||visited.has(ci))continue;
+    if(dotPixels[ci]!==target)continue;
+    visited.add(ci);
+    dotPixels[ci]=dotColor;
+    const cx=ci%DOT_SIZE,cy=Math.floor(ci/DOT_SIZE);
+    if(cx>0)stack.push(ci-1);
+    if(cx<DOT_SIZE-1)stack.push(ci+1);
+    if(cy>0)stack.push(ci-DOT_SIZE);
+    if(cy<DOT_SIZE-1)stack.push(ci+DOT_SIZE);
+  }
+  renderDotCanvas();
+}
+
+dotCv.addEventListener('mousedown',e=>{
+  const pos=getDotPos(e);
+  if(dotTool==='fill'){dotFloodFill(pos);return;}
+  pushDotHistory();dotDrawing=true;dotPaint(pos);
+});
+dotCv.addEventListener('mousemove',e=>{if(dotDrawing)dotPaint(getDotPos(e));});
+dotCv.addEventListener('mouseup',()=>{dotDrawing=false;});
+dotCv.addEventListener('mouseleave',()=>{dotDrawing=false;});
+dotCv.addEventListener('touchstart',e=>{
+  e.preventDefault();const pos=getDotPos(e);
+  if(dotTool==='fill'){dotFloodFill(pos);return;}
+  pushDotHistory();dotDrawing=true;dotPaint(pos);
+},{passive:false});
+dotCv.addEventListener('touchmove',e=>{e.preventDefault();if(dotDrawing)dotPaint(getDotPos(e));},{passive:false});
+dotCv.addEventListener('touchend',()=>{dotDrawing=false;});
+
+document.addEventListener('keydown',e=>{
+  if(!dotOverlay.classList.contains('open'))return;
+  if(e.ctrlKey&&e.key==='z'){
+    e.preventDefault();
+    if(dotHistory.length>0){dotPixels=dotHistory.pop();renderDotCanvas();}
+  }
+});
+
+// Convert dotPixels to a sprite ImageData for game rendering
+function dotToImageData(){
+  const cv2=document.createElement('canvas');cv2.width=DOT_SIZE;cv2.height=DOT_SIZE;
+  const ctx2=cv2.getContext('2d');
+  for(let i=0;i<dotPixels.length;i++){
+    if(dotPixels[i]){
+      ctx2.fillStyle=dotPixels[i];
+      ctx2.fillRect(i%DOT_SIZE,Math.floor(i/DOT_SIZE),1,1);
+    }
+  }
+  return cv2;
+}
+
+function openDotEditor(target,existingPixels){
+  dotTarget=target;
+  dotHistory=[];
+  if(existingPixels)dotPixels=[...existingPixels];
+  else dotPixels=new Array(DOT_SIZE*DOT_SIZE).fill(null);
+  const label=document.getElementById('dot-target-label');
+  if(target.type==='player')label.textContent='対象: 主人公';
+  else label.textContent='対象: '+npcs[target.index].name;
+  dotOverlay.classList.add('open');
+  renderDotCanvas();
+}
+
+function closeDotEditor(){
+  dotOverlay.classList.remove('open');
+  dotTarget=null;
+}
+
+// Apply sprite
+document.getElementById('dot-apply').addEventListener('click',()=>{
+  if(!dotTarget)return;
+  const hasPixels=dotPixels.some(p=>p!==null);
+  const spriteData=hasPixels?[...dotPixels]:null;
+  if(dotTarget.type==='player'){
+    player.sprite=spriteData;
+    player.spriteCanvas=spriteData?dotToImageData():null;
+    try{localStorage.setItem('my-game:player-sprite',JSON.stringify(spriteData));}catch(e){}
+  }else{
+    const npc=npcs[dotTarget.index];
+    npc.sprite=spriteData;
+    npc.spriteCanvas=spriteData?dotToImageData():null;
+    saveNpcSprites();
+  }
+  closeDotEditor();
+});
+
+document.getElementById('dot-close').addEventListener('click',closeDotEditor);
+
+// Player sprite button
+document.getElementById('player-sprite-btn').addEventListener('click',()=>{
+  openDotEditor({type:'player'},player.sprite||null);
+});
+
+// Draw custom sprite on game canvas
+function drawCustomSprite(tx,ty,spriteCanvas){
+  c.save();
+  c.translate(tx*S,ty*S);
+  c.imageSmoothingEnabled=false;
+  c.drawImage(spriteCanvas,0,0,S,S);
+  c.restore();
+}
+
+// Sprite localStorage helpers
+function saveNpcSprites(){
+  const sd={};
+  npcs.forEach(n=>{if(n.sprite)sd[n.id]=n.sprite;});
+  try{localStorage.setItem('my-game:npc-sprites',JSON.stringify(sd));}catch(e){}
+}
+function loadNpcSprites(){
+  try{
+    const raw=localStorage.getItem('my-game:npc-sprites');
+    if(!raw)return;
+    const sd=JSON.parse(raw);
+    npcs.forEach(n=>{
+      if(sd[n.id]&&sd[n.id].length===DOT_SIZE*DOT_SIZE){
+        n.sprite=sd[n.id];
+        const bk=[...dotPixels];dotPixels=n.sprite;n.spriteCanvas=dotToImageData();dotPixels=bk;
+      }
+    });
+  }catch(e){}
+}
+
+// Load player sprite from localStorage
+try{
+  const ps=localStorage.getItem('my-game:player-sprite');
+  if(ps){
+    const data=JSON.parse(ps);
+    if(data&&data.length===DOT_SIZE*DOT_SIZE){
+      player.sprite=data;
+      const bk=[...dotPixels];dotPixels=data;player.spriteCanvas=dotToImageData();dotPixels=bk;
+    }
+  }
+}catch(e){}
+
+// Patch drawPlayer2 to use custom sprite
+const _origDrawPlayer2=drawPlayer2;
+drawPlayer2=function(){
+  if(player.spriteCanvas){drawCustomSprite(player.px,player.py,player.spriteCanvas);return;}
+  _origDrawPlayer2();
+};
+
+// Patch drawNPC2 to use custom sprite
+const _origDrawNPC2=drawNPC2;
+drawNPC2=function(npc){
+  if(npc.spriteCanvas){
+    drawCustomSprite(npc.x,npc.y,npc.spriteCanvas);
+    // Still draw name bubble
+    c.save();c.translate(npc.x*S,npc.y*S);c.scale(SC,SC);
+    const dx=Math.abs(player.x-npc.x),dy=Math.abs(player.y-npc.y);
+    if(dx+dy<=2&&!chatOpen){
+      const bx=48,by=-26+Math.sin(Date.now()/400)*4;
+      c.fillStyle='rgba(255,255,255,.88)';c.beginPath();c.arc(bx,by,13,0,Math.PI*2);c.fill();
+      c.beginPath();c.moveTo(bx-4,by+11);c.lineTo(bx+4,by+11);c.lineTo(bx,by+18);c.fill();
+      c.fillStyle='#d44';c.font='bold 16px "DotGothic16",monospace';c.textAlign='center';
+      c.fillText('!',bx,by+6);
+    }
+    // name label
+    c.font='bold 11px "DotGothic16",monospace';c.textAlign='center';
+    const nm=npc.name||'NPC';
+    const tw=c.measureText(nm).width;
+    c.fillStyle='rgba(0,0,20,.7)';c.fillRect(48-tw/2-4,-6,tw+8,14);
+    c.strokeStyle='#446';c.lineWidth=1;c.strokeRect(48-tw/2-4,-6,tw+8,14);
+    c.fillStyle='#eef';c.fillText(nm,48,5);
+    c.restore();
+    return;
+  }
+  _origDrawNPC2(npc);
+};
+
+// Rebuild spriteCanvas for NPCs on load
+const _origLoadState=loadState;
+loadState=async function(){
+  await _origLoadState();
+  loadNpcSprites();
+};
+
+// Add NPC sprite edit button in renderNPCList
+const _origRenderNPCList=renderNPCList;
+renderNPCList=function(){
+  _origRenderNPCList();
+  const list=document.getElementById('npc-list');
+  const cards=list.querySelectorAll('.npc-card');
+  cards.forEach((card,i)=>{
+    const btns=card.querySelector('.npc-card-btns');
+    if(!btns)return;
+    const sb=document.createElement('button');
+    sb.textContent='絵';
+    sb.style.cssText='padding:4px 8px;font-family:"DotGothic16",monospace;font-size:11px;background:#2a3a60;color:#fff;border:1px solid #556;border-radius:4px;cursor:pointer';
+    sb.addEventListener('click',e=>{
+      e.stopPropagation();
+      openDotEditor({type:'npc',index:i},npcs[i].sprite||null);
+    });
+    btns.insertBefore(sb,btns.firstChild);
+  });
+};
+// Re-render to add buttons
+renderNPCList();
+
 </script>
 </body>
 </html>
