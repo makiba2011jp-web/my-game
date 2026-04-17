@@ -2143,10 +2143,30 @@ function updateDotImgUI(){
 }
 
 _dotImgBtn.addEventListener('click',()=>_dotImgFile.click());
+function imgToPixels(img){
+  const tc=document.createElement('canvas');tc.width=DOT_SIZE;tc.height=DOT_SIZE;
+  const tx=tc.getContext('2d');
+  tx.imageSmoothingEnabled=false;
+  tx.drawImage(img,0,0,DOT_SIZE,DOT_SIZE);
+  const id=tx.getImageData(0,0,DOT_SIZE,DOT_SIZE).data;
+  const px=new Array(DOT_SIZE*DOT_SIZE).fill(null);
+  for(let i=0;i<px.length;i++){
+    const o=i*4;
+    if(id[o+3]<20)continue;
+    px[i]='#'+[id[o],id[o+1],id[o+2]].map(v=>v.toString(16).padStart(2,'0')).join('');
+  }
+  return px;
+}
 _dotImgFile.addEventListener('change',async e=>{
   const file=e.target.files[0];if(!file)return;
   const dataUrl=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file);});
   dotImgData=dataUrl;
+  const img=await b64ToImg(dataUrl);
+  if(img){
+    pushDotHistory();
+    dotPixels=imgToPixels(img);
+    renderDotCanvas();
+  }
   updateDotImgUI();
   _dotImgFile.value='';
 });
