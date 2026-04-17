@@ -776,7 +776,7 @@ function drawChar(tx,ty,body,hair,skin,dir,frame,acc){
   const sL=walk?Math.sin(frame*.35)*5:0,sR=walk?Math.sin(frame*.35+Math.PI)*5:0;
   const arm=walk?Math.sin(frame*.35)*4:0;
 
-  c.fillStyle='rgba(0,0,0,.18)';c.beginPath();c.ellipse(x+48,y+92,24,7,0,0,Math.PI*2);c.fill();
+  c.fillStyle='rgba(0,0,0,0.35)';c.beginPath();c.ellipse(x+48,y+92,32,8,0,0,Math.PI*2);c.fill();
 
   // cape behind
   if(acc&&acc.cape&&dir!==3){
@@ -1040,7 +1040,7 @@ function drawSlime(tx,ty,body){
   const w=40*(1+squish), h=44*(1-squish*0.7);
   const baseY=94+bob;
   // shadow
-  c.fillStyle='rgba(0,0,0,.25)';
+  c.fillStyle='rgba(0,0,0,0.35)';
   c.beginPath();c.ellipse(48,94,w*0.75,6,0,0,Math.PI*2);c.fill();
   // body gradient
   const grad=c.createRadialGradient(40,baseY-h*.75,4,48,baseY-h*.4,w);
@@ -2031,6 +2031,13 @@ document.getElementById('player-sprite-btn').addEventListener('click',()=>{
 
 // Draw custom sprite on game canvas
 function drawCustomSprite(tx,ty,spriteCanvas){
+  const cx=tx*S+S/2, cy=ty*S;
+  c.save();
+  c.fillStyle='rgba(0,0,0,0.35)';
+  c.beginPath();
+  c.ellipse(cx,cy+S*0.4,32,8,0,0,Math.PI*2);
+  c.fill();
+  c.restore();
   c.save();
   c.translate(tx*S,ty*S);
   c.imageSmoothingEnabled=false;
