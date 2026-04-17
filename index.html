@@ -70,6 +70,8 @@
   .npc-card-pos{color:#667;font-size:10px;margin-top:2px}
   .npc-edit{background:#203060;color:#aaf;border:1px solid #448;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
   .npc-edit:hover{background:#304080}
+  .npc-sprite{background:#2a2a60;color:#ccf;border:1px solid #668;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
+  .npc-sprite:hover{background:#3a3a80}
   .npc-del{background:#602020;color:#faa;border:1px solid #844;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
   .npc-del:hover{background:#803030}
   #npc-create-btn{width:100%;padding:10px;font-family:'DotGothic16',monospace;font-size:14px;background:linear-gradient(180deg,#2a3a70,#1a2a60);color:#fff;border:2px solid #88a;border-radius:8px;cursor:pointer;text-align:center}
@@ -114,6 +116,8 @@
   #dot-actions button{padding:8px 16px;font-family:'DotGothic16',monospace;font-size:13px;border-radius:6px;cursor:pointer}
   #dot-apply{background:linear-gradient(180deg,#2a6a30,#1a5a20);color:#fff;border:2px solid #6a6}
   #dot-apply:hover{background:linear-gradient(180deg,#3a8a40,#2a6a30)}
+  #dot-reset{background:linear-gradient(180deg,#4a4a20,#3a3a10);color:#ffd;border:2px solid #aa8}
+  #dot-reset:hover{background:linear-gradient(180deg,#5a5a30,#4a4a20)}
   #dot-close{background:linear-gradient(180deg,#602020,#501818);color:#fff;border:2px solid #a66}
   #dot-close:hover{background:linear-gradient(180deg,#803030,#602020)}
   #dot-grid-toggle{font-size:11px;color:#888;cursor:pointer;user-select:none}
@@ -281,6 +285,7 @@
     </div>
     <div id="dot-actions">
       <button id="dot-apply">キャラに反映</button>
+      <button id="dot-reset">元の姿に戻す</button>
       <button id="dot-close">閉じる</button>
     </div>
   </div>
@@ -1460,9 +1465,16 @@ function renderNPCList(){
       +`<div class="npc-info"><div class="npc-card-name">${esc(npc.name)}</div>`
       +stLine
       +`<div class="npc-card-pos">(${npc.x}, ${npc.y})</div></div>`
+      +`<button class="npc-sprite" data-idx="${i}">絵</button>`
       +`<button class="npc-edit" data-idx="${i}">編集</button>`
       +`<button class="npc-del" data-idx="${i}">削除</button>`;
     list.appendChild(card);
+  });
+  list.querySelectorAll('.npc-sprite').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const idx=parseInt(btn.dataset.idx);
+      openDotEditor({type:'npc',index:idx},npcs[idx].sprite||null);
+    });
   });
   list.querySelectorAll('.npc-edit').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -1998,6 +2010,20 @@ document.getElementById('dot-apply').addEventListener('click',()=>{
   closeDotEditor();
 });
 
+document.getElementById('dot-reset').addEventListener('click',()=>{
+  if(!dotTarget)return;
+  if(dotTarget.type==='player'){
+    player.sprite=null;
+    player.spriteCanvas=null;
+    try{localStorage.removeItem('my-game:player-sprite');}catch(e){}
+  }else{
+    const npc=npcs[dotTarget.index];
+    npc.sprite=null;
+    npc.spriteCanvas=null;
+    saveNpcSprites();
+  }
+  closeDotEditor();
+});
 document.getElementById('dot-close').addEventListener('click',closeDotEditor);
 
 // Player sprite button
@@ -2088,27 +2114,6 @@ loadState=async function(){
   loadNpcSprites();
 };
 
-// Add NPC sprite edit button in renderNPCList
-const _origRenderNPCList=renderNPCList;
-renderNPCList=function(){
-  _origRenderNPCList();
-  const list=document.getElementById('npc-list');
-  const cards=list.querySelectorAll('.npc-card');
-  cards.forEach((card,i)=>{
-    const btns=card.querySelector('.npc-card-btns');
-    if(!btns)return;
-    const sb=document.createElement('button');
-    sb.textContent='絵';
-    sb.style.cssText='padding:4px 8px;font-family:"DotGothic16",monospace;font-size:11px;background:#2a3a60;color:#fff;border:1px solid #556;border-radius:4px;cursor:pointer';
-    sb.addEventListener('click',e=>{
-      e.stopPropagation();
-      openDotEditor({type:'npc',index:i},npcs[i].sprite||null);
-    });
-    btns.insertBefore(sb,btns.firstChild);
-  });
-};
-// Re-render to add buttons
-renderNPCList();
 
 </script>
 </body>
