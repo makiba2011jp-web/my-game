@@ -81,6 +81,44 @@
   #auth-logout{padding:4px 10px;font-family:'DotGothic16',monospace;font-size:11px;background:#602020;color:#faa;border:1px solid #844;border-radius:4px;cursor:pointer;margin-top:6px}
   #auth-logout:hover{background:#803030}
   .npc-owner{font-size:10px;color:#888;margin-left:4px}
+
+  /* ---- PVP ---- */
+  #pvp-btn{width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:linear-gradient(180deg,#6a2a2a,#4a1a1a);color:#fcc;border:2px solid #a66;border-radius:6px;cursor:pointer;margin-bottom:4px}
+  #pvp-btn:hover{background:linear-gradient(180deg,#8a3a3a,#6a2a2a)}
+  #pvp-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:400;background:#000;flex-direction:column;align-items:center;justify-content:center}
+  #pvp-overlay.open{display:flex}
+  #pvp-canvas{position:absolute;top:0;left:0;width:100%;height:100%}
+  #pvp-select{position:relative;z-index:1;background:rgba(8,8,20,.95);border:3px solid #88a;border-radius:14px;padding:20px;max-width:700px;width:95vw;max-height:90vh;overflow-y:auto;color:#fff;font-family:'DotGothic16',monospace}
+  #pvp-select h2{text-align:center;color:#faa;margin:0 0 12px;font-size:18px}
+  #pvp-teams{display:flex;gap:16px;margin-bottom:12px}
+  .pvp-team{flex:1;background:#101028;border:2px solid #446;border-radius:8px;padding:10px}
+  .pvp-team h3{text-align:center;font-size:14px;color:#ffd;margin:0 0 8px;border-bottom:1px solid #334;padding-bottom:6px}
+  .pvp-slots{display:flex;flex-direction:column;gap:6px;min-height:120px}
+  .pvp-slot{display:flex;align-items:center;gap:8px;background:#1a1a3a;border:1px solid #446;border-radius:6px;padding:6px 8px;cursor:pointer}
+  .pvp-slot:hover{background:#2a2a5a}
+  .pvp-slot img,.pvp-slot canvas{width:32px;height:32px;image-rendering:pixelated;border-radius:4px}
+  .pvp-slot-dot{width:20px;height:20px;border-radius:50%;flex-shrink:0}
+  .pvp-slot-name{font-size:12px;color:#ccc;flex:1}
+  .pvp-slot-remove{color:#f66;font-size:10px;cursor:pointer}
+  #pvp-npc-pool{background:#101028;border:2px solid #446;border-radius:8px;padding:10px;margin-bottom:12px}
+  #pvp-npc-pool h3{font-size:13px;color:#aac;margin:0 0 8px}
+  #pvp-pool-list{display:flex;flex-wrap:wrap;gap:6px}
+  .pvp-pool-item{display:flex;align-items:center;gap:4px;background:#1a1a3a;border:1px solid #446;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px;color:#ccc}
+  .pvp-pool-item:hover{background:#2a2a5a;border-color:#88a}
+  .pvp-pool-item.used{opacity:.3;pointer-events:none}
+  #pvp-select-btns{display:flex;gap:8px;justify-content:center}
+  #pvp-start-btn{padding:10px 24px;font-family:'DotGothic16',monospace;font-size:14px;background:linear-gradient(180deg,#6a2a2a,#4a1a1a);color:#fff;border:2px solid #a66;border-radius:6px;cursor:pointer}
+  #pvp-start-btn:hover:not(:disabled){background:linear-gradient(180deg,#8a3a3a,#6a2a2a)}
+  #pvp-start-btn:disabled{opacity:.4;cursor:default}
+  #pvp-cancel-btn{padding:10px 24px;font-family:'DotGothic16',monospace;font-size:14px;background:#333;color:#fff;border:2px solid #666;border-radius:6px;cursor:pointer}
+  #pvp-ui{position:absolute;bottom:0;left:0;right:0;z-index:2;pointer-events:none}
+  #pvp-log{background:linear-gradient(180deg,rgba(0,0,40,.95),rgba(0,0,20,.98));border-top:4px solid #eef;padding:12px 20px;font-family:'DotGothic16',monospace;font-size:14px;color:#fff;line-height:1.8;min-height:80px;max-height:140px;overflow-y:auto}
+  #pvp-status-bar{display:flex;justify-content:space-between;background:rgba(0,0,30,.9);border-top:2px solid #446;padding:8px 16px;font-family:'DotGothic16',monospace;font-size:11px;color:#aac}
+  .pvp-hp{display:flex;gap:4px;align-items:center}
+  .pvp-hp-bar{width:60px;height:6px;background:#222;border-radius:3px;overflow:hidden;display:inline-block}
+  .pvp-hp-fill{height:100%;background:#6c6;transition:width .3s}
+  #pvp-exit-btn{position:absolute;top:12px;right:12px;z-index:3;padding:8px 16px;font-family:'DotGothic16',monospace;font-size:13px;background:#602020;color:#fff;border:2px solid #a66;border-radius:6px;cursor:pointer;pointer-events:auto}
+  #pvp-exit-btn:hover{background:#803030}
   .npc-del{background:#602020;color:#faa;border:1px solid #844;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
   .npc-del:hover{background:#803030}
   #npc-create-btn{width:100%;padding:10px;font-family:'DotGothic16',monospace;font-size:14px;background:linear-gradient(180deg,#2a3a70,#1a2a60);color:#fff;border:2px solid #88a;border-radius:8px;cursor:pointer;text-align:center}
@@ -261,6 +299,7 @@
   </div>
   <h2>NPC リスト</h2>
   <div id="npc-list"><div class="npc-empty">NPCがいません</div></div>
+  <button id="pvp-btn">⚔ PVPバトル</button>
   <button id="npc-create-btn">＋ NPCを作成</button>
   <div id="npc-form">
     <label>画像から自動入力（キャラステータスSS）</label>
@@ -325,6 +364,32 @@
       <button id="dot-reset">一番最初の姿に戻す</button>
       <button id="dot-close">閉じる</button>
     </div>
+  </div>
+</div>
+<div id="pvp-overlay">
+  <canvas id="pvp-canvas"></canvas>
+  <div id="pvp-select">
+    <h2>⚔ PVPバトル ― チーム選択</h2>
+    <div id="pvp-teams">
+      <div class="pvp-team">
+        <h3>🍄 キノコチーム</h3>
+        <div id="pvp-team-a" class="pvp-slots"></div>
+      </div>
+      <div class="pvp-team">
+        <h3>🎋 タケノコチーム</h3>
+        <div id="pvp-team-b" class="pvp-slots"></div>
+      </div>
+    </div>
+    <div id="pvp-npc-pool"><h3>NPC一覧（クリックで追加）</h3><div id="pvp-pool-list"></div></div>
+    <div id="pvp-select-btns">
+      <button id="pvp-start-btn" disabled>バトル開始</button>
+      <button id="pvp-cancel-btn">閉じる</button>
+    </div>
+  </div>
+  <div id="pvp-ui" style="display:none">
+    <div id="pvp-log"></div>
+    <div id="pvp-status-bar"></div>
+    <button id="pvp-exit-btn" style="display:none">閉じる</button>
   </div>
 </div>
 <script>
@@ -2426,6 +2491,287 @@ document.getElementById('auth-submit').addEventListener('click',async()=>{
 });
 
 loadAuth();
+
+// ================================================================
+//  PVP BATTLE MODE
+// ================================================================
+const pvpOverlay=document.getElementById('pvp-overlay');
+const pvpCv=document.getElementById('pvp-canvas');
+const pvpCtx=pvpCv.getContext('2d');
+const pvpSelect=document.getElementById('pvp-select');
+const pvpUI=document.getElementById('pvp-ui');
+let pvpTeamA=[],pvpTeamB=[];
+let pvpBattle=null,pvpAnim=null;
+
+function pvpGetSpriteEl(npc){
+  if(npc.spriteImg){const img=document.createElement('img');img.src=npc.spriteImgData||npc.spriteImg.src;return img;}
+  if(npc.spriteCanvas){const cv2=document.createElement('canvas');cv2.width=32;cv2.height=32;cv2.getContext('2d').drawImage(npc.spriteCanvas,0,0,32,32);return cv2;}
+  const d=document.createElement('div');d.className='pvp-slot-dot';d.style.background=npc.color||'#888';return d;
+}
+
+function pvpRenderSelect(){
+  const poolEl=document.getElementById('pvp-pool-list');
+  const teamAEl=document.getElementById('pvp-team-a');
+  const teamBEl=document.getElementById('pvp-team-b');
+  const usedIds=new Set([...pvpTeamA,...pvpTeamB].map(n=>n.id));
+  poolEl.innerHTML='';
+  npcs.forEach(npc=>{
+    if(npc.id==='__player__')return;
+    const d=document.createElement('div');
+    d.className='pvp-pool-item'+(usedIds.has(npc.id)?' used':'');
+    d.textContent=npc.name;
+    d.addEventListener('click',()=>{
+      if(usedIds.has(npc.id))return;
+      if(pvpTeamA.length<=pvpTeamB.length&&pvpTeamA.length<4)pvpTeamA.push(npc);
+      else if(pvpTeamB.length<4)pvpTeamB.push(npc);
+      pvpRenderSelect();
+    });
+    poolEl.appendChild(d);
+  });
+  [teamAEl,teamBEl].forEach((el,ti)=>{
+    const team=ti===0?pvpTeamA:pvpTeamB;
+    el.innerHTML='';
+    team.forEach((npc,i)=>{
+      const s=document.createElement('div');s.className='pvp-slot';
+      const icon=pvpGetSpriteEl(npc);
+      const nm=document.createElement('span');nm.className='pvp-slot-name';nm.textContent=npc.name;
+      const rm=document.createElement('span');rm.className='pvp-slot-remove';rm.textContent='✕';
+      rm.addEventListener('click',e=>{e.stopPropagation();team.splice(i,1);pvpRenderSelect();});
+      s.appendChild(icon);s.appendChild(nm);s.appendChild(rm);
+      el.appendChild(s);
+    });
+    for(let j=team.length;j<4;j++){
+      const s=document.createElement('div');s.className='pvp-slot';
+      s.innerHTML='<span class="pvp-slot-name" style="color:#556">— 空き —</span>';
+      el.appendChild(s);
+    }
+  });
+  document.getElementById('pvp-start-btn').disabled=!(pvpTeamA.length>0&&pvpTeamB.length>0);
+}
+
+function pvpOpen(){
+  pvpTeamA=[];pvpTeamB=[];pvpBattle=null;
+  pvpSelect.style.display='';pvpUI.style.display='none';
+  document.getElementById('pvp-exit-btn').style.display='none';
+  pvpOverlay.classList.add('open');
+  pvpCv.width=window.innerWidth;pvpCv.height=window.innerHeight;
+  pvpDrawBg();
+  pvpRenderSelect();
+}
+function pvpClose(){
+  pvpOverlay.classList.remove('open');
+  if(pvpAnim){cancelAnimationFrame(pvpAnim);pvpAnim=null;}
+  pvpBattle=null;
+}
+
+document.getElementById('pvp-btn').addEventListener('click',pvpOpen);
+document.getElementById('pvp-cancel-btn').addEventListener('click',pvpClose);
+document.getElementById('pvp-exit-btn').addEventListener('click',pvpClose);
+
+// Background
+function pvpDrawBg(){
+  const w=pvpCv.width,h=pvpCv.height;
+  const g=pvpCtx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#0a1a0a');g.addColorStop(.5,'#0c2a10');g.addColorStop(1,'#081808');
+  pvpCtx.fillStyle=g;pvpCtx.fillRect(0,0,w,h);
+  // trees
+  pvpCtx.fillStyle='#0a2a0a';
+  for(let i=0;i<12;i++){
+    const tx=w*(.05+i*.08),ty=h*.1+Math.sin(i*2.3)*h*.05;
+    pvpCtx.beginPath();pvpCtx.moveTo(tx,ty+h*.3);pvpCtx.lineTo(tx-30,ty+h*.6);pvpCtx.lineTo(tx+30,ty+h*.6);pvpCtx.fill();
+    pvpCtx.beginPath();pvpCtx.moveTo(tx,ty+h*.2);pvpCtx.lineTo(tx-22,ty+h*.42);pvpCtx.lineTo(tx+22,ty+h*.42);pvpCtx.fill();
+  }
+  // ground
+  pvpCtx.fillStyle='#1a3818';pvpCtx.fillRect(0,h*.65,w,h*.35);
+  pvpCtx.fillStyle='#142a12';pvpCtx.fillRect(0,h*.65,w,4);
+}
+
+// Battle
+function pvpMakeFighter(npc,team){
+  const st=npc.stats||{};
+  const lv=st.level||10;
+  const atk=parseInt(st.attack)||(80+lv*20);
+  const def=parseInt(st.defense)||(40+lv*10);
+  const maxHp=parseInt(st.hp)||(200+lv*50);
+  return{npc,team,hp:maxHp,maxHp,atk,def,alive:true,x:0,y:0,baseX:0,animOff:0};
+}
+
+function pvpStart(){
+  pvpSelect.style.display='none';pvpUI.style.display='';
+  document.getElementById('pvp-log').innerHTML='';
+  document.getElementById('pvp-exit-btn').style.display='none';
+  const w=pvpCv.width,h=pvpCv.height;
+  const fa=pvpTeamA.map(n=>pvpMakeFighter(n,'A'));
+  const fb=pvpTeamB.map(n=>pvpMakeFighter(n,'B'));
+  fa.forEach((f,i)=>{f.baseX=w*.2;f.x=f.baseX;f.y=h*.3+i*(h*.1);});
+  fb.forEach((f,i)=>{f.baseX=w*.75;f.x=f.baseX;f.y=h*.3+i*(h*.1);});
+  pvpBattle={a:fa,b:fb,all:[...fa,...fb],turn:0,acting:false,done:false,queue:[...fa,...fb].sort(()=>Math.random()-.5),qi:0,logs:[]};
+  pvpUpdateStatus();
+  pvpLog('⚔ バトル開始！キノコチーム vs タケノコチーム！');
+  setTimeout(()=>pvpNextTurn(),1200);
+  pvpRenderLoop();
+}
+document.getElementById('pvp-start-btn').addEventListener('click',pvpStart);
+
+function pvpLog(msg){
+  if(!pvpBattle)return;
+  pvpBattle.logs.push(msg);
+  const el=document.getElementById('pvp-log');
+  const d=document.createElement('div');d.textContent=msg;el.appendChild(d);
+  el.scrollTop=el.scrollHeight;
+}
+
+function pvpUpdateStatus(){
+  if(!pvpBattle)return;
+  const bar=document.getElementById('pvp-status-bar');
+  bar.innerHTML='';
+  const mk=(fighters,label)=>{
+    const sec=document.createElement('div');
+    sec.innerHTML=`<div style="color:#ffd;font-size:12px;margin-bottom:4px">${label}</div>`;
+    fighters.forEach(f=>{
+      const pct=Math.max(0,f.hp/f.maxHp*100);
+      const col=pct>50?'#6c6':pct>25?'#cc6':'#c66';
+      sec.innerHTML+=`<div class="pvp-hp" style="${f.alive?'':'opacity:.3'}"><span style="width:60px;display:inline-block">${esc(f.npc.name)}</span>`
+        +`<span class="pvp-hp-bar"><span class="pvp-hp-fill" style="width:${pct}%;background:${col}"></span></span>`
+        +` ${f.hp}/${f.maxHp}</div>`;
+    });
+    return sec;
+  };
+  bar.appendChild(mk(pvpBattle.a,'🍄 キノコ'));
+  bar.appendChild(mk(pvpBattle.b,'🎋 タケノコ'));
+}
+
+function pvpNextTurn(){
+  if(!pvpBattle||pvpBattle.done)return;
+  const b=pvpBattle;
+  // Find next alive fighter
+  let f=null;
+  for(let tries=0;tries<b.queue.length;tries++){
+    const candidate=b.queue[b.qi%b.queue.length];
+    b.qi++;
+    if(candidate.alive){f=candidate;break;}
+  }
+  if(!f){pvpEnd();return;}
+  // Pick random alive enemy
+  const enemies=(f.team==='A'?b.b:b.a).filter(e=>e.alive);
+  if(enemies.length===0){pvpEnd();return;}
+  const target=enemies[Math.floor(Math.random()*enemies.length)];
+  // Calc damage
+  let dmg=f.atk-Math.floor(target.def/3);
+  dmg=Math.max(1,dmg+Math.floor((Math.random()-.5)*f.atk*.3));
+  // Animate attack
+  b.acting=true;
+  const dir=f.team==='A'?1:-1;
+  const steps=12,stepTime=30;
+  let step=0;
+  const moveForward=()=>{
+    step++;f.animOff=dir*step*4;
+    if(step<steps)setTimeout(moveForward,stepTime);
+    else{
+      // Hit
+      target.hp=Math.max(0,target.hp-dmg);
+      if(target.hp<=0)target.alive=false;
+      pvpLog(`${f.npc.name}のこうげき！→ ${target.npc.name}に${dmg}ダメージ！${target.alive?'':'💀 倒れた！'}`);
+      pvpUpdateStatus();
+      // Move back
+      let bs=0;
+      const moveBack=()=>{bs++;f.animOff=dir*(steps-bs)*4;if(bs<steps)setTimeout(moveBack,stepTime);else{f.animOff=0;b.acting=false;checkWin();}};
+      moveBack();
+    }
+  };
+  moveForward();
+  function checkWin(){
+    const aAlive=b.a.some(f=>f.alive),bAlive=b.b.some(f=>f.alive);
+    if(!aAlive||!bAlive){
+      pvpEnd();
+    }else{
+      setTimeout(()=>pvpNextTurn(),600);
+    }
+  }
+}
+
+function pvpEnd(){
+  if(!pvpBattle)return;
+  pvpBattle.done=true;
+  const aAlive=pvpBattle.a.some(f=>f.alive);
+  const bAlive=pvpBattle.b.some(f=>f.alive);
+  let msg='';
+  if(aAlive&&!bAlive)msg='🍄 キノコチームの勝利！！';
+  else if(!aAlive&&bAlive)msg='🎋 タケノコチームの勝利！！';
+  else msg='引き分け！';
+  pvpLog('━━━━━━━━━━━━');
+  pvpLog(msg);
+  document.getElementById('pvp-exit-btn').style.display='block';
+  // AI commentary if API key available
+  pvpAIComment();
+}
+
+async function pvpAIComment(){
+  const key=document.getElementById('api-key').value.trim();
+  if(!key)return;
+  const logText=pvpBattle.logs.join('\n');
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:200,
+        system:'あなたはゲームバトルの熱血実況者です。バトルログを読んで、短い実況コメント（2〜3文）を日本語で生成してください。盛り上げるように！',
+        messages:[{role:'user',content:`バトルログ:\n${logText}\n\n実況コメントを1つ生成して。`}]})});
+    if(!res.ok)return;
+    const data=await res.json();
+    const comment=data.content?.[0]?.text||'';
+    if(comment)pvpLog(`🎙 ${comment}`);
+  }catch(e){}
+}
+
+// Render loop
+function pvpRenderLoop(){
+  if(!pvpBattle)return;
+  pvpDrawBg();
+  const ctx=pvpCtx;
+  pvpBattle.all.forEach(f=>{
+    const sz=64;
+    const dx=f.x+f.animOff-sz/2, dy=f.y-sz/2;
+    ctx.save();
+    if(!f.alive){ctx.globalAlpha=.3;}
+    // shadow
+    ctx.fillStyle='rgba(0,0,0,0.35)';
+    ctx.beginPath();ctx.ellipse(f.x+f.animOff,f.y+sz*.35,24,6,0,0,Math.PI*2);ctx.fill();
+    if(f.npc.spriteImg){
+      ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(f.npc.spriteImg,dx,dy,sz,sz);
+    }else if(f.npc.spriteCanvas){
+      ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(f.npc.spriteCanvas,dx,dy,sz,sz);
+    }else{
+      // Simple colored rect character
+      ctx.fillStyle=f.npc.color||'#888';
+      ctx.fillRect(dx+16,dy+12,32,36);
+      ctx.fillStyle=f.npc.hair||'#543';
+      ctx.fillRect(dx+18,dy+4,28,16);
+      ctx.fillStyle='#fdd8c0';
+      ctx.fillRect(dx+22,dy+14,20,14);
+      // eyes
+      ctx.fillStyle='#111';
+      ctx.fillRect(dx+26,dy+18,4,4);ctx.fillRect(dx+34,dy+18,4,4);
+    }
+    // name
+    ctx.globalAlpha=1;
+    ctx.font='bold 11px "DotGothic16",monospace';ctx.textAlign='center';
+    ctx.fillStyle='rgba(0,0,0,.7)';
+    const nm=f.npc.name;const tw=ctx.measureText(nm).width;
+    ctx.fillRect(f.x+f.animOff-tw/2-3,dy-14,tw+6,13);
+    ctx.fillStyle=f.alive?'#fff':'#666';
+    ctx.fillText(nm,f.x+f.animOff,dy-4);
+    // HP bar
+    const barW=48,barH=4,barX=f.x+f.animOff-barW/2,barY=f.y+sz*.4;
+    ctx.fillStyle='#222';ctx.fillRect(barX,barY,barW,barH);
+    const pct=Math.max(0,f.hp/f.maxHp);
+    ctx.fillStyle=pct>.5?'#6c6':pct>.25?'#cc6':'#c66';
+    ctx.fillRect(barX,barY,barW*pct,barH);
+    ctx.restore();
+  });
+  pvpAnim=requestAnimationFrame(pvpRenderLoop);
+}
 
 // Load persisted state (must be after all patches)
 loadState();
