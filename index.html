@@ -70,6 +70,16 @@
   .npc-card-pos{color:#667;font-size:10px;margin-top:2px}
   .npc-edit{background:#203060;color:#aaf;border:1px solid #448;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
   .npc-edit:hover{background:#304080}
+  #auth-area{background:linear-gradient(180deg,#14142a,#101028);border:2px solid #446;border-radius:8px;padding:10px;margin-bottom:8px;text-align:center}
+  #auth-area .auth-status{color:#8f8;font-size:12px;margin-bottom:6px}
+  #auth-area .auth-name{color:#ffd;font-size:14px;font-weight:bold}
+  #auth-btn{width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:linear-gradient(180deg,#2a5a30,#1a4a20);color:#fff;border:2px solid #6a6;border-radius:6px;cursor:pointer}
+  #auth-btn:hover{background:linear-gradient(180deg,#3a7a40,#2a5a30)}
+  #auth-logout{padding:4px 10px;font-family:'DotGothic16',monospace;font-size:11px;background:#602020;color:#faa;border:1px solid #844;border-radius:4px;cursor:pointer;margin-top:6px}
+  #auth-logout:hover{background:#803030}
+  #auth-upload{display:none;margin-top:8px;text-align:center}
+  #auth-upload label{color:#aac;font-size:12px;display:block;margin-bottom:4px}
+  .npc-owner{font-size:10px;color:#888;margin-left:4px}
   .npc-sprite{background:#2a2a60;color:#ccf;border:1px solid #668;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
   .npc-sprite:hover{background:#3a3a80}
   .npc-del{background:#602020;color:#faa;border:1px solid #844;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
@@ -242,6 +252,16 @@
 </div>
 <div id="side-panel">
   <button id="mobile-close-panel">✕ 閉じる</button>
+  <div id="auth-area">
+    <div id="auth-display"></div>
+    <button id="auth-btn">🎮 元素騎士IDで認証</button>
+    <div id="auth-upload">
+      <label>キャラステータスのスクショをアップロード</label>
+      <input type="file" id="auth-img-file" accept="image/*" style="display:none">
+      <button type="button" id="auth-img-btn">画像を選択</button>
+      <span id="auth-status"></span>
+    </div>
+  </div>
   <h2>NPC リスト</h2>
   <div id="npc-list"><div class="npc-empty">NPCがいません</div></div>
   <button id="player-sprite-btn">キャラ編集（主人公）</button>
@@ -960,7 +980,7 @@ function saveState(){
 
 // Supabase NPC操作
 async function dbAddNPC(npc){
-  const row={id:npc.id,name:npc.name,x:npc.x,y:npc.y,color:npc.color,hair:npc.hair,skin:npc.skin,acc:npc.acc,personality:npc.personality,stats:npc.stats,sprite_image:npc.spriteImgData||null};
+  const row={id:npc.id,name:npc.name,x:npc.x,y:npc.y,color:npc.color,hair:npc.hair,skin:npc.skin,acc:npc.acc,personality:npc.personality,stats:npc.stats,sprite_image:npc.spriteImgData||null,owner_game_id:npc.owner_game_id||null,owner_name:npc.owner_name||null};
   await _sb.from('npcs').delete().eq('id',npc.id);
   const{error}=await _sb.from('npcs').insert(row);
   if(error)console.warn('Supabase save error',error);
@@ -1504,13 +1524,16 @@ function renderNPCList(){
     const card=document.createElement('div');
     card.className='npc-card';
     const stLine=npc.stats?`<div class="npc-card-pos">Lv${npc.stats.level||'?'} ${esc(npc.stats.class||'')}</div>`:'';
+    const lockIcon=npc.owner_game_id?'🔒':'🔓';
+    const ownerLabel=npc.owner_name?`<span class="npc-owner">${lockIcon}${esc(npc.owner_name)}</span>`:`<span class="npc-owner">${lockIcon}</span>`;
+    const canEdit=!npc.owner_game_id||(authGameId&&npc.owner_game_id===authGameId);
+    let btns=`<button class="npc-sprite" data-idx="${i}">絵</button>`;
+    if(canEdit)btns+=`<button class="npc-edit" data-idx="${i}">編集</button><button class="npc-del" data-idx="${i}">削除</button>`;
     card.innerHTML=`<div class="npc-color-dot" style="background:${esc(npc.color)}"></div>`
-      +`<div class="npc-info"><div class="npc-card-name">${esc(npc.name)}</div>`
+      +`<div class="npc-info"><div class="npc-card-name">${esc(npc.name)}${ownerLabel}</div>`
       +stLine
       +`<div class="npc-card-pos">(${npc.x}, ${npc.y})</div></div>`
-      +`<button class="npc-sprite" data-idx="${i}">絵</button>`
-      +`<button class="npc-edit" data-idx="${i}">編集</button>`
-      +`<button class="npc-del" data-idx="${i}">削除</button>`;
+      +btns;
     list.appendChild(card);
   });
   list.querySelectorAll('.npc-sprite').forEach(btn=>{
@@ -1617,7 +1640,9 @@ function createNPCFromForm(){
     acc:accObj,
     personality:personality||`あなたは${name}です。短く簡潔に、2〜3文程度で返答してください。`,
     stats:importedStats,
-    messages:[]
+    messages:[],
+    owner_game_id:authGameId||null,
+    owner_name:authOwnerName||null
   };
   hideCreateForm();
   startPlacement(npcData);
@@ -2307,6 +2332,115 @@ try{
     b64ToImg(pImg).then(img=>{if(img)player.spriteImg=img;});
   }
 }catch(e){}
+
+// ================================================================
+//  GENSO KNIGHT ID AUTH
+// ================================================================
+let authGameId=null, authOwnerName=null;
+
+function loadAuth(){
+  try{
+    authGameId=localStorage.getItem('my-game:owner_game_id')||null;
+    authOwnerName=localStorage.getItem('my-game:owner_name')||null;
+  }catch(e){}
+  updateAuthUI();
+}
+function saveAuth(gameId,name){
+  authGameId=gameId;authOwnerName=name;
+  try{localStorage.setItem('my-game:owner_game_id',gameId);localStorage.setItem('my-game:owner_name',name);}catch(e){}
+  updateAuthUI();
+  renderNPCList();
+}
+function clearAuth(){
+  authGameId=null;authOwnerName=null;
+  try{localStorage.removeItem('my-game:owner_game_id');localStorage.removeItem('my-game:owner_name');}catch(e){}
+  updateAuthUI();
+  renderNPCList();
+}
+
+function updateAuthUI(){
+  const display=document.getElementById('auth-display');
+  const btn=document.getElementById('auth-btn');
+  const upload=document.getElementById('auth-upload');
+  if(authGameId){
+    const shortId=authGameId.length>4?authGameId.slice(-4):authGameId;
+    display.innerHTML=`<div class="auth-name">✅ ${esc(authOwnerName)}（${esc(shortId)}）認証済み</div>`
+      +`<button id="auth-logout">認証解除</button>`;
+    btn.style.display='none';
+    upload.style.display='none';
+    document.getElementById('auth-logout').addEventListener('click',()=>{
+      if(confirm('認証を解除しますか？'))clearAuth();
+    });
+  }else{
+    display.innerHTML='';
+    btn.style.display='';
+    upload.style.display='none';
+  }
+}
+
+document.getElementById('auth-btn').addEventListener('click',()=>{
+  document.getElementById('auth-upload').style.display='block';
+  document.getElementById('auth-status').textContent='';
+});
+
+document.getElementById('auth-img-btn').addEventListener('click',()=>{
+  document.getElementById('auth-img-file').click();
+});
+
+document.getElementById('auth-img-file').addEventListener('change',async e=>{
+  const file=e.target.files[0];if(!file)return;
+  const statusEl=document.getElementById('auth-status');
+  statusEl.textContent='解析中...';
+  try{
+    const b64=await new Promise((resolve,reject)=>{
+      const r=new FileReader();r.onload=()=>resolve(r.result.split(',')[1]);r.onerror=reject;r.readAsDataURL(file);
+    });
+    const mediaType=file.type||'image/jpeg';
+    const prompt='このゲームのキャラクターステータス画面から以下の情報を読み取り、JSONのみを返してください。コードブロックや説明文は含めないでください。\n\n'
+      +'{\n  "name": "キャラクター名（日本語）",\n  "game_id": "IDコード（英数字、例: C1F9）"\n}\n\n'
+      +'画面内にID表記がない場合はgame_idにキャラ名の先頭4文字をローマ字で入れてください。';
+    // Use Claude or Gemini based on selection
+    const chatAI=document.getElementById('chat-ai-select').value;
+    let text;
+    if(chatAI==='claude'){
+      const key=document.getElementById('api-key').value.trim();
+      if(!key){statusEl.textContent='Anthropic APIキーを入力してください';return;}
+      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:_modelSelect.value,max_tokens:400,
+          messages:[{role:'user',content:[
+            {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
+            {type:'text',text:prompt}]}]})});
+      if(!res.ok)throw new Error('API Error '+res.status);
+      const data=await res.json();
+      text=(data.content?.[0]?.text||'').trim();
+    }else{
+      const gKey=document.getElementById('gemini-key').value.trim();
+      if(!gKey){statusEl.textContent='Gemini APIキーを入力してください';return;}
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contents:[{parts:[
+          {inline_data:{mime_type:mediaType,data:b64}},
+          {text:prompt}
+        ]}]})});
+      if(!res.ok)throw new Error('API Error '+res.status);
+      const data=await res.json();
+      text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
+    }
+    text=text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'');
+    const m=text.match(/\{[\s\S]*\}/);if(m)text=m[0];
+    const info=JSON.parse(text);
+    if(!info.name||!info.game_id)throw new Error('名前またはIDを読み取れませんでした');
+    saveAuth(info.game_id,info.name);
+    statusEl.textContent='';
+    alert(`認証成功！\n名前: ${info.name}\nID: ${info.game_id}`);
+  }catch(err){
+    statusEl.textContent=`エラー: ${err.message}`;
+  }
+  document.getElementById('auth-img-file').value='';
+});
+
+loadAuth();
 
 // Load persisted state (must be after all patches)
 loadState();
