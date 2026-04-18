@@ -71,14 +71,15 @@
   .npc-edit{background:#203060;color:#aaf;border:1px solid #448;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
   .npc-edit:hover{background:#304080}
   #auth-area{background:linear-gradient(180deg,#14142a,#101028);border:2px solid #446;border-radius:8px;padding:10px;margin-bottom:8px;text-align:center}
-  #auth-area .auth-status{color:#8f8;font-size:12px;margin-bottom:6px}
   #auth-area .auth-name{color:#ffd;font-size:14px;font-weight:bold}
-  #auth-btn{width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:linear-gradient(180deg,#2a5a30,#1a4a20);color:#fff;border:2px solid #6a6;border-radius:6px;cursor:pointer}
-  #auth-btn:hover{background:linear-gradient(180deg,#3a7a40,#2a5a30)}
+  #auth-form{display:flex;flex-direction:column;gap:6px}
+  #auth-form input{padding:6px 8px;font-family:'DotGothic16',monospace;font-size:12px;background:#0a0a20;color:#fff;border:1px solid #446;border-radius:4px;outline:none}
+  #auth-form input:focus{border-color:#88a}
+  #auth-submit{padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:linear-gradient(180deg,#2a5a30,#1a4a20);color:#fff;border:2px solid #6a6;border-radius:6px;cursor:pointer}
+  #auth-submit:hover{background:linear-gradient(180deg,#3a7a40,#2a5a30)}
+  #auth-status{color:#f88;font-size:11px;min-height:14px}
   #auth-logout{padding:4px 10px;font-family:'DotGothic16',monospace;font-size:11px;background:#602020;color:#faa;border:1px solid #844;border-radius:4px;cursor:pointer;margin-top:6px}
   #auth-logout:hover{background:#803030}
-  #auth-upload{display:none;margin-top:8px;text-align:center}
-  #auth-upload label{color:#aac;font-size:12px;display:block;margin-bottom:4px}
   .npc-owner{font-size:10px;color:#888;margin-left:4px}
   .npc-sprite{background:#2a2a60;color:#ccf;border:1px solid #668;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
   .npc-sprite:hover{background:#3a3a80}
@@ -254,12 +255,12 @@
   <button id="mobile-close-panel">✕ 閉じる</button>
   <div id="auth-area">
     <div id="auth-display"></div>
-    <button id="auth-btn">🎮 元素騎士IDで認証</button>
-    <div id="auth-upload">
-      <label>キャラステータスのスクショをアップロード</label>
-      <input type="file" id="auth-img-file" accept="image/*" style="display:none">
-      <button type="button" id="auth-img-btn">画像を選択</button>
-      <span id="auth-status"></span>
+    <div id="auth-form">
+      <input type="text" id="auth-game-id" placeholder="キャラID（例：C1F9）" maxlength="20">
+      <input type="text" id="auth-name" placeholder="キャラ名" maxlength="20">
+      <input type="password" id="auth-pass" placeholder="パスワード">
+      <button id="auth-submit">登録／ログイン</button>
+      <div id="auth-status"></div>
     </div>
   </div>
   <h2>NPC リスト</h2>
@@ -2334,9 +2335,14 @@ try{
 }catch(e){}
 
 // ================================================================
-//  GENSO KNIGHT ID AUTH
+//  GENSO KNIGHT ID AUTH (password-based)
 // ================================================================
 let authGameId=null, authOwnerName=null;
+
+async function hashPassword(pw){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 
 function loadAuth(){
   try{
@@ -2360,84 +2366,60 @@ function clearAuth(){
 
 function updateAuthUI(){
   const display=document.getElementById('auth-display');
-  const btn=document.getElementById('auth-btn');
-  const upload=document.getElementById('auth-upload');
+  const form=document.getElementById('auth-form');
   if(authGameId){
-    const shortId=authGameId.length>4?authGameId.slice(-4):authGameId;
-    display.innerHTML=`<div class="auth-name">✅ ${esc(authOwnerName)}（${esc(shortId)}）認証済み</div>`
+    display.innerHTML=`<div class="auth-name">✅ ${esc(authOwnerName)}（${esc(authGameId)}）認証済み</div>`
       +`<button id="auth-logout">認証解除</button>`;
-    btn.style.display='none';
-    upload.style.display='none';
+    form.style.display='none';
     document.getElementById('auth-logout').addEventListener('click',()=>{
       if(confirm('認証を解除しますか？'))clearAuth();
     });
   }else{
     display.innerHTML='';
-    btn.style.display='';
-    upload.style.display='none';
+    form.style.display='flex';
   }
 }
 
-document.getElementById('auth-btn').addEventListener('click',()=>{
-  document.getElementById('auth-upload').style.display='block';
-  document.getElementById('auth-status').textContent='';
-});
-
-document.getElementById('auth-img-btn').addEventListener('click',()=>{
-  document.getElementById('auth-img-file').click();
-});
-
-document.getElementById('auth-img-file').addEventListener('change',async e=>{
-  const file=e.target.files[0];if(!file)return;
+document.getElementById('auth-submit').addEventListener('click',async()=>{
+  const gameId=document.getElementById('auth-game-id').value.trim();
+  const name=document.getElementById('auth-name').value.trim();
+  const pass=document.getElementById('auth-pass').value;
   const statusEl=document.getElementById('auth-status');
-  statusEl.textContent='解析中...';
+  statusEl.textContent='';statusEl.style.color='#f88';
+  if(!gameId){statusEl.textContent='キャラIDを入力してください';return;}
+  if(!pass){statusEl.textContent='パスワードを入力してください';return;}
+  const hash=await hashPassword(pass);
   try{
-    const b64=await new Promise((resolve,reject)=>{
-      const r=new FileReader();r.onload=()=>resolve(r.result.split(',')[1]);r.onerror=reject;r.readAsDataURL(file);
-    });
-    const mediaType=file.type||'image/jpeg';
-    const prompt='このゲームのキャラクターステータス画面から以下の情報を読み取り、JSONのみを返してください。コードブロックや説明文は含めないでください。\n\n'
-      +'{\n  "name": "キャラクター名（日本語）",\n  "game_id": "IDコード（英数字、例: C1F9）"\n}\n\n'
-      +'画面内にID表記がない場合はgame_idにキャラ名の先頭4文字をローマ字で入れてください。';
-    // Use Claude or Gemini based on selection
-    const chatAI=document.getElementById('chat-ai-select').value;
-    let text;
-    if(chatAI==='claude'){
-      const key=document.getElementById('api-key').value.trim();
-      if(!key){statusEl.textContent='Anthropic APIキーを入力してください';return;}
-      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:_modelSelect.value,max_tokens:400,
-          messages:[{role:'user',content:[
-            {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
-            {type:'text',text:prompt}]}]})});
-      if(!res.ok)throw new Error('API Error '+res.status);
-      const data=await res.json();
-      text=(data.content?.[0]?.text||'').trim();
+    // Check if user exists
+    const{data,error}=await _sb.from('owners').select('*').eq('game_id',gameId).single();
+    if(error&&error.code==='PGRST116'){
+      // Not found → register
+      if(!name){statusEl.textContent='新規登録にはキャラ名も入力してください';return;}
+      const{error:insErr}=await _sb.from('owners').insert({game_id:gameId,owner_name:name,password_hash:hash});
+      if(insErr)throw new Error(insErr.message);
+      saveAuth(gameId,name);
+      statusEl.style.color='#8f8';statusEl.textContent='登録成功！';
+      document.getElementById('auth-pass').value='';
+    }else if(error){
+      throw new Error(error.message);
     }else{
-      const gKey=document.getElementById('gemini-key').value.trim();
-      if(!gKey){statusEl.textContent='Gemini APIキーを入力してください';return;}
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contents:[{parts:[
-          {inline_data:{mime_type:mediaType,data:b64}},
-          {text:prompt}
-        ]}]})});
-      if(!res.ok)throw new Error('API Error '+res.status);
-      const data=await res.json();
-      text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
+      // Exists → check password
+      if(data.password_hash!==hash){statusEl.textContent='パスワードが違います';return;}
+      saveAuth(data.game_id,data.owner_name);
+      statusEl.style.color='#8f8';statusEl.textContent='ログイン成功！';
+      document.getElementById('auth-pass').value='';
     }
-    text=text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'');
-    const m=text.match(/\{[\s\S]*\}/);if(m)text=m[0];
-    const info=JSON.parse(text);
-    if(!info.name||!info.game_id)throw new Error('名前またはIDを読み取れませんでした');
-    saveAuth(info.game_id,info.name);
-    statusEl.textContent='';
-    alert(`認証成功！\n名前: ${info.name}\nID: ${info.game_id}`);
   }catch(err){
     statusEl.textContent=`エラー: ${err.message}`;
   }
-  document.getElementById('auth-img-file').value='';
+});
+
+// Enter key in auth form
+['auth-game-id','auth-name','auth-pass'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown',e=>{
+    e.stopPropagation();
+    if(e.key==='Enter'){e.preventDefault();document.getElementById('auth-submit').click();}
+  });
 });
 
 loadAuth();
