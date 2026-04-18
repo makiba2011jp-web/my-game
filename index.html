@@ -290,6 +290,7 @@
       <button id="dtool-pen" class="active">ペン</button>
       <button id="dtool-eraser">消しゴム</button>
       <button id="dtool-fill">塗りつぶし</button>
+      <button id="dtool-erase-fill">消去塗りつぶし</button>
       <button id="dtool-undo">元に戻す</button>
     </div>
     <div id="dot-img-section">
@@ -1904,12 +1905,13 @@ DOT_PALETTE.forEach((col,i)=>{
 function setDotTool(t){
   dotTool=t;
   document.querySelectorAll('#dot-tools button').forEach(b=>b.classList.remove('active'));
-  const id={pen:'dtool-pen',eraser:'dtool-eraser',fill:'dtool-fill'}[t];
+  const id={pen:'dtool-pen',eraser:'dtool-eraser',fill:'dtool-fill','erase-fill':'dtool-erase-fill'}[t];
   if(id)document.getElementById(id).classList.add('active');
 }
 document.getElementById('dtool-pen').addEventListener('click',()=>setDotTool('pen'));
 document.getElementById('dtool-eraser').addEventListener('click',()=>setDotTool('eraser'));
 document.getElementById('dtool-fill').addEventListener('click',()=>setDotTool('fill'));
+document.getElementById('dtool-erase-fill').addEventListener('click',()=>setDotTool('erase-fill'));
 document.getElementById('dtool-undo').addEventListener('click',()=>{
   if(dotHistory.length>0){dotPixels=dotHistory.pop();renderDotCanvas();}
 });
@@ -1969,11 +1971,12 @@ function dotPaint(pos){
   renderDotCanvas();
 }
 
-function dotFloodFill(pos){
+function dotFloodFill(pos,fillColor){
   if(!pos)return;
+  const col=fillColor!==undefined?fillColor:dotColor;
   const i=pos.y*DOT_SIZE+pos.x;
   const target=dotPixels[i];
-  if(target===dotColor)return;
+  if(target===col)return;
   pushDotHistory();
   const stack=[i];
   const visited=new Set();
@@ -1982,7 +1985,7 @@ function dotFloodFill(pos){
     if(ci<0||ci>=DOT_SIZE*DOT_SIZE||visited.has(ci))continue;
     if(dotPixels[ci]!==target)continue;
     visited.add(ci);
-    dotPixels[ci]=dotColor;
+    dotPixels[ci]=col;
     const cx=ci%DOT_SIZE,cy=Math.floor(ci/DOT_SIZE);
     if(cx>0)stack.push(ci-1);
     if(cx<DOT_SIZE-1)stack.push(ci+1);
@@ -1995,6 +1998,7 @@ function dotFloodFill(pos){
 dotCv.addEventListener('mousedown',e=>{
   const pos=getDotPos(e);
   if(dotTool==='fill'){dotFloodFill(pos);return;}
+  if(dotTool==='erase-fill'){dotFloodFill(pos,null);return;}
   pushDotHistory();dotDrawing=true;dotPaint(pos);
 });
 dotCv.addEventListener('mousemove',e=>{if(dotDrawing)dotPaint(getDotPos(e));});
@@ -2003,6 +2007,7 @@ dotCv.addEventListener('mouseleave',()=>{dotDrawing=false;});
 dotCv.addEventListener('touchstart',e=>{
   e.preventDefault();const pos=getDotPos(e);
   if(dotTool==='fill'){dotFloodFill(pos);return;}
+  if(dotTool==='erase-fill'){dotFloodFill(pos,null);return;}
   pushDotHistory();dotDrawing=true;dotPaint(pos);
 },{passive:false});
 dotCv.addEventListener('touchmove',e=>{e.preventDefault();if(dotDrawing)dotPaint(getDotPos(e));},{passive:false});
