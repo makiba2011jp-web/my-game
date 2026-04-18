@@ -959,10 +959,15 @@ function saveState(){
 
 // Supabase NPC操作
 async function dbAddNPC(npc){
-  const row={id:npc.id,name:npc.name,x:npc.x,y:npc.y,color:npc.color,hair:npc.hair,skin:npc.skin,acc:npc.acc,personality:npc.personality,stats:npc.stats};
+  const row={id:npc.id,name:npc.name,x:npc.x,y:npc.y,color:npc.color,hair:npc.hair,skin:npc.skin,acc:npc.acc,personality:npc.personality,stats:npc.stats,sprite_image:npc.spriteImgData||null};
   await _sb.from('npcs').delete().eq('id',npc.id);
   const{error}=await _sb.from('npcs').insert(row);
   if(error)console.warn('Supabase save error',error);
+}
+async function dbSavePlayerSprite(imgData){
+  await _sb.from('npcs').delete().eq('id','__player__');
+  const{error}=await _sb.from('npcs').insert({id:'__player__',name:'__player__',x:0,y:0,color:'#000',hair:'#000',skin:'#000',sprite_image:imgData||null});
+  if(error)console.warn('Supabase player sprite save error',error);
 }
 async function dbRemoveNPC(id){
   const{error}=await _sb.from('npcs').delete().eq('id',id);
@@ -985,7 +990,19 @@ async function loadState(){
   if(!error&&Array.isArray(data)){
     npcs.length=0;
     data.forEach(row=>{
+      if(row.id==='__player__'){
+        // プレイヤーのスプライト復元
+        if(row.sprite_image){
+          player.spriteImgData=row.sprite_image;
+          b64ToImg(row.sprite_image).then(img=>{if(img)player.spriteImg=img;});
+        }
+        return;
+      }
       const npc={...row,messages:msgs[row.id]||[]};
+      if(row.sprite_image){
+        npc.spriteImgData=row.sprite_image;
+        b64ToImg(row.sprite_image).then(img=>{if(img)npc.spriteImg=img;});
+      }
       npcs.push(npc);
       if(row.id&&row.id.startsWith('npc_')){
         const n=parseInt(row.id.slice(4));
@@ -996,9 +1013,15 @@ async function loadState(){
   renderNPCList();
   // リアルタイム同期
   _sb.channel('npcs-changes').on('postgres_changes',{event:'INSERT',schema:'public',table:'npcs'},payload=>{
+    if(payload.new.id==='__player__')return;
     if(!npcs.find(n=>n.id===payload.new.id)){
       const msgs=loadMsgs();
-      npcs.push({...payload.new,messages:msgs[payload.new.id]||[]});
+      const npc={...payload.new,messages:msgs[payload.new.id]||[]};
+      if(payload.new.sprite_image){
+        npc.spriteImgData=payload.new.sprite_image;
+        b64ToImg(payload.new.sprite_image).then(img=>{if(img)npc.spriteImg=img;});
+      }
+      npcs.push(npc);
       renderNPCList();
     }
   }).on('postgres_changes',{event:'DELETE',schema:'public',table:'npcs'},payload=>{
@@ -2207,22 +2230,25 @@ document.getElementById('dot-apply').addEventListener('click',async()=>{
   if(!dotTarget)return;
   const hasPixels=dotPixels.some(p=>p!==null);
   const spriteData=hasPixels?[...dotPixels]:null;
-  // Always use dot canvas result — clear uploaded image so canvas takes priority
+  // Always use dot canvas result — generate image from canvas for Supabase
+  const canvasImg=hasPixels?dotToImageData().toDataURL('image/png'):null;
   if(dotTarget.type==='player'){
     player.sprite=spriteData;
     player.spriteCanvas=spriteData?dotToImageData():null;
     try{localStorage.setItem('my-game:player-sprite',JSON.stringify(spriteData));}catch(e){}
-    player.spriteImgData=null;
-    player.spriteImg=null;
-    try{localStorage.removeItem('my-game:player-img');}catch(e){}
+    player.spriteImgData=canvasImg;
+    player.spriteImg=spriteData?player.spriteCanvas:null;
+    try{if(canvasImg)localStorage.setItem('my-game:player-img',canvasImg);else localStorage.removeItem('my-game:player-img');}catch(e){}
+    dbSavePlayerSprite(canvasImg);
   }else{
     const npc=npcs[dotTarget.index];
     npc.sprite=spriteData;
     npc.spriteCanvas=spriteData?dotToImageData():null;
     saveNpcSprites();
-    npc.spriteImgData=null;
-    npc.spriteImg=null;
+    npc.spriteImgData=canvasImg;
+    npc.spriteImg=spriteData?npc.spriteCanvas:null;
     saveNpcImages();
+    dbAddNPC(npc);
   }
   closeDotEditor();
 });
@@ -2237,11 +2263,13 @@ _dotResetClone.addEventListener('click',()=>{
     player.sprite=null;player.spriteCanvas=null;
     player.spriteImgData=null;player.spriteImg=null;
     try{localStorage.removeItem('my-game:player-sprite');localStorage.removeItem('my-game:player-img');}catch(e){}
+    dbSavePlayerSprite(null);
   }else{
     const npc=npcs[dotTarget.index];
     npc.sprite=null;npc.spriteCanvas=null;
     npc.spriteImgData=null;npc.spriteImg=null;
     saveNpcSprites();saveNpcImages();
+    dbAddNPC(npc);
   }
   closeDotEditor();
 });
