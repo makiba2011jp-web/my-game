@@ -1564,7 +1564,8 @@ function showCreateForm(){
   importedStats=null;
   const is=document.getElementById('import-status');if(is)is.textContent='';
   document.getElementById('btn-form-ok').textContent='配置モードへ';
-  document.getElementById('btn-npc-dot-edit').style.display='none';
+  document.getElementById('btn-npc-dot-edit').style.display='block';
+  newNpcSprite=null;
   document.getElementById('f-name').focus();
 }
 
@@ -1635,8 +1636,10 @@ function createNPCFromForm(){
     stats:importedStats,
     messages:[],
     owner_game_id:authGameId||null,
-    owner_name:authOwnerName||null
+    owner_name:authOwnerName||null,
+    sprite:newNpcSprite||null
   };
+  newNpcSprite=null;
   hideCreateForm();
   startPlacement(npcData);
 }
@@ -1714,8 +1717,13 @@ cv.addEventListener('touchstart',e=>{
 document.getElementById('npc-create-btn').addEventListener('click',showCreateForm);
 document.getElementById('btn-form-ok').addEventListener('click',createNPCFromForm);
 document.getElementById('btn-form-cancel').addEventListener('click',hideCreateForm);
+let newNpcSprite=null;
 document.getElementById('btn-npc-dot-edit').addEventListener('click',()=>{
-  if(editingNPCIdx>=0)openDotEditor({type:'npc',index:editingNPCIdx},npcs[editingNPCIdx].sprite||null);
+  if(editingNPCIdx>=0){
+    openDotEditor({type:'npc',index:editingNPCIdx},npcs[editingNPCIdx].sprite||null);
+  }else{
+    openDotEditor({type:'new-npc'},newNpcSprite||null);
+  }
 });
 // Handle Enter in form name field
 document.getElementById('f-name').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();createNPCFromForm();}e.stopPropagation();});
@@ -2062,6 +2070,7 @@ function openDotEditor(target,existingPixels){
   else dotPixels=new Array(DOT_SIZE*DOT_SIZE).fill(null);
   const label=document.getElementById('dot-target-label');
   if(target.type==='player')label.textContent='対象: 主人公';
+  else if(target.type==='new-npc')label.textContent='対象: 新規NPC';
   else label.textContent='対象: '+npcs[target.index].name;
   dotOverlay.classList.add('open');
   renderDotCanvas();
@@ -2240,6 +2249,7 @@ const _origOpenDotEditor=openDotEditor;
 openDotEditor=function(target,existingPixels){
   // Load existing image for this target
   if(target.type==='player'){dotImgData=player.spriteImgData||null;}
+  else if(target.type==='new-npc'){dotImgData=null;}
   else{dotImgData=npcs[target.index].spriteImgData||null;}
   updateDotImgUI();
   _origOpenDotEditor(target,existingPixels);
@@ -2262,6 +2272,8 @@ document.getElementById('dot-apply').addEventListener('click',async()=>{
     player.spriteImg=spriteData?player.spriteCanvas:null;
     try{if(canvasImg)localStorage.setItem('my-game:player-img',canvasImg);else localStorage.removeItem('my-game:player-img');}catch(e){}
     dbSavePlayerSprite(canvasImg);
+  }else if(dotTarget.type==='new-npc'){
+    newNpcSprite=spriteData;
   }else{
     const npc=npcs[dotTarget.index];
     npc.sprite=spriteData;
