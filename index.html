@@ -81,8 +81,6 @@
   #auth-logout{padding:4px 10px;font-family:'DotGothic16',monospace;font-size:11px;background:#602020;color:#faa;border:1px solid #844;border-radius:4px;cursor:pointer;margin-top:6px}
   #auth-logout:hover{background:#803030}
   .npc-owner{font-size:10px;color:#888;margin-left:4px}
-  .npc-sprite{background:#2a2a60;color:#ccf;border:1px solid #668;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
-  .npc-sprite:hover{background:#3a3a80}
   .npc-del{background:#602020;color:#faa;border:1px solid #844;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
   .npc-del:hover{background:#803030}
   #npc-create-btn{width:100%;padding:10px;font-family:'DotGothic16',monospace;font-size:14px;background:linear-gradient(180deg,#2a3a70,#1a2a60);color:#fff;border:2px solid #88a;border-radius:8px;cursor:pointer;text-align:center}
@@ -294,6 +292,7 @@
       <label><input type="checkbox" id="acc-bow"> リボン</label>
       <label><input type="checkbox" id="acc-shield"> 盾</label>
     </div>
+    <button type="button" id="btn-npc-dot-edit" style="display:none;width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:linear-gradient(180deg,#3a2a60,#2a1a50);color:#fff;border:2px solid #86a;border-radius:6px;cursor:pointer;margin-top:4px">🎨 ドット絵を編集</button>
     <div class="form-btns">
       <button id="btn-form-ok">作成して配置</button>
       <button id="btn-form-cancel">キャンセル</button>
@@ -1528,20 +1527,14 @@ function renderNPCList(){
     const lockIcon=npc.owner_game_id?'🔒':'🔓';
     const ownerLabel=npc.owner_name?`<span class="npc-owner">${lockIcon}${esc(npc.owner_name)}</span>`:`<span class="npc-owner">${lockIcon}</span>`;
     const canEdit=!npc.owner_game_id||(authGameId&&npc.owner_game_id===authGameId);
-    let btns=`<button class="npc-sprite" data-idx="${i}">絵</button>`;
-    if(canEdit)btns+=`<button class="npc-edit" data-idx="${i}">編集</button><button class="npc-del" data-idx="${i}">削除</button>`;
+    let btns='';
+    if(canEdit)btns=`<button class="npc-edit" data-idx="${i}">編集</button><button class="npc-del" data-idx="${i}">削除</button>`;
     card.innerHTML=`<div class="npc-color-dot" style="background:${esc(npc.color)}"></div>`
       +`<div class="npc-info"><div class="npc-card-name">${esc(npc.name)}${ownerLabel}</div>`
       +stLine
       +`<div class="npc-card-pos">(${npc.x}, ${npc.y})</div></div>`
       +btns;
     list.appendChild(card);
-  });
-  list.querySelectorAll('.npc-sprite').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const idx=parseInt(btn.dataset.idx);
-      openDotEditor({type:'npc',index:idx},npcs[idx].sprite||null);
-    });
   });
   list.querySelectorAll('.npc-edit').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -1574,6 +1567,7 @@ function showCreateForm(){
   importedStats=null;
   const is=document.getElementById('import-status');if(is)is.textContent='';
   document.getElementById('btn-form-ok').textContent='配置モードへ';
+  document.getElementById('btn-npc-dot-edit').style.display='none';
   document.getElementById('f-name').focus();
 }
 
@@ -1595,6 +1589,7 @@ function editNPC(idx){
   importedStats=npc.stats||null;
   const is=document.getElementById('import-status');if(is)is.textContent='';
   document.getElementById('btn-form-ok').textContent='保存';
+  document.getElementById('btn-npc-dot-edit').style.display='block';
   document.getElementById('f-name').focus();
 }
 
@@ -1722,6 +1717,9 @@ cv.addEventListener('touchstart',e=>{
 document.getElementById('npc-create-btn').addEventListener('click',showCreateForm);
 document.getElementById('btn-form-ok').addEventListener('click',createNPCFromForm);
 document.getElementById('btn-form-cancel').addEventListener('click',hideCreateForm);
+document.getElementById('btn-npc-dot-edit').addEventListener('click',()=>{
+  if(editingNPCIdx>=0)openDotEditor({type:'npc',index:editingNPCIdx},npcs[editingNPCIdx].sprite||null);
+});
 // Handle Enter in form name field
 document.getElementById('f-name').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();createNPCFromForm();}e.stopPropagation();});
 document.getElementById('f-personality').addEventListener('keydown',e=>e.stopPropagation());
