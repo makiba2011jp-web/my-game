@@ -117,7 +117,7 @@
   .pvp-hp{display:flex;gap:4px;align-items:center}
   .pvp-hp-bar{width:60px;height:6px;background:#222;border-radius:3px;overflow:hidden;display:inline-block}
   .pvp-hp-fill{height:100%;background:#6c6;transition:width .3s}
-  #pvp-exit-btn{position:absolute;top:8px;right:8px;z-index:3;padding:4px 12px;font-family:'DotGothic16',monospace;font-size:12px;background:rgba(96,32,32,.8);color:#fff;border:1px solid #a66;border-radius:4px;cursor:pointer;pointer-events:auto}
+  #pvp-exit-btn{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:3;padding:6px 20px;font-family:'DotGothic16',monospace;font-size:12px;background:rgba(96,32,32,.8);color:#fff;border:1px solid #a66;border-radius:4px;cursor:pointer;pointer-events:auto}
   #pvp-exit-btn:hover{background:rgba(128,48,48,.9)}
   .npc-del{background:#602020;color:#faa;border:1px solid #844;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
   .npc-del:hover{background:#803030}
@@ -389,8 +389,8 @@
   <div id="pvp-ui" style="display:none">
     <div id="pvp-log"></div>
     <div id="pvp-status-bar"></div>
-    <button id="pvp-exit-btn" style="display:none">閉じる</button>
   </div>
+  <button id="pvp-exit-btn" style="display:none">閉じる</button>
 </div>
 <script>
 // ================================================================
