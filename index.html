@@ -1769,6 +1769,14 @@ function createNPCFromForm(){
     owner_name:authOwnerName||null,
     sprite:newNpcSprite||null
   };
+  // Generate spriteImgData from sprite pixels for Supabase persistence
+  if(newNpcSprite){
+    const bk=[...dotPixels];dotPixels=newNpcSprite;
+    const cv2=dotToImageData();
+    npcData.spriteCanvas=cv2;
+    npcData.spriteImgData=cv2.toDataURL('image/png');
+    dotPixels=bk;
+  }
   newNpcSprite=null;
   hideCreateForm();
   startPlacement(npcData);
@@ -2399,7 +2407,7 @@ document.getElementById('dot-apply').addEventListener('click',async()=>{
     player.spriteCanvas=spriteData?dotToImageData():null;
     try{localStorage.setItem('my-game:player-sprite',JSON.stringify(spriteData));}catch(e){}
     player.spriteImgData=canvasImg;
-    player.spriteImg=spriteData?player.spriteCanvas:null;
+    if(canvasImg){b64ToImg(canvasImg).then(img=>{player.spriteImg=img;});}else{player.spriteImg=null;}
     try{if(canvasImg)localStorage.setItem('my-game:player-img',canvasImg);else localStorage.removeItem('my-game:player-img');}catch(e){}
     dbSavePlayerSprite(canvasImg);
   }else if(dotTarget.type==='new-npc'){
@@ -2410,7 +2418,7 @@ document.getElementById('dot-apply').addEventListener('click',async()=>{
     npc.spriteCanvas=spriteData?dotToImageData():null;
     saveNpcSprites();
     npc.spriteImgData=canvasImg;
-    npc.spriteImg=spriteData?npc.spriteCanvas:null;
+    if(canvasImg){b64ToImg(canvasImg).then(img=>{npc.spriteImg=img;});}else{npc.spriteImg=null;}
     saveNpcImages();
     dbAddNPC(npc);
   }
