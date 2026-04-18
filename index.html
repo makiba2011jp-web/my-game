@@ -1451,7 +1451,7 @@ async function send(){
       }
       if(geminiMsgs.length>0&&geminiMsgs[0].role==='model'){geminiMsgs.unshift({role:'user',parts:[{text:'（会話開始）'}]});}
       const msgsWithSystem=[{role:'user',parts:[{text:'以下の設定でロールプレイしてください：\n'+curNPC.personality}]},{role:'model',parts:[{text:'わかりました。設定に従って会話します。'}]},...geminiMsgs];
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({contents:msgsWithSystem})});
       if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${res.status}`);}
@@ -1720,7 +1720,7 @@ _fImg.addEventListener('change',async e=>{
     let res,data,text;
     if(scanAI==='gemini'){
       const gKey=document.getElementById('gemini-key').value.trim();
-      res=await fetch(`https://generativelanguage.googleapis.com/v1/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
+      res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({contents:[{parts:[
           {inline_data:{mime_type:mediaType,data:b64}},
