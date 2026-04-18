@@ -135,8 +135,6 @@
   #dot-target-label{color:#ccc;font-size:12px}
   #dot-img-section{width:100%;text-align:center}
   #dot-img-section label{color:#aac;font-size:12px}
-  #player-sprite-btn{width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:linear-gradient(180deg,#3a2a60,#2a1a50);color:#fff;border:2px solid #86a;border-radius:6px;cursor:pointer}
-  #player-sprite-btn:hover{background:linear-gradient(180deg,#4a3a80,#3a2a60);border-color:#a8c}
   .sprite-upload-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:4px 0}
   .sprite-upload-row label{color:#aac;font-size:12px;width:100%}
   .sprite-upload-row button{padding:4px 10px;font-family:'DotGothic16',monospace;font-size:11px;background:#2a3a60;color:#fff;border:1px solid #556;border-radius:4px;cursor:pointer}
@@ -263,7 +261,6 @@
   </div>
   <h2>NPC リスト</h2>
   <div id="npc-list"><div class="npc-empty">NPCがいません</div></div>
-  <button id="player-sprite-btn">キャラ編集（主人公）</button>
   <button id="npc-create-btn">＋ NPCを作成</button>
   <div id="npc-form">
     <label>画像から自動入力（キャラステータスSS）</label>
@@ -2085,10 +2082,6 @@ document.getElementById('dot-download').addEventListener('click',()=>{
 document.getElementById('dot-close').addEventListener('click',closeDotEditor);
 
 // Player sprite button
-document.getElementById('player-sprite-btn').addEventListener('click',()=>{
-  openDotEditor({type:'player'},player.sprite||null);
-});
-
 // Draw custom sprite on game canvas
 function drawCustomSprite(tx,ty,spriteCanvas){
   const cx=tx*S+S/2, cy=ty*S;
