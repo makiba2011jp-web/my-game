@@ -2818,15 +2818,25 @@ function updateKeyStatus(){
 async function updateRateDisplay(){
   if(getMyKey()){updateKeyStatus();return;}
   try{
+    console.log('[Rate] 残り回数取得中...',WORKER_URL);
     const res=await fetch(WORKER_URL,{method:'GET'});
-    if(!res.ok)return;
+    console.log('[Rate] status='+res.status);
+    if(!res.ok){console.warn('[Rate] エラー status='+res.status);return;}
     const d=await res.json();
+    console.log('[Rate] 取得成功',d);
     const el=document.getElementById('rate-display');
     const bar=document.getElementById('rate-bar');
-    el.textContent=`API残り回数: ${d.remaining}/${d.limit}回`;
-    if(d.remaining<=5)bar.classList.add('warn');
-    else bar.classList.remove('warn');
-  }catch(e){}
+    if(typeof d.remaining==='number'&&typeof d.limit==='number'){
+      el.textContent=`API残り回数: ${d.remaining}/${d.limit}回`;
+      if(d.remaining<=5)bar.classList.add('warn');
+      else bar.classList.remove('warn');
+    }else{
+      console.warn('[Rate] 不正なレスポンス形式',d);
+      el.textContent='API残り回数: 取得失敗';
+    }
+  }catch(e){console.error('[Rate] 取得エラー:',e);
+    document.getElementById('rate-display').textContent='API残り回数: 接続エラー';
+  }
 }
 
 const _myKeyInput=document.getElementById('my-api-key');
