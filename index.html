@@ -20,13 +20,6 @@
   .pp-bar-fill{height:100%;transition:width .3s}
   .pp-bar-label{display:flex;justify-content:space-between;font-size:11px;color:#aac;margin-bottom:2px}
   .pp-section-title{font-size:11px;color:#668;text-transform:uppercase;letter-spacing:1px;margin-top:4px;margin-bottom:4px}
-  #api-bar{display:flex;align-items:center;gap:10px;margin-bottom:6px;z-index:100;flex-wrap:wrap}
-  #api-bar .api-row{width:100%;display:flex;align-items:center;gap:10px}
-  #api-bar .api-key-row{display:flex;align-items:center;gap:6px;width:100%}
-  #api-bar label{font-size:14px;color:#aaa}
-  #api-bar input{padding:5px 10px;font-family:monospace;font-size:14px;background:#12121e;color:#0f0;border:1px solid #444;border-radius:4px}
-  #api-bar .api-key-row input{flex:1;min-width:0;width:auto}
-  #api-bar select{padding:5px 8px;font-family:'DotGothic16',monospace;font-size:13px;background:#12121e;color:#0f0;border:1px solid #444;border-radius:4px}
   #game-wrapper{position:relative}
   canvas{display:block;border:4px solid #556;border-radius:6px;box-shadow:0 0 60px rgba(0,0,0,.7);max-width:calc(100vw - 620px);max-height:calc(100vh - 80px);object-fit:contain}
   #chat-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:rgba(0,0,0,.6)}
@@ -204,13 +197,6 @@
     #side-panel.mobile-open{display:flex}
     #mobile-close-panel{display:block}
     #game-area{flex:1;min-height:0;overflow:hidden}
-    #api-bar{padding:4px 8px;margin-bottom:2px;gap:4px!important}
-    #api-bar label{font-size:11px;white-space:nowrap}
-    #api-bar select{font-size:11px}
-    #api-bar input{font-size:12px;box-sizing:border-box}
-    #api-bar .api-key-row{width:100%}
-    #api-bar .api-key-row label{flex-shrink:0}
-    #api-bar .api-key-row input{width:auto!important}
     #chat-input-box{flex-wrap:wrap;height:auto;padding:8px 12px;gap:6px;bottom:8px}
     #chat-input{width:100%;flex:none}
     #chat-send{flex:1;padding:8px;font-size:14px}
@@ -254,7 +240,6 @@
   </div>
 </div>
 <div id="game-area">
-<div id="api-bar"><span class="api-row"><label>チャットAI:</label><select id="chat-ai-select"><option value="gemini">Gemini（無料）</option><option value="claude">Claude</option></select> <label>モデル:</label><select id="model-select"></select></span><span class="api-key-row"><label>Anthropic API Key:</label><input type="password" id="api-key" placeholder="sk-ant-..."></span><span class="api-key-row"><label>Gemini API Key:</label><input type="password" id="gemini-key" placeholder="AIza..."></span></div>
 <div id="game-wrapper">
   <canvas id="game"></canvas>
   <div id="chat-overlay">
@@ -416,18 +401,12 @@
 </div>
 <script>
 // ================================================================
-const USE_CLOUDFLARE=true; // falseにすると直接API呼び出しに戻る
 const WORKER_URL='https://my-game-api.makiba2011jp.workers.dev';
+const CLAUDE_MODEL='claude-haiku-4-5-20251001';
 
 function claudeFetch(body){
-  if(USE_CLOUDFLARE){
-    return fetch(WORKER_URL,{method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(body)});
-  }
-  const key=document.getElementById('api-key').value.trim();
-  return fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+  return fetch(WORKER_URL,{method:'POST',
+    headers:{'Content-Type':'application/json'},
     body:JSON.stringify(body)});
 }
 
@@ -1037,7 +1016,6 @@ const npcs=[];
 //  PERSISTENCE (localStorage for player, Supabase for NPCs)
 // ================================================================
 const SAVE_KEY='my-game:state:v1';
-const API_KEY_STORAGE='my-game:api-key';
 const MSG_KEY='my-game:messages:v1';
 
 // Supabase
@@ -1570,49 +1548,20 @@ async function send(){
     if(!cmd){addMsg('system','右のコマンドパネルから行動を選択');return;}
     battleTurn(cmd);updateBattleUI();return;
   }
-  const chatAI=document.getElementById('chat-ai-select').value;
   ci.value='';addMsg('player',txt);curNPC.messages.push({role:'user',content:txt});saveState();
-  if(chatAI==='claude'){
-    if(!USE_CLOUDFLARE){const key=document.getElementById('api-key').value.trim();
-    if(!key){const reply=_fallbackReply(curNPC,txt);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();ci.focus();return;}}
-    const ld=addMsg('system','');ld.innerHTML='<span class="typing-indicator">考え中...</span>';
-    streaming=true;sb2.disabled=true;
-    try{
-      const res=await claudeFetch({model:_modelSelect.value,max_tokens:800,system:curNPC.personality,messages:curNPC.messages.slice(-20)});
-      if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${res.status}`);}
-      const data=await res.json();const reply=data.content?.[0]?.text||'（返答なし）';
-      lb.removeChild(ld);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
-    }catch(err){lb.removeChild(ld);addMsg('system',`エラー: ${err.message}`);}
-    finally{streaming=false;sb2.disabled=false;ci.focus();}
-  }else{
-    const gKey=document.getElementById('gemini-key').value.trim();
-    if(!gKey){const reply=_fallbackReply(curNPC,txt);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();ci.focus();return;}
-    const ld=addMsg('system','');ld.innerHTML='<span class="typing-indicator">考え中...</span>';
-    streaming=true;sb2.disabled=true;
-    try{
-      const rawMsgs=curNPC.messages.slice(-20).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
-      const geminiMsgs=[];
-      for(const m of rawMsgs){
-        if(geminiMsgs.length>0&&geminiMsgs[geminiMsgs.length-1].role===m.role){
-          geminiMsgs[geminiMsgs.length-1].parts[0].text+='\n'+m.parts[0].text;
-        }else{geminiMsgs.push({role:m.role,parts:[{text:m.parts[0].text}]});}
-      }
-      if(geminiMsgs.length>0&&geminiMsgs[0].role==='model'){geminiMsgs.unshift({role:'user',parts:[{text:'（会話開始）'}]});}
-      const msgsWithSystem=[{role:'user',parts:[{text:'以下の設定でロールプレイしてください：\n'+curNPC.personality}]},{role:'model',parts:[{text:'わかりました。設定に従って会話します。'}]},...geminiMsgs];
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contents:msgsWithSystem})});
-      if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${res.status}`);}
-      const data=await res.json();const reply=data.candidates?.[0]?.content?.parts?.[0]?.text||'（返答なし）';
-      lb.removeChild(ld);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
-    }catch(err){lb.removeChild(ld);addMsg('system',`エラー: ${err.message}`);}
-    finally{streaming=false;sb2.disabled=false;ci.focus();}
-  }
+  const ld=addMsg('system','');ld.innerHTML='<span class="typing-indicator">考え中...</span>';
+  streaming=true;sb2.disabled=true;
+  try{
+    const res=await claudeFetch({model:CLAUDE_MODEL,max_tokens:800,system:curNPC.personality,messages:curNPC.messages.slice(-20)});
+    if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${res.status}`);}
+    const data=await res.json();const reply=data.content?.[0]?.text||'（返答なし）';
+    lb.removeChild(ld);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
+  }catch(err){lb.removeChild(ld);addMsg('system',`エラー: ${err.message}`);}
+  finally{streaming=false;sb2.disabled=false;ci.focus();}
 }
 sb2.addEventListener('click',send);
 ci.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();send();}if(e.key==='Escape')closeChat();e.stopPropagation();});
 cb2.addEventListener('click',closeChat);
-document.getElementById('api-key').addEventListener('keydown',e=>e.stopPropagation());
 
 // ================================================================
 //  NPC MANAGEMENT (Side Panel)
@@ -1921,14 +1870,6 @@ const _importStatus=document.getElementById('import-status');
 _btnImport.addEventListener('click',()=>_fImg.click());
 _fImg.addEventListener('change',async e=>{
   const file=e.target.files[0];if(!file)return;
-  const scanAI=document.getElementById('chat-ai-select').value;
-  if(scanAI==='gemini'){
-    const gKey=document.getElementById('gemini-key').value.trim();
-    if(!gKey){alert('先に上部のGemini APIキーを設定してください');_fImg.value='';return;}
-  }else if(!USE_CLOUDFLARE){
-    const cKey=document.getElementById('api-key').value.trim();
-    if(!cKey){alert('先に上部のAnthropic APIキーを設定してください');_fImg.value='';return;}
-  }
   _btnImport.disabled=true;_importStatus.textContent='解析中...';
   try{
     const b64=await new Promise((resolve,reject)=>{
@@ -1953,26 +1894,13 @@ _fImg.addEventListener('change',async e=>{
       '  "accessories": {"hat":false,"apron":false,"cape":false,"staff":false,"bow":false,"shield":false}\n'+
       '}\n\n職業からアクセサリを推測してください。例: 魔法使い→staff, 騎士→shield, マジックナイト→shield+staff, 弓兵→bow, 商人→apron。';
     let res,data,text;
-    if(scanAI==='gemini'){
-      const gKey=document.getElementById('gemini-key').value.trim();
-      res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contents:[{parts:[
-          {inline_data:{mime_type:mediaType,data:b64}},
-          {text:prompt}
-        ]}]})});
-      if(!res.ok){const er=await res.json().catch(()=>({}));throw new Error(er.error?.message||('API Error '+res.status));}
-      data=await res.json();
-      text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
-    }else{
-      res=await claudeFetch({model:_modelSelect.value,max_tokens:800,
-          messages:[{role:'user',content:[
-            {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
-            {type:'text',text:prompt}]}]});
-      if(!res.ok){const er=await res.json().catch(()=>({}));throw new Error(er.error?.message||('API Error '+res.status));}
-      data=await res.json();
-      text=(data.content?.[0]?.text||'').trim();
-    }
+    res=await claudeFetch({model:CLAUDE_MODEL,max_tokens:800,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
+          {type:'text',text:prompt}]}]});
+    if(!res.ok){const er=await res.json().catch(()=>({}));throw new Error(er.error?.message||('API Error '+res.status));}
+    data=await res.json();
+    text=(data.content?.[0]?.text||'').trim();
     text=text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'');
     const m=text.match(/\{[\s\S]*\}/);if(m)text=m[0];
     const info=JSON.parse(text);
@@ -2005,43 +1933,6 @@ _fImg.addEventListener('change',async e=>{
 });
 
 // loadState is called at the end of the script after all patches are applied
-// API key persistence
-const _apiKeyInput=document.getElementById('api-key');
-try{const k=localStorage.getItem(API_KEY_STORAGE);if(k)_apiKeyInput.value=k;}catch(e){}
-_apiKeyInput.addEventListener('input',()=>{try{localStorage.setItem(API_KEY_STORAGE,_apiKeyInput.value);}catch(e){}});
-const _geminiKeyInput=document.getElementById('gemini-key');
-const GEMINI_KEY_STORAGE='my-game:gemini-key';
-try{const gk=localStorage.getItem(GEMINI_KEY_STORAGE);if(gk)_geminiKeyInput.value=gk;}catch(e){}
-_geminiKeyInput.addEventListener('input',()=>{try{localStorage.setItem(GEMINI_KEY_STORAGE,_geminiKeyInput.value);}catch(e){}});
-_geminiKeyInput.addEventListener('keydown',e=>e.stopPropagation());
-const MODELS={
-  gemini:[
-    {value:'gemini-2.0-flash',label:'2.0 Flash'},
-    {value:'gemini-2.0-flash-lite',label:'2.0 Flash Lite'},
-  ],
-  claude:[
-    {value:'claude-sonnet-4-20250514',label:'Sonnet 4'},
-    {value:'claude-haiku-4-5-20251001',label:'Haiku 4.5'},
-  ]
-};
-const _chatAISelect=document.getElementById('chat-ai-select');
-const _modelSelect=document.getElementById('model-select');
-function updateModelOptions(){
-  const ai=_chatAISelect.value;
-  _modelSelect.innerHTML='';
-  MODELS[ai].forEach(m=>{const o=document.createElement('option');o.value=m.value;o.textContent=m.label;_modelSelect.appendChild(o);});
-  try{const saved=localStorage.getItem('my-game:model-'+ai);if(saved)_modelSelect.value=saved;}catch(e){}
-}
-try{const v=localStorage.getItem('my-game:chat-ai');if(v)_chatAISelect.value=v;}catch(e){}
-updateModelOptions();
-_chatAISelect.addEventListener('change',()=>{try{localStorage.setItem('my-game:chat-ai',_chatAISelect.value);}catch(e){} updateModelOptions();});
-_modelSelect.addEventListener('change',()=>{try{localStorage.setItem('my-game:model-'+_chatAISelect.value,_modelSelect.value);}catch(e){}});
-
-// Hide Anthropic API key row when using Cloudflare
-if(USE_CLOUDFLARE){
-  const apiKeyRows=document.querySelectorAll('.api-key-row');
-  apiKeyRows.forEach(row=>{if(row.querySelector('#api-key'))row.style.display='none';});
-}
 
 // ================================================================
 //  PLAYER STATUS PANEL
@@ -2828,10 +2719,9 @@ function pvpEnd(){
 }
 
 async function pvpAIComment(){
-  if(!USE_CLOUDFLARE){const key=document.getElementById('api-key').value.trim();if(!key)return;}
   const logText=pvpBattle.logs.join('\n');
   try{
-    const res=await claudeFetch({model:'claude-haiku-4-5-20251001',max_tokens:200,
+    const res=await claudeFetch({model:CLAUDE_MODEL,max_tokens:200,
         system:'あなたはゲームバトルの熱血実況者です。バトルログを読んで、短い実況コメント（2〜3文）を日本語で生成してください。盛り上げるように！',
         messages:[{role:'user',content:`バトルログ:\n${logText}\n\n実況コメントを1つ生成して。`}]});
     if(!res.ok)return;
