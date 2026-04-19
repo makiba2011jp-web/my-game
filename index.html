@@ -422,7 +422,7 @@ const WORKER_URL='https://my-game-api.makiba2011jp.workers.dev';
 function claudeFetch(body){
   if(USE_CLOUDFLARE){
     return fetch(WORKER_URL,{method:'POST',
-      headers:{'Content-Type':'application/json','X-AI-Type':'anthropic'},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify(body)});
   }
   const key=document.getElementById('api-key').value.trim();
