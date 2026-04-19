@@ -22,8 +22,8 @@
   .pp-section-title{font-size:11px;color:#668;text-transform:uppercase;letter-spacing:1px;margin-top:4px;margin-bottom:4px}
   #rate-bar{text-align:center;padding:4px 8px;font-family:'DotGothic16',monospace;font-size:12px;color:#8a8;flex-shrink:0}
   #rate-bar.warn{color:#f66}
-  #mykey-bar{display:flex;align-items:center;justify-content:center;gap:6px;padding:2px 8px;flex-shrink:0}
-  #my-api-key{width:200px;padding:3px 6px;font-family:monospace;font-size:11px;background:#12121e;color:#0f0;border:1px solid #333;border-radius:3px;outline:none}
+  #mykey-bar{display:flex;align-items:center;justify-content:center;gap:6px;padding:2px 8px;flex-shrink:0;flex-wrap:wrap}
+  #my-api-key{width:160px;padding:3px 6px;font-family:monospace;font-size:11px;background:#12121e;color:#0f0;border:1px solid #333;border-radius:3px;outline:none}
   #my-api-key:focus{border-color:#6a6}
   #mykey-status{font-family:'DotGothic16',monospace;font-size:11px;color:#6c6}
   #game-wrapper{position:relative}
@@ -247,7 +247,7 @@
 </div>
 <div id="game-area">
 <div id="rate-bar"><span id="rate-display">API残り回数: --/--</span></div>
-<div id="mykey-bar"><input type="password" id="my-api-key" placeholder="APIキー（任意・無制限）"><span id="mykey-status"></span></div>
+<div id="mykey-bar"><label style="font-size:11px;color:#aaa;white-space:nowrap">Anthropic APIキー</label><input type="password" id="my-api-key" placeholder="sk-ant-..."><span id="mykey-status"></span><span style="font-size:10px;color:#888">自身で所持のAnthropic APIキーを使えば無限にAI会話できます。</span></div>
 <div id="game-wrapper">
   <canvas id="game"></canvas>
   <div id="chat-overlay">
@@ -411,6 +411,11 @@
 // ================================================================
 const WORKER_URL='https://my-game-api.makiba2011jp.workers.dev';
 const CLAUDE_MODEL='claude-haiku-4-5-20251001';
+const RATE_LIMIT_MSG='本日の利用回数（20回）に達しました。明日また遊んでください！\n自身のAnthropic APIキーを画面上部のBOXに入力すれば無限に会話できます。';
+function formatApiError(status,msg){
+  if(status===429||(msg&&/rate.?limit|too many|quota/i.test(msg)))return RATE_LIMIT_MSG;
+  return msg||('API Error '+status);
+}
 
 function getMyKey(){return(document.getElementById('my-api-key')||{}).value?.trim()||'';}
 
@@ -1569,10 +1574,10 @@ async function send(){
   streaming=true;sb2.disabled=true;
   try{
     const res=await claudeFetch({model:CLAUDE_MODEL,max_tokens:800,system:curNPC.personality,messages:curNPC.messages.slice(-20)});
-    if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${res.status}`);}
+    if(!res.ok){const e=await res.json().catch(()=>({}));throw{status:res.status,msg:e.error?.message};}
     const data=await res.json();const reply=data.content?.[0]?.text||'（返答なし）';
     lb.removeChild(ld);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
-  }catch(err){lb.removeChild(ld);addMsg('system',`エラー: ${err.message}`);}
+  }catch(err){lb.removeChild(ld);addMsg('system',err.status?formatApiError(err.status,err.msg):`エラー: ${err.message}`);}
   finally{streaming=false;sb2.disabled=false;ci.focus();}
 }
 sb2.addEventListener('click',send);
