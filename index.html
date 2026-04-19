@@ -20,6 +20,8 @@
   .pp-bar-fill{height:100%;transition:width .3s}
   .pp-bar-label{display:flex;justify-content:space-between;font-size:11px;color:#aac;margin-bottom:2px}
   .pp-section-title{font-size:11px;color:#668;text-transform:uppercase;letter-spacing:1px;margin-top:4px;margin-bottom:4px}
+  #rate-bar{text-align:center;padding:4px 8px;font-family:'DotGothic16',monospace;font-size:12px;color:#8a8;flex-shrink:0}
+  #rate-bar.warn{color:#f66}
   #game-wrapper{position:relative}
   canvas{display:block;border:4px solid #556;border-radius:6px;box-shadow:0 0 60px rgba(0,0,0,.7);max-width:calc(100vw - 620px);max-height:calc(100vh - 80px);object-fit:contain}
   #chat-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:rgba(0,0,0,.6)}
@@ -240,6 +242,7 @@
   </div>
 </div>
 <div id="game-area">
+<div id="rate-bar"><span id="rate-display">残り回数: --/--</span></div>
 <div id="game-wrapper">
   <canvas id="game"></canvas>
   <div id="chat-overlay">
@@ -2782,6 +2785,31 @@ function pvpRenderLoop(){
 }
 
 
+
+// ================================================================
+//  API RATE DISPLAY
+// ================================================================
+async function updateRateDisplay(){
+  try{
+    const res=await fetch(WORKER_URL,{method:'GET'});
+    if(!res.ok)return;
+    const d=await res.json();
+    const el=document.getElementById('rate-display');
+    const bar=document.getElementById('rate-bar');
+    el.textContent=`本日の残り回数: ${d.remaining}/${d.limit}回`;
+    if(d.remaining<=5)bar.classList.add('warn');
+    else bar.classList.remove('warn');
+  }catch(e){}
+}
+updateRateDisplay();
+
+// Patch claudeFetch to update rate after each call
+const _origClaudeFetch=claudeFetch;
+claudeFetch=function(body){
+  const p=_origClaudeFetch(body);
+  p.then(()=>updateRateDisplay()).catch(()=>{});
+  return p;
+};
 
 // Load persisted state (must be after all patches)
 loadState();
