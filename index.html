@@ -58,8 +58,10 @@
   .typing-indicator{color:#999;font-style:italic}
   #place-msg{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,40,.92);border:3px solid #aaf;border-radius:12px;padding:16px 28px;color:#fff;font-family:'DotGothic16',monospace;font-size:16px;z-index:60;text-align:center;pointer-events:none}
   /* Side Panel */
-  #side-panel{width:320px;height:100vh;background:linear-gradient(180deg,#0c0c1a,#08081a);border-left:3px solid #334;padding:14px;display:flex;flex-direction:column;gap:10px;box-sizing:border-box}
-  #npc-list{flex:1 1 0;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:4px;scrollbar-width:thin;scrollbar-color:#334 #0c0c1a}
+  #side-panel{width:320px;height:100vh;background:linear-gradient(180deg,#0c0c1a,#08081a);border-left:3px solid #334;padding:14px;display:flex;flex-direction:column;gap:10px;box-sizing:border-box;overflow:hidden}
+  #side-panel-top{display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+  #side-panel-scroll{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin;scrollbar-color:#334 #0c0c1a}
+  #npc-list{display:flex;flex-direction:column;gap:8px}
   #npc-list::-webkit-scrollbar{width:6px}
   #npc-list::-webkit-scrollbar-thumb{background:#334;border-radius:3px}
   #side-panel h2{color:#aaf;font-size:16px;margin:0;text-align:center;border-bottom:2px solid #334;padding-bottom:8px}
@@ -195,7 +197,7 @@
   @media(max-width:768px){
     body{flex-direction:column;overflow:hidden}
     #player-panel{display:none!important}
-    #side-panel{display:none;position:fixed;bottom:0;left:0;right:0;height:72vh;z-index:300;border-left:none;border-top:3px solid #446;overflow-y:auto;width:100%!important}
+    #side-panel{display:none;position:fixed;bottom:0;left:0;right:0;height:72vh;z-index:300;border-left:none;border-top:3px solid #446;overflow:hidden;width:100%!important}
     #side-panel.mobile-open{display:flex}
     #mobile-close-panel{display:block}
     #game-area{flex:1;min-height:0;overflow:hidden}
@@ -290,20 +292,23 @@
 </div>
 <div id="side-panel">
   <button id="mobile-close-panel">✕ 閉じる</button>
-  <div id="auth-area">
-    <div id="auth-display"></div>
-    <div id="auth-form">
-      <input type="text" id="auth-game-id" placeholder="キャラID（例：C1F9）" maxlength="20">
-      <input type="text" id="auth-name" placeholder="キャラ名" maxlength="20">
-      <input type="password" id="auth-pass" placeholder="パスワード">
-      <button id="auth-submit">登録／ログイン</button>
-      <div id="auth-status"></div>
+  <div id="side-panel-top">
+    <div id="auth-area">
+      <div id="auth-display"></div>
+      <div id="auth-form">
+        <input type="text" id="auth-game-id" placeholder="キャラID（例：C1F9）" maxlength="20">
+        <input type="text" id="auth-name" placeholder="キャラ名" maxlength="20">
+        <input type="password" id="auth-pass" placeholder="パスワード">
+        <button id="auth-submit">登録／ログイン</button>
+        <div id="auth-status"></div>
+      </div>
     </div>
+    <button id="pvp-btn">⚔ PVPバトル</button>
+    <button id="npc-create-btn">＋ NPCを作成</button>
   </div>
   <h2>NPC リスト</h2>
+  <div id="side-panel-scroll">
   <div id="npc-list"><div class="npc-empty">NPCがいません</div></div>
-  <button id="pvp-btn">⚔ PVPバトル</button>
-  <button id="npc-create-btn">＋ NPCを作成</button>
   <div id="npc-form">
     <label>画像から自動入力（キャラステータスSS）</label>
     <div class="import-row">
@@ -339,6 +344,7 @@
       <button id="btn-form-ok">作成して配置</button>
       <button id="btn-form-cancel">キャンセル</button>
     </div>
+  </div>
   </div>
 </div>
 <div id="dot-editor-overlay">
