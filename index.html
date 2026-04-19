@@ -83,40 +83,6 @@
   .npc-owner{font-size:10px;color:#888;margin-left:4px}
 
   /* ---- PVP ---- */
-  #novel-btn{width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:linear-gradient(180deg,#2a2a6a,#1a1a4a);color:#ccf;border:2px solid #66a;border-radius:6px;cursor:pointer;margin-bottom:4px}
-  #novel-btn:hover{background:linear-gradient(180deg,#3a3a8a,#2a2a6a)}
-
-  /* ---- Novel ---- */
-  #novel-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:400;background:rgba(0,0,20,.95);overflow-y:auto}
-  #novel-overlay.open{display:block}
-  #novel-inner{max-width:800px;margin:0 auto;padding:24px;font-family:'DotGothic16',monospace;color:#fff;position:relative}
-  #novel-close{position:absolute;top:0;right:0;padding:4px 12px;font-family:'DotGothic16',monospace;font-size:12px;background:rgba(96,32,32,.8);color:#fff;border:1px solid #a66;border-radius:4px;cursor:pointer}
-  #novel-close:hover{background:rgba(128,48,48,.9)}
-  #novel-form h2{text-align:center;color:#aaf;font-size:18px;margin:0 0 16px}
-  #novel-form label{display:block;color:#aac;font-size:12px;margin:8px 0 4px}
-  #novel-form textarea{width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:#0a0a20;color:#fff;border:1px solid #446;border-radius:4px;outline:none;resize:vertical;min-height:60px;box-sizing:border-box}
-  #novel-form textarea:focus{border-color:#88a}
-  #novel-chars{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
-  .novel-char{display:flex;align-items:center;gap:4px;background:#1a1a3a;border:1px solid #446;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px;color:#ccc}
-  .novel-char:hover{background:#2a2a5a}
-  .novel-char.selected{border-color:#8af;background:#2a2a6a;color:#fff}
-  .novel-char-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
-  #novel-form select{padding:6px 8px;font-family:'DotGothic16',monospace;font-size:13px;background:#0a0a20;color:#fff;border:1px solid #446;border-radius:4px}
-  #novel-generate{width:100%;padding:10px;font-family:'DotGothic16',monospace;font-size:14px;background:linear-gradient(180deg,#2a5a30,#1a4a20);color:#fff;border:2px solid #6a6;border-radius:6px;cursor:pointer;margin-top:12px}
-  #novel-generate:hover{background:linear-gradient(180deg,#3a7a40,#2a5a30)}
-  #novel-generate:disabled{opacity:.4;cursor:default}
-  #novel-loading{text-align:center;color:#aaf;font-size:16px;padding:40px 0}
-  #novel-result{display:none}
-  #novel-result h1{text-align:center;color:#ffd;font-size:26px;margin:24px 0;border-bottom:2px solid #446;padding-bottom:14px}
-  .novel-chapter{margin:28px 0;padding:20px 24px;background:rgba(10,10,40,.6);border:1px solid #334;border-radius:8px}
-  .novel-chapter h3{color:#aaf;font-size:20px;margin:0 0 16px;border-bottom:1px solid #334;padding-bottom:10px}
-  .novel-chapter p{line-height:2.2;font-size:17px;color:#eef;white-space:pre-wrap}
-  #novel-result-btns{display:flex;gap:8px;justify-content:center;margin:20px 0;flex-wrap:wrap}
-  #novel-result-btns button{padding:8px 16px;font-family:'DotGothic16',monospace;font-size:13px;border-radius:6px;cursor:pointer}
-  #novel-copy-btn{background:#2a3a60;color:#fff;border:2px solid #68a}
-  #novel-copy-btn:hover{background:#3a4a80}
-  #novel-regen-btn{background:#2a5a30;color:#fff;border:2px solid #6a6}
-  #novel-regen-btn:hover{background:#3a7a40}
 
   #pvp-btn{width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:linear-gradient(180deg,#6a2a2a,#4a1a1a);color:#fcc;border:2px solid #a66;border-radius:6px;cursor:pointer;margin-bottom:4px}
   #pvp-btn:hover{background:linear-gradient(180deg,#8a3a3a,#6a2a2a)}
@@ -335,7 +301,6 @@
   <h2>NPC リスト</h2>
   <div id="npc-list"><div class="npc-empty">NPCがいません</div></div>
   <button id="pvp-btn">⚔ PVPバトル</button>
-  <button id="novel-btn">📖 ライトノベル</button>
   <button id="npc-create-btn">＋ NPCを作成</button>
   <div id="npc-form">
     <label>画像から自動入力（キャラステータスSS）</label>
@@ -399,35 +364,6 @@
       <button id="dot-download">画像を保存</button>
       <button id="dot-reset">一番最初の姿に戻す</button>
       <button id="dot-close">閉じる</button>
-    </div>
-  </div>
-</div>
-<div id="novel-overlay">
-  <div id="novel-inner">
-    <button id="novel-close">✕</button>
-    <div id="novel-form">
-      <h2>📖 ライトノベル作成</h2>
-      <label>物語の設定</label>
-      <textarea id="novel-prompt" placeholder="どんな物語にするか指示を入力してください&#10;例：ファンタジー冒険もの。まきばが魔王を倒す旅に出る" rows="3"></textarea>
-      <label>登場人物（最大6人）</label>
-      <div id="novel-chars"></div>
-      <label>章数</label>
-      <select id="novel-chapter-count">
-        <option value="1">1章</option>
-        <option value="2">2章</option>
-        <option value="3" selected>3章</option>
-        <option value="4">4章</option>
-        <option value="5">5章</option>
-      </select>
-      <button id="novel-generate">生成する</button>
-    </div>
-    <div id="novel-loading" style="display:none"></div>
-    <div id="novel-result">
-      <div id="novel-result-btns">
-        <button id="novel-copy-btn">📋 コピー</button>
-        <button id="novel-regen-btn">🔄 再生成</button>
-      </div>
-      <div id="novel-output"></div>
     </div>
   </div>
 </div>
@@ -2848,154 +2784,7 @@ function pvpRenderLoop(){
   pvpAnim=requestAnimationFrame(pvpRenderLoop);
 }
 
-// ================================================================
-//  LIGHT NOVEL MODE
-// ================================================================
-const novelOverlay=document.getElementById('novel-overlay');
-let novelSelectedNpcs=new Set();
-let novelFullText='';
 
-function novelOpen(){
-  novelOverlay.classList.add('open');
-  document.getElementById('novel-form').style.display='';
-  document.getElementById('novel-loading').style.display='none';
-  document.getElementById('novel-result').style.display='none';
-  novelSelectedNpcs.clear();
-  novelRenderChars();
-}
-function novelClose(){novelOverlay.classList.remove('open');}
-
-document.getElementById('novel-btn').addEventListener('click',novelOpen);
-document.getElementById('novel-close').addEventListener('click',novelClose);
-
-function novelRenderChars(){
-  const el=document.getElementById('novel-chars');
-  el.innerHTML='';
-  npcs.forEach(npc=>{
-    if(npc.id==='__player__')return;
-    const d=document.createElement('div');
-    d.className='novel-char'+(novelSelectedNpcs.has(npc.id)?' selected':'');
-    d.innerHTML=`<div class="novel-char-dot" style="background:${esc(npc.color||'#888')}"></div>${esc(npc.name)}`;
-    d.addEventListener('click',()=>{
-      if(novelSelectedNpcs.has(npc.id)){novelSelectedNpcs.delete(npc.id);}
-      else if(novelSelectedNpcs.size<6){novelSelectedNpcs.add(npc.id);}
-      novelRenderChars();
-    });
-    el.appendChild(d);
-  });
-}
-
-async function novelGenerate(){
-  const prompt=document.getElementById('novel-prompt').value.trim();
-  if(!prompt){alert('物語の設定を入力してください');return;}
-  if(novelSelectedNpcs.size===0){alert('登場人物を選択してください');return;}
-
-  const chatAI=document.getElementById('chat-ai-select').value;
-  const chapters=parseInt(document.getElementById('novel-chapter-count').value);
-
-  const chars=npcs.filter(n=>novelSelectedNpcs.has(n.id)).map(n=>`・${n.name}：${n.personality||'設定なし'}`).join('\n');
-  const userMsg=`【物語の設定】\n${prompt}\n\n【登場人物】\n${chars}\n\n【章数】\n${chapters}章構成で書いてください。`;
-  const sysMsg='あなたはライトノベル作家です。指定されたキャラクターを使って魅力的なライトノベルを書いてください。各章は500〜800文字程度にしてください。章のタイトルをつけてください。';
-
-  document.getElementById('novel-form').style.display='none';
-  document.getElementById('novel-result').style.display='none';
-  const loadEl=document.getElementById('novel-loading');
-  loadEl.style.display='';
-  let dots=0;
-  const dotTimer=setInterval(()=>{dots=(dots+1)%4;loadEl.textContent='✍️ 執筆中'+'.'.repeat(dots);},400);
-
-  let text='';
-  try{
-    console.log('[Novel] fetch開始 AI='+chatAI);
-    if(chatAI==='claude'){
-      const key=document.getElementById('api-key').value.trim();
-      if(!key)throw new Error('Anthropic APIキーを入力してください');
-      console.log('[Novel] Claude API呼び出し model='+_modelSelect.value);
-      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:_modelSelect.value,max_tokens:4000,system:sysMsg,messages:[{role:'user',content:userMsg}]})});
-      console.log('[Novel] Claude レスポンス status='+res.status);
-      if(!res.ok){
-        const errBody=await res.text();
-        console.error('[Novel] Claude APIエラー:',res.status,errBody);
-        let errMsg='API Error '+res.status;
-        try{const ej=JSON.parse(errBody);if(ej.error?.message)errMsg=ej.error.message;}catch(pe){}
-        throw new Error(errMsg);
-      }
-      const data=await res.json();
-      console.log('[Novel] Claude レスポンス取得完了');
-      text=data.content?.[0]?.text||'';
-    }else{
-      const gKey=document.getElementById('gemini-key').value.trim();
-      if(!gKey)throw new Error('Gemini APIキーを入力してください');
-      console.log('[Novel] Gemini API呼び出し model='+_modelSelect.value);
-      const msgs=[{role:'user',parts:[{text:sysMsg+'\n\n'+userMsg}]}];
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${_modelSelect.value}:generateContent?key=${gKey}`,{method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contents:msgs})});
-      console.log('[Novel] Gemini レスポンス status='+res.status);
-      if(!res.ok){
-        const errBody=await res.text();
-        console.error('[Novel] Gemini APIエラー:',res.status,errBody);
-        let errMsg='API Error '+res.status;
-        try{const ej=JSON.parse(errBody);if(ej.error?.message)errMsg=ej.error.message;}catch(pe){}
-        throw new Error(errMsg);
-      }
-      const data=await res.json();
-      console.log('[Novel] Gemini レスポンス取得完了');
-      text=data.candidates?.[0]?.content?.parts?.[0]?.text||'';
-    }
-    console.log('[Novel] 生成完了 length='+text.length);
-    novelFullText=text;
-    novelShowResult(text);
-    setTimeout(()=>{document.getElementById('novel-result').scrollIntoView({behavior:'smooth'});},100);
-  }catch(err){
-    console.error('[Novel] エラー:',err);
-    document.getElementById('novel-form').style.display='';
-    alert('エラー: '+err.message);
-  }finally{
-    clearInterval(dotTimer);
-    loadEl.style.display='none';
-  }
-}
-
-function novelShowResult(text){
-  const output=document.getElementById('novel-output');
-  output.innerHTML='';
-  // Parse chapters
-  const lines=text.split('\n');
-  let html='';
-  let inChapter=false;
-  lines.forEach(line=>{
-    const trimmed=line.trim();
-    if(/^#{1,3}\s/.test(trimmed)||/^第[一二三四五六七八九十\d]+章/.test(trimmed)||/^【第?\d+章/.test(trimmed)){
-      if(inChapter)html+='</div>';
-      const title=trimmed.replace(/^#+\s*/,'');
-      html+=`<div class="novel-chapter"><h3>${esc(title)}</h3><p>`;
-      inChapter=true;
-    }else if(inChapter){
-      html+=esc(trimmed)+'\n';
-    }else{
-      if(trimmed&&!inChapter){
-        html+=`<div class="novel-chapter"><p>${esc(trimmed)}\n`;
-        inChapter=true;
-      }
-    }
-  });
-  if(inChapter)html+='</p></div>';
-  if(!html)html=`<div class="novel-chapter"><p>${esc(text)}</p></div>`;
-  output.innerHTML=html;
-  document.getElementById('novel-result').style.display='';
-}
-
-document.getElementById('novel-generate').addEventListener('click',novelGenerate);
-document.getElementById('novel-regen-btn').addEventListener('click',()=>{
-  document.getElementById('novel-result').style.display='none';
-  novelGenerate();
-});
-document.getElementById('novel-copy-btn').addEventListener('click',()=>{
-  navigator.clipboard.writeText(novelFullText).then(()=>alert('コピーしました！')).catch(()=>{});
-});
 
 // Load persisted state (must be after all patches)
 loadState();
