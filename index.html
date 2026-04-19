@@ -416,6 +416,21 @@
 </div>
 <script>
 // ================================================================
+const USE_CLOUDFLARE=true; // falseにすると直接API呼び出しに戻る
+const WORKER_URL='https://my-game-api.makiba2011jp.workers.dev';
+
+function claudeFetch(body){
+  if(USE_CLOUDFLARE){
+    return fetch(WORKER_URL,{method:'POST',
+      headers:{'Content-Type':'application/json','X-AI-Type':'anthropic'},
+      body:JSON.stringify(body)});
+  }
+  const key=document.getElementById('api-key').value.trim();
+  return fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify(body)});
+}
+
 const S=128,COLS=22,ROWS=16,W=COLS*S,H=ROWS*S;
 const BASE=96,SC=S/BASE;
 const cv=document.getElementById('game'),c=cv.getContext('2d');
@@ -1558,14 +1573,12 @@ async function send(){
   const chatAI=document.getElementById('chat-ai-select').value;
   ci.value='';addMsg('player',txt);curNPC.messages.push({role:'user',content:txt});saveState();
   if(chatAI==='claude'){
-    const key=document.getElementById('api-key').value.trim();
-    if(!key){const reply=_fallbackReply(curNPC,txt);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();ci.focus();return;}
+    if(!USE_CLOUDFLARE){const key=document.getElementById('api-key').value.trim();
+    if(!key){const reply=_fallbackReply(curNPC,txt);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();ci.focus();return;}}
     const ld=addMsg('system','');ld.innerHTML='<span class="typing-indicator">考え中...</span>';
     streaming=true;sb2.disabled=true;
     try{
-      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:_modelSelect.value,max_tokens:800,system:curNPC.personality,messages:curNPC.messages.slice(-20)})});
+      const res=await claudeFetch({model:_modelSelect.value,max_tokens:800,system:curNPC.personality,messages:curNPC.messages.slice(-20)});
       if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${res.status}`);}
       const data=await res.json();const reply=data.content?.[0]?.text||'（返答なし）';
       lb.removeChild(ld);addMsg('npc',reply);curNPC.messages.push({role:'assistant',content:reply});saveState();
@@ -1912,7 +1925,7 @@ _fImg.addEventListener('change',async e=>{
   if(scanAI==='gemini'){
     const gKey=document.getElementById('gemini-key').value.trim();
     if(!gKey){alert('先に上部のGemini APIキーを設定してください');_fImg.value='';return;}
-  }else{
+  }else if(!USE_CLOUDFLARE){
     const cKey=document.getElementById('api-key').value.trim();
     if(!cKey){alert('先に上部のAnthropic APIキーを設定してください');_fImg.value='';return;}
   }
@@ -1952,13 +1965,10 @@ _fImg.addEventListener('change',async e=>{
       data=await res.json();
       text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
     }else{
-      const cKey=document.getElementById('api-key').value.trim();
-      res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':cKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:_modelSelect.value,max_tokens:800,
+      res=await claudeFetch({model:_modelSelect.value,max_tokens:800,
           messages:[{role:'user',content:[
             {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
-            {type:'text',text:prompt}]}]})});
+            {type:'text',text:prompt}]}]});
       if(!res.ok){const er=await res.json().catch(()=>({}));throw new Error(er.error?.message||('API Error '+res.status));}
       data=await res.json();
       text=(data.content?.[0]?.text||'').trim();
@@ -2026,6 +2036,12 @@ try{const v=localStorage.getItem('my-game:chat-ai');if(v)_chatAISelect.value=v;}
 updateModelOptions();
 _chatAISelect.addEventListener('change',()=>{try{localStorage.setItem('my-game:chat-ai',_chatAISelect.value);}catch(e){} updateModelOptions();});
 _modelSelect.addEventListener('change',()=>{try{localStorage.setItem('my-game:model-'+_chatAISelect.value,_modelSelect.value);}catch(e){}});
+
+// Hide Anthropic API key row when using Cloudflare
+if(USE_CLOUDFLARE){
+  const apiKeyRows=document.querySelectorAll('.api-key-row');
+  apiKeyRows.forEach(row=>{if(row.querySelector('#api-key'))row.style.display='none';});
+}
 
 // ================================================================
 //  PLAYER STATUS PANEL
@@ -2812,15 +2828,12 @@ function pvpEnd(){
 }
 
 async function pvpAIComment(){
-  const key=document.getElementById('api-key').value.trim();
-  if(!key)return;
+  if(!USE_CLOUDFLARE){const key=document.getElementById('api-key').value.trim();if(!key)return;}
   const logText=pvpBattle.logs.join('\n');
   try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:200,
+    const res=await claudeFetch({model:'claude-haiku-4-5-20251001',max_tokens:200,
         system:'あなたはゲームバトルの熱血実況者です。バトルログを読んで、短い実況コメント（2〜3文）を日本語で生成してください。盛り上げるように！',
-        messages:[{role:'user',content:`バトルログ:\n${logText}\n\n実況コメントを1つ生成して。`}]})});
+        messages:[{role:'user',content:`バトルログ:\n${logText}\n\n実況コメントを1つ生成して。`}]});
     if(!res.ok)return;
     const data=await res.json();
     const comment=data.content?.[0]?.text||'';
