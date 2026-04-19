@@ -82,6 +82,9 @@
   #auth-status{color:#f88;font-size:11px;min-height:14px}
   #auth-logout{padding:4px 10px;font-family:'DotGothic16',monospace;font-size:11px;background:#602020;color:#faa;border:1px solid #844;border-radius:4px;cursor:pointer;margin-top:6px}
   #auth-logout:hover{background:#803030}
+  .pos-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:#ccc}
+  #btn-relocate{padding:4px 10px;font-family:'DotGothic16',monospace;font-size:11px;background:linear-gradient(180deg,#3a4a20,#2a3a10);color:#cfc;border:1px solid #6a4;border-radius:4px;cursor:pointer}
+  #btn-relocate:hover{background:linear-gradient(180deg,#4a5a30,#3a4a20)}
   #btn-add-x-post{width:100%;padding:6px;font-family:'DotGothic16',monospace;font-size:12px;background:linear-gradient(180deg,#1a3a5a,#102a4a);color:#adf;border:1px solid #468;border-radius:4px;cursor:pointer;margin-bottom:4px}
   #btn-add-x-post:hover{background:linear-gradient(180deg,#2a4a6a,#1a3a5a)}
   .npc-owner{font-size:10px;color:#888;margin-left:4px}
@@ -340,6 +343,13 @@
       <label><input type="checkbox" id="acc-shield"> 盾</label>
     </div>
     <button type="button" id="btn-npc-dot-edit" style="display:none;width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:linear-gradient(180deg,#3a2a60,#2a1a50);color:#fff;border:2px solid #86a;border-radius:6px;cursor:pointer;margin-top:4px">🎨 ドット絵を編集</button>
+    <div id="npc-pos-section" style="display:none">
+      <label>配置場所</label>
+      <div class="pos-row">
+        <span>現在地: <span id="f-pos-display"></span></span>
+        <button type="button" id="btn-relocate">マップで再配置</button>
+      </div>
+    </div>
     <div class="form-btns">
       <button id="btn-form-ok">作成して配置</button>
       <button id="btn-form-cancel">キャンセル</button>
@@ -1352,6 +1362,13 @@ document.addEventListener('keydown',e=>{
   }
   if(e.key==='Escape'){
     if(chatOpen)closeChat();
+    else if(relocatingNPCIdx>=0){
+      const idx=relocatingNPCIdx;
+      relocatingNPCIdx=-1;
+      document.getElementById('place-msg').style.display='none';
+      cv.style.cursor='default';
+      editNPC(idx);
+    }
     else if(placingNPC)cancelPlacement();
   }
 });
@@ -1644,6 +1661,7 @@ function showCreateForm(){
   const is=document.getElementById('import-status');if(is)is.textContent='';
   document.getElementById('btn-form-ok').textContent='配置モードへ';
   document.getElementById('btn-npc-dot-edit').style.display='block';
+  document.getElementById('npc-pos-section').style.display='none';
   newNpcSprite=null;
   document.getElementById('f-name').focus();
 }
@@ -1667,6 +1685,8 @@ function editNPC(idx){
   const is=document.getElementById('import-status');if(is)is.textContent='';
   document.getElementById('btn-form-ok').textContent='保存';
   document.getElementById('btn-npc-dot-edit').style.display='block';
+  document.getElementById('npc-pos-section').style.display='';
+  document.getElementById('f-pos-display').textContent=`(${npc.x}, ${npc.y})`;
   document.getElementById('f-name').focus();
 }
 
@@ -1812,6 +1832,59 @@ document.getElementById('btn-npc-dot-edit').addEventListener('click',()=>{
     openDotEditor({type:'new-npc'},newNpcSprite||null);
   }
 });
+let relocatingNPCIdx=-1;
+document.getElementById('btn-relocate').addEventListener('click',()=>{
+  if(editingNPCIdx<0)return;
+  relocatingNPCIdx=editingNPCIdx;
+  hideCreateForm();
+  document.getElementById('side-panel').classList.remove('mobile-open');
+  document.getElementById('place-msg').innerHTML='マップ上の新しい場所をクリック<br>ESCでキャンセル';
+  document.getElementById('place-msg').style.display='block';
+  cv.style.cursor='crosshair';
+});
+
+cv.addEventListener('click',function relocateClick(e){
+  if(relocatingNPCIdx<0)return;
+  const rect=cv.getBoundingClientRect();
+  const scaleX=cv.width/rect.width,scaleY=cv.height/rect.height;
+  const tx=Math.floor((e.clientX-rect.left)*scaleX/S);
+  const ty=Math.floor((e.clientY-rect.top)*scaleY/S);
+  if(tx<0||ty<0||tx>=COLS||ty>=ROWS)return;
+  if(!WALKABLE.has(MAP[ty][tx]))return;
+  if(npcs.some((n,i)=>i!==relocatingNPCIdx&&n.x===tx&&n.y===ty))return;
+  if(player.x===tx&&player.y===ty)return;
+  const npc=npcs[relocatingNPCIdx];
+  npc.x=tx;npc.y=ty;
+  dbAddNPC(npc);saveState();
+  const idx=relocatingNPCIdx;
+  relocatingNPCIdx=-1;
+  document.getElementById('place-msg').style.display='none';
+  cv.style.cursor='default';
+  editNPC(idx);
+});
+
+cv.addEventListener('touchstart',function relocateTouch(e){
+  if(relocatingNPCIdx<0)return;
+  e.preventDefault();
+  const t=e.touches[0];
+  const rect=cv.getBoundingClientRect();
+  const scaleX=cv.width/rect.width,scaleY=cv.height/rect.height;
+  const tx=Math.floor((t.clientX-rect.left)*scaleX/S);
+  const ty=Math.floor((t.clientY-rect.top)*scaleY/S);
+  if(tx<0||ty<0||tx>=COLS||ty>=ROWS)return;
+  if(!WALKABLE.has(MAP[ty][tx]))return;
+  if(npcs.some((n,i)=>i!==relocatingNPCIdx&&n.x===tx&&n.y===ty))return;
+  if(player.x===tx&&player.y===ty)return;
+  const npc=npcs[relocatingNPCIdx];
+  npc.x=tx;npc.y=ty;
+  dbAddNPC(npc);saveState();
+  const idx=relocatingNPCIdx;
+  relocatingNPCIdx=-1;
+  document.getElementById('place-msg').style.display='none';
+  cv.style.cursor='default';
+  editNPC(idx);
+},{passive:false});
+
 document.getElementById('btn-add-x-post').addEventListener('click',()=>{
   const xPost=document.getElementById('f-x-post').value.trim();
   if(!xPost){alert('投稿を貼り付けてください');return;}
