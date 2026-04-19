@@ -22,6 +22,10 @@
   .pp-section-title{font-size:11px;color:#668;text-transform:uppercase;letter-spacing:1px;margin-top:4px;margin-bottom:4px}
   #rate-bar{text-align:center;padding:4px 8px;font-family:'DotGothic16',monospace;font-size:12px;color:#8a8;flex-shrink:0}
   #rate-bar.warn{color:#f66}
+  #mykey-bar{display:flex;align-items:center;justify-content:center;gap:6px;padding:2px 8px;flex-shrink:0}
+  #my-api-key{width:200px;padding:3px 6px;font-family:monospace;font-size:11px;background:#12121e;color:#0f0;border:1px solid #333;border-radius:3px;outline:none}
+  #my-api-key:focus{border-color:#6a6}
+  #mykey-status{font-family:'DotGothic16',monospace;font-size:11px;color:#6c6}
   #game-wrapper{position:relative}
   canvas{display:block;border:4px solid #556;border-radius:6px;box-shadow:0 0 60px rgba(0,0,0,.7);max-width:calc(100vw - 620px);max-height:calc(100vh - 80px);object-fit:contain}
   #chat-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:rgba(0,0,0,.6)}
@@ -242,7 +246,8 @@
   </div>
 </div>
 <div id="game-area">
-<div id="rate-bar"><span id="rate-display">残り回数: --/--</span></div>
+<div id="rate-bar"><span id="rate-display">API残り回数: --/--</span></div>
+<div id="mykey-bar"><input type="password" id="my-api-key" placeholder="APIキー（任意・無制限）"><span id="mykey-status"></span></div>
 <div id="game-wrapper">
   <canvas id="game"></canvas>
   <div id="chat-overlay">
@@ -407,7 +412,15 @@
 const WORKER_URL='https://my-game-api.makiba2011jp.workers.dev';
 const CLAUDE_MODEL='claude-haiku-4-5-20251001';
 
+function getMyKey(){return(document.getElementById('my-api-key')||{}).value?.trim()||'';}
+
 function claudeFetch(body){
+  const key=getMyKey();
+  if(key){
+    return fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify(body)});
+  }
   return fetch(WORKER_URL,{method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(body)});
@@ -2789,18 +2802,43 @@ function pvpRenderLoop(){
 // ================================================================
 //  API RATE DISPLAY
 // ================================================================
+function updateKeyStatus(){
+  const key=getMyKey();
+  const statusEl=document.getElementById('mykey-status');
+  const rateBar=document.getElementById('rate-bar');
+  if(key){
+    statusEl.textContent='🔑 マイキー使用中（無制限）';
+    rateBar.style.display='none';
+  }else{
+    statusEl.textContent='';
+    rateBar.style.display='';
+  }
+}
+
 async function updateRateDisplay(){
+  if(getMyKey()){updateKeyStatus();return;}
   try{
     const res=await fetch(WORKER_URL,{method:'GET'});
     if(!res.ok)return;
     const d=await res.json();
     const el=document.getElementById('rate-display');
     const bar=document.getElementById('rate-bar');
-    el.textContent=`本日の残り回数: ${d.remaining}/${d.limit}回`;
+    el.textContent=`API残り回数: ${d.remaining}/${d.limit}回`;
     if(d.remaining<=5)bar.classList.add('warn');
     else bar.classList.remove('warn');
   }catch(e){}
 }
+
+const _myKeyInput=document.getElementById('my-api-key');
+try{const k=localStorage.getItem('my-game:my-api-key');if(k)_myKeyInput.value=k;}catch(e){}
+_myKeyInput.addEventListener('input',()=>{
+  try{localStorage.setItem('my-game:my-api-key',_myKeyInput.value);}catch(e){}
+  updateKeyStatus();
+  updateRateDisplay();
+});
+_myKeyInput.addEventListener('keydown',e=>e.stopPropagation());
+
+updateKeyStatus();
 updateRateDisplay();
 
 // Patch claudeFetch to update rate after each call
