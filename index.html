@@ -1653,13 +1653,15 @@ function renderNPCList(){
     const stLine=npc.stats?`<div class="npc-card-pos">Lv${npc.stats.level||'?'} ${esc(npc.stats.class||'')}</div>`:'';
     const lockIcon=npc.owner_game_id?'🔒':'🔓';
     const ownerLabel=npc.owner_name?`<span class="npc-owner">${lockIcon}${esc(npc.owner_name)}</span>`:`<span class="npc-owner">${lockIcon}</span>`;
-    const canEdit=!npc.owner_game_id||(authGameId&&npc.owner_game_id===authGameId);
+    const npcOwnerId=(npc.owner_game_id||'').trim().toUpperCase();
+    const canEdit=!npcOwnerId||(authGameId&&npcOwnerId===authGameId);
     let btns='';
     if(canEdit)btns=`<button class="npc-edit" data-idx="${i}">編集</button><button class="npc-del" data-idx="${i}">削除</button>`;
     card.innerHTML=`<div class="npc-color-dot" style="background:${esc(npc.color)}"></div>`
       +`<div class="npc-info"><div class="npc-card-name">${esc(npc.name)}${ownerLabel}</div>`
       +stLine
-      +`<div class="npc-card-pos">(${npc.x}, ${npc.y})</div></div>`
+      +`<div class="npc-card-pos">(${npc.x}, ${npc.y})</div>`
+      +`<div style="font-size:9px;color:#556">ID:${esc(npc.owner_game_id||'なし')} auth:${esc(authGameId||'なし')}</div></div>`
       +btns;
     list.appendChild(card);
   });
@@ -1765,7 +1767,7 @@ function createNPCFromForm(){
     personality:personality||`あなたは${name}です。短く簡潔に、2〜3文程度で返答してください。`,
     stats:importedStats,
     messages:[],
-    owner_game_id:authGameId||null,
+    owner_game_id:authGameId?(authGameId.trim().toUpperCase()):null,
     owner_name:authOwnerName||null,
     sprite:newNpcSprite||null
   };
@@ -2487,13 +2489,14 @@ async function hashPassword(pw){
 
 function loadAuth(){
   try{
-    authGameId=localStorage.getItem('my-game:owner_game_id')||null;
+    const gid=localStorage.getItem('my-game:owner_game_id');
+    authGameId=gid?(gid.trim().toUpperCase()):null;
     authOwnerName=localStorage.getItem('my-game:owner_name')||null;
   }catch(e){}
   updateAuthUI();
 }
 function saveAuth(gameId,name){
-  authGameId=gameId;authOwnerName=name;
+  authGameId=(gameId||'').trim().toUpperCase();authOwnerName=(name||'').trim();
   try{localStorage.setItem('my-game:owner_game_id',gameId);localStorage.setItem('my-game:owner_name',name);}catch(e){}
   updateAuthUI();
   renderNPCList();
