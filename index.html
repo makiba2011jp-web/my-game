@@ -80,6 +80,8 @@
   #auth-status{color:#f88;font-size:11px;min-height:14px}
   #auth-logout{padding:4px 10px;font-family:'DotGothic16',monospace;font-size:11px;background:#602020;color:#faa;border:1px solid #844;border-radius:4px;cursor:pointer;margin-top:6px}
   #auth-logout:hover{background:#803030}
+  #btn-add-x-post{width:100%;padding:6px;font-family:'DotGothic16',monospace;font-size:12px;background:linear-gradient(180deg,#1a3a5a,#102a4a);color:#adf;border:1px solid #468;border-radius:4px;cursor:pointer;margin-bottom:4px}
+  #btn-add-x-post:hover{background:linear-gradient(180deg,#2a4a6a,#1a3a5a)}
   .npc-owner{font-size:10px;color:#888;margin-left:4px}
 
   /* ---- PVP ---- */
@@ -313,6 +315,9 @@
     <input type="text" id="f-name" placeholder="NPCの名前" maxlength="20">
     <label>性格・設定（AIプロンプト）</label>
     <textarea id="f-personality" placeholder="このNPCの性格や背景を入力...&#10;例: 陽気な商人。「いらっしゃい！」が口癖。" rows="4"></textarea>
+    <label>Xの投稿を貼り付け</label>
+    <textarea id="f-x-post" placeholder="Xの投稿をコピペしてください&#10;口調や言い回しの参考にします" rows="3"></textarea>
+    <button type="button" id="btn-add-x-post">性格に追加</button>
     <label>外見</label>
     <div class="color-row">
       <input type="color" id="f-color" value="#cc7030">
@@ -1625,6 +1630,7 @@ function showCreateForm(){
   document.getElementById('npc-create-btn').style.display='none';
   document.getElementById('f-name').value='';
   document.getElementById('f-personality').value='';
+  document.getElementById('f-x-post').value='';
   document.getElementById('f-color').value='#cc7030';
   document.getElementById('f-hair').value='#6b4226';
   document.querySelectorAll('.acc-grid input[type="checkbox"]').forEach(cb=>cb.checked=false);
@@ -1800,6 +1806,15 @@ document.getElementById('btn-npc-dot-edit').addEventListener('click',()=>{
     openDotEditor({type:'new-npc'},newNpcSprite||null);
   }
 });
+document.getElementById('btn-add-x-post').addEventListener('click',()=>{
+  const xPost=document.getElementById('f-x-post').value.trim();
+  if(!xPost){alert('投稿を貼り付けてください');return;}
+  const personality=document.getElementById('f-personality');
+  const addition='\n\n【参考にしてほしい投稿】\n'+xPost+'\n\nこの投稿の口調や言い回しを参考にして話してください。';
+  personality.value=personality.value.trimEnd()+addition;
+  document.getElementById('f-x-post').value='';
+});
+document.getElementById('f-x-post').addEventListener('keydown',e=>e.stopPropagation());
 // Handle Enter in form name field
 document.getElementById('f-name').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();createNPCFromForm();}e.stopPropagation();});
 document.getElementById('f-personality').addEventListener('keydown',e=>e.stopPropagation());
