@@ -1660,8 +1660,7 @@ function renderNPCList(){
     card.innerHTML=`<div class="npc-color-dot" style="background:${esc(npc.color)}"></div>`
       +`<div class="npc-info"><div class="npc-card-name">${esc(npc.name)}${ownerLabel}</div>`
       +stLine
-      +`<div class="npc-card-pos">(${npc.x}, ${npc.y})</div>`
-      +`<div style="font-size:9px;color:#556">ID:${esc(npc.owner_game_id||'なし')} auth:${esc(authGameId||'なし')}</div></div>`
+      +`<div class="npc-card-pos">(${npc.x}, ${npc.y})</div></div>`
       +btns;
     list.appendChild(card);
   });
