@@ -94,7 +94,7 @@
   #pvp-btn:hover{background:linear-gradient(180deg,#8a3a3a,#6a2a2a)}
   #pvp-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:400;background:#000;flex-direction:column;align-items:center;justify-content:center}
   #pvp-overlay.open{display:flex}
-  #pvp-canvas{position:absolute;top:0;left:0;width:100%;height:100%}
+  #pvp-canvas{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);max-width:100vw;max-height:100vh}
   #pvp-select{position:relative;z-index:1;background:rgba(8,8,20,.95);border:3px solid #88a;border-radius:14px;padding:20px;max-width:700px;width:95vw;max-height:90vh;overflow-y:auto;color:#fff;font-family:'DotGothic16',monospace}
   #pvp-select h2{text-align:center;color:#faa;margin:0 0 12px;font-size:18px}
   #pvp-teams{display:flex;gap:16px;margin-bottom:12px}
@@ -218,7 +218,7 @@
   #soccer-btn:hover{background:linear-gradient(180deg,#3a8a5a,#2a6a4a)}
   #soccer-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:400;background:#000;flex-direction:column;align-items:center;justify-content:center}
   #soccer-overlay.open{display:flex}
-  #soccer-canvas{position:absolute;top:0;left:0;width:100%;height:100%}
+  #soccer-canvas{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);max-width:100vw;max-height:100vh}
   #soccer-select{position:relative;z-index:1;background:rgba(8,20,12,.95);border:3px solid #8a8;border-radius:14px;padding:20px;max-width:700px;width:95vw;max-height:90vh;overflow-y:auto;color:#fff;font-family:'DotGothic16',monospace}
   #soccer-select h2{text-align:center;color:#afa;margin:0 0 12px;font-size:18px}
   #soccer-ui{position:absolute;bottom:0;left:0;right:0;z-index:2;pointer-events:none}
@@ -229,6 +229,10 @@
   #soccer-start-btn:hover:not(:disabled){background:linear-gradient(180deg,#3a8a5a,#2a6a4a)}
   #soccer-start-btn:disabled{opacity:.4;cursor:default}
   #soccer-cancel-btn{padding:10px 24px;font-family:'DotGothic16',monospace;font-size:14px;background:#333;color:#fff;border:2px solid #666;border-radius:6px;cursor:pointer}
+
+  /* ---- GAME-AREA ACTION BUTTONS ---- */
+  #game-btns{display:flex;gap:8px;justify-content:center;padding:8px 12px;flex-wrap:wrap;flex-shrink:0}
+  #game-btns > button{width:auto;margin:0;padding:8px 16px;font-size:13px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -302,6 +306,11 @@
     <button id="mobile-npc-btn">NPC一覧</button>
   </div>
 </div>
+<div id="game-btns">
+  <button id="pvp-btn">⚔ PVPバトル</button>
+  <button id="soccer-btn">⚽ サッカー試合</button>
+  <button id="npc-create-btn">＋ NPC作成</button>
+</div>
 </div>
 <div id="side-panel">
   <button id="mobile-close-panel">✕ 閉じる</button>
@@ -316,9 +325,6 @@
         <div id="auth-status"></div>
       </div>
     </div>
-    <button id="pvp-btn">⚔ PVPバトル</button>
-    <button id="soccer-btn">⚽ サッカー試合</button>
-    <button id="npc-create-btn">＋ NPCを作成</button>
   </div>
   <h2>NPC リスト</h2>
   <div id="side-panel-scroll">
@@ -2626,12 +2632,20 @@ function pvpRenderSelect(){
   document.getElementById('pvp-start-btn').disabled=!(pvpTeamA.length>0&&pvpTeamB.length>0);
 }
 
+function pvpFitCanvas(){
+  const aspect=16/9;
+  let cw=window.innerWidth, ch=cw/aspect;
+  if(ch>window.innerHeight){ch=window.innerHeight;cw=ch*aspect;}
+  pvpCv.width=Math.round(cw);pvpCv.height=Math.round(ch);
+  pvpCv.style.width=cw+'px';pvpCv.style.height=ch+'px';
+}
+
 function pvpOpen(){
   pvpTeamA=[];pvpTeamB=[];pvpBattle=null;
   pvpSelect.style.display='';pvpUI.style.display='none';
   document.getElementById('pvp-exit-btn').style.display='none';
   pvpOverlay.classList.add('open');
-  pvpCv.width=window.innerWidth;pvpCv.height=window.innerHeight;
+  pvpFitCanvas();
   pvpDrawBg();
   pvpRenderSelect();
 }
@@ -2920,12 +2934,20 @@ let socTeamA=[],socTeamB=[];
 let socGame=null,socAnim=null;
 const SOC_MATCH_TIME=60;
 
+function socFitCanvas(){
+  const aspect=16/9;
+  let cw=window.innerWidth, ch=cw/aspect;
+  if(ch>window.innerHeight){ch=window.innerHeight;cw=ch*aspect;}
+  socCv.width=Math.round(cw);socCv.height=Math.round(ch);
+  socCv.style.width=cw+'px';socCv.style.height=ch+'px';
+}
+
 function socOpen(){
   socTeamA=[];socTeamB=[];socGame=null;
   socSelect.style.display='';socUI.style.display='none';
   document.getElementById('soccer-exit-btn').style.display='none';
   socOverlay.classList.add('open');
-  socCv.width=window.innerWidth;socCv.height=window.innerHeight;
+  socFitCanvas();
   socDrawFieldBg();
   socRenderSelect();
 }
