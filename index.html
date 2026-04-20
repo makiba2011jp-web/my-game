@@ -436,6 +436,18 @@
         <div id="dot-img-preview"></div>
       </div>
     </div>
+    <div id="dot-tile-form" style="display:none;width:100%;max-width:420px;background:#101028;border:2px solid #446;border-radius:6px;padding:10px;margin-top:8px">
+      <label style="display:block;color:#aac;font-size:12px;margin-bottom:4px">タイル名</label>
+      <input type="text" id="dot-tile-name" placeholder="タイル名を入力" style="width:100%;padding:6px;font-family:'DotGothic16',monospace;font-size:13px;background:#0a0a20;color:#fff;border:1px solid #446;border-radius:4px;outline:none;margin-bottom:8px;box-sizing:border-box">
+      <div style="display:flex;gap:16px;margin-bottom:8px">
+        <label style="color:#ccc;font-size:13px;cursor:pointer"><input type="radio" name="dot-tile-walkable" value="1" checked> 通行可</label>
+        <label style="color:#ccc;font-size:13px;cursor:pointer"><input type="radio" name="dot-tile-walkable" value="0"> 通行不可</label>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button type="button" id="dot-save-tile" style="flex:1;padding:10px;font-family:'DotGothic16',monospace;font-size:14px;background:linear-gradient(180deg,#2a6a30,#1a5a20);color:#fff;border:2px solid #6a6;border-radius:6px;cursor:pointer">💾 タイルとして保存</button>
+        <button type="button" id="dot-tile-close" style="padding:10px 18px;font-family:'DotGothic16',monospace;font-size:14px;background:linear-gradient(180deg,#602020,#501818);color:#fff;border:2px solid #a66;border-radius:6px;cursor:pointer">閉じる</button>
+      </div>
+    </div>
     <div id="dot-actions">
       <button id="dot-apply">キャラに反映</button>
       <button id="dot-download">画像を保存</button>
@@ -555,6 +567,9 @@ cv.width=W;cv.height=H;
 const T={GRASS:0,PATH:1,WALL:2,ROOF:3,DOOR:4,TREE:5,WATER:6,FLOWER:7,FENCE:8,WELL:9,SIGN:10,WIN:11,COB:12};
 const BLOCK=new Set([T.WALL,T.ROOF,T.TREE,T.WATER,T.FENCE,T.WELL,T.SIGN,T.WIN]);
 const WALKABLE=new Set([T.GRASS,T.PATH,T.COB,T.FLOWER]);
+let customTiles=[];
+let nextCustomTileId=100;
+const customTileCache={};
 let MAP=[
 [5,5,5,5,5,0,0,7,0,0,0,0,0,0,7,0,0,5,5,5,5,5],
 [5,0,0,7,0,0,0,0,3,3,3,0,3,3,3,0,0,0,7,0,0,5],
@@ -963,10 +978,38 @@ function getStaticTile(x,y,type){
   return oc;
 }
 
+function getCustomTileCached(tileId){
+  const key='custom_'+tileId;
+  if(customTileCache[key])return customTileCache[key];
+  const tile=customTiles.find(t=>t.id===tileId);
+  if(!tile)return null;
+  const oc=document.createElement('canvas');
+  oc.width=S;oc.height=S;
+  const ctx=oc.getContext('2d');
+  ctx.imageSmoothingEnabled=false;
+  const px=S/32;
+  tile.pixels.forEach((col,i)=>{
+    if(col){
+      ctx.fillStyle=col;
+      ctx.fillRect((i%32)*px,Math.floor(i/32)*px,px,px);
+    }
+  });
+  customTileCache[key]=oc;
+  return oc;
+}
+
+function getTileCanvas(x,y,t){
+  if(t>=100){
+    const cc=getCustomTileCached(t);
+    if(cc)return cc;
+  }
+  return getStaticTile(x,y,t);
+}
+
 // Pre-build all static tiles
 for(let r=0;r<ROWS;r++)for(let cl=0;cl<COLS;cl++){
   const t=MAP[r][cl];
-  if(t!==T.WATER)getStaticTile(cl,r,t);
+  if(t!==T.WATER)getTileCanvas(cl,r,t);
 }
 
 // ================================================================
@@ -1380,7 +1423,7 @@ function render(){
   for(let r=0;r<ROWS;r++)for(let cl=0;cl<COLS;cl++){
     const t=MAP[r][cl];
     if(t===T.WATER){drawWaterAnimated(cl*S,r*S,cl,r);}
-    else{c.drawImage(getStaticTile(cl,r,t),cl*S,r*S);}
+    else{c.drawImage(getTileCanvas(cl,r,t),cl*S,r*S);}
   }
   // vignette
   const vig=c.createRadialGradient(W/2,H/2,W*.25,W/2,H/2,W*.7);
@@ -2286,12 +2329,81 @@ function openDotEditor(target,existingPixels){
   if(existingPixels)dotPixels=[...existingPixels];
   else dotPixels=new Array(DOT_SIZE*DOT_SIZE).fill(null);
   const label=document.getElementById('dot-target-label');
-  if(target.type==='player')label.textContent='対象: 主人公';
-  else if(target.type==='new-npc')label.textContent='対象: 新規NPC';
-  else label.textContent='対象: '+npcs[target.index].name;
+  const tileForm=document.getElementById('dot-tile-form');
+  const actions=document.getElementById('dot-actions');
+  const imgSection=document.getElementById('dot-img-section');
+  if(target.type==='tile'){
+    const existing=target.tileId!=null?customTiles.find(t=>t.id===target.tileId):null;
+    label.textContent='対象: タイル編集 - '+(existing?existing.name:'新規タイル');
+    tileForm.style.display='block';
+    actions.style.display='none';
+    if(imgSection)imgSection.style.display='none';
+    document.getElementById('dot-tile-name').value=existing?existing.name:'';
+    const walkVal=existing?(existing.walkable?'1':'0'):'1';
+    document.querySelectorAll('input[name="dot-tile-walkable"]').forEach(r=>{r.checked=r.value===walkVal;});
+  }else{
+    tileForm.style.display='none';
+    actions.style.display='';
+    if(imgSection)imgSection.style.display='';
+    if(target.type==='player')label.textContent='対象: 主人公';
+    else if(target.type==='new-npc')label.textContent='対象: 新規NPC';
+    else label.textContent='対象: '+npcs[target.index].name;
+  }
   dotOverlay.classList.add('open');
   renderDotCanvas();
 }
+
+function saveTileFromDotEditor(){
+  const name=document.getElementById('dot-tile-name').value.trim()||`カスタムタイル${customTiles.length+1}`;
+  const walkable=document.querySelector('input[name="dot-tile-walkable"]:checked').value==='1';
+  const pixels=[...dotPixels];
+  const dataURL=dotToImageData().toDataURL();
+  const existing=dotTarget&&dotTarget.tileId!=null?customTiles.find(t=>t.id===dotTarget.tileId):null;
+  if(existing){
+    if(existing.walkable)WALKABLE.delete(existing.id);else BLOCK.delete(existing.id);
+    existing.name=name;
+    existing.walkable=walkable;
+    existing.pixels=pixels;
+    existing.dataURL=dataURL;
+    if(walkable)WALKABLE.add(existing.id);else BLOCK.add(existing.id);
+    delete customTileCache['custom_'+existing.id];
+  }else{
+    const id=nextCustomTileId++;
+    customTiles.push({id,name,walkable,pixels,dataURL});
+    if(walkable)WALKABLE.add(id);else BLOCK.add(id);
+  }
+  saveCustomTilesLocal();
+  try{saveState();}catch(e){}
+  closeDotEditor();
+  if(document.getElementById('map-editor-overlay').classList.contains('open')){
+    meRenderPalette();
+    meRenderEditor();
+  }
+}
+
+function saveCustomTilesLocal(){
+  try{
+    localStorage.setItem('my-game:custom-tiles',JSON.stringify({customTiles,nextCustomTileId}));
+  }catch(e){console.warn('custom tiles save failed',e);}
+}
+function loadCustomTilesLocal(){
+  try{
+    const raw=localStorage.getItem('my-game:custom-tiles');
+    if(!raw)return;
+    const d=JSON.parse(raw);
+    if(Array.isArray(d.customTiles)){
+      customTiles=d.customTiles;
+      nextCustomTileId=d.nextCustomTileId||100;
+      customTiles.forEach(t=>{
+        if(t.walkable)WALKABLE.add(t.id);else BLOCK.add(t.id);
+      });
+    }
+  }catch(e){console.warn('custom tiles load failed',e);}
+}
+loadCustomTilesLocal();
+
+document.getElementById('dot-save-tile').addEventListener('click',saveTileFromDotEditor);
+document.getElementById('dot-tile-close').addEventListener('click',closeDotEditor);
 
 function closeDotEditor(){
   dotOverlay.classList.remove('open');
@@ -3387,6 +3499,10 @@ const ME_STAMPS=[
 ];
 
 function meGetPreview(type){
+  if(type>=100){
+    const cc=getCustomTileCached(type);
+    if(cc)return cc;
+  }
   if(mePreviewCache[type])return mePreviewCache[type];
   const oc=document.createElement('canvas');oc.width=S;oc.height=S;
   const g=oc.getContext('2d');g.scale(SC,SC);
@@ -3436,8 +3552,36 @@ function meRenderPalette(){
     b.addEventListener('click',()=>{meSelectedStamp=i;meRenderPalette();updateStatus();});
     el.appendChild(b);
   });
+  customTiles.forEach(ct=>{
+    const d=document.createElement('div');
+    d.className='me-tile me-custom-tile'+(meSelectedTile===ct.id&&meSelectedStamp===null?' selected':'');
+    d.title=ct.name+(ct.walkable?' (通行可)':' (通行不可)');
+    const img=document.createElement('img');
+    img.src=ct.dataURL;
+    img.style.cssText='width:100%;height:100%;image-rendering:pixelated;display:block';
+    d.appendChild(img);
+    const lb=document.createElement('span');lb.className='me-tile-label';lb.textContent=ct.name;d.appendChild(lb);
+    d.addEventListener('click',()=>{meSelectedTile=ct.id;meSelectedStamp=null;meRenderPalette();updateStatus();});
+    d.addEventListener('dblclick',()=>{openDotEditor({type:'tile',tileId:ct.id},ct.pixels);});
+    const edit=document.createElement('span');
+    edit.textContent='✏';
+    edit.title='編集';
+    edit.style.cssText='position:absolute;top:-6px;right:-6px;background:#446;color:#fff;border:1px solid #88a;border-radius:50%;width:18px;height:18px;font-size:10px;text-align:center;line-height:16px;cursor:pointer;z-index:2';
+    edit.addEventListener('click',e=>{e.stopPropagation();openDotEditor({type:'tile',tileId:ct.id},ct.pixels);});
+    d.appendChild(edit);
+    el.appendChild(d);
+  });
+  const nt=document.createElement('button');
+  nt.id='btn-new-custom-tile';
+  nt.className='me-stamp';
+  nt.textContent='＋ 新規タイル作成';
+  nt.addEventListener('click',()=>openDotEditor({type:'tile',tileId:null},null));
+  el.appendChild(nt);
   function updateStatus(){
-    const s=meSelectedStamp!==null?'スタンプ:'+ME_STAMPS[meSelectedStamp].name:'タイル:'+(ME_TILES.find(t=>t.type===meSelectedTile)||{}).label;
+    let s;
+    if(meSelectedStamp!==null)s='スタンプ:'+ME_STAMPS[meSelectedStamp].name;
+    else if(meSelectedTile>=100){const ct=customTiles.find(t=>t.id===meSelectedTile);s='タイル:'+(ct?ct.name:'?');}
+    else s='タイル:'+((ME_TILES.find(t=>t.type===meSelectedTile)||{}).label||'');
     document.getElementById('me-status').textContent=`${meCols}×${meRows} | ${s}${meFillMode?' | 🪣塗りつぶし':''}`;
   }
   updateStatus();
@@ -3558,7 +3702,7 @@ function meApplyToGame(){
   staticCache.clear();
   for(let r=0;r<ROWS;r++)for(let cl=0;cl<COLS;cl++){
     const t=MAP[r][cl];
-    if(t!==T.WATER)getStaticTile(cl,r,t);
+    if(t!==T.WATER)getTileCanvas(cl,r,t);
   }
   npcs.forEach(n=>{
     n.x=Math.max(0,Math.min(COLS-1,n.x));
@@ -3657,7 +3801,7 @@ document.getElementById('me-import-file').addEventListener('change',e=>{
     staticCache.clear();
     for(let r=0;r<ROWS;r++)for(let cl=0;cl<COLS;cl++){
       const t=MAP[r][cl];
-      if(t!==T.WATER)getStaticTile(cl,r,t);
+      if(t!==T.WATER)getTileCanvas(cl,r,t);
     }
   }catch(e){console.warn('customMap load failed',e);}
 })();
