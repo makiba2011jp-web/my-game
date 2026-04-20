@@ -231,8 +231,13 @@
   #soccer-cancel-btn{padding:10px 24px;font-family:'DotGothic16',monospace;font-size:14px;background:#333;color:#fff;border:2px solid #666;border-radius:6px;cursor:pointer}
 
   /* ---- GAME-AREA ACTION BUTTONS ---- */
-  #game-btns{display:flex;gap:8px;justify-content:center;padding:8px 12px;flex-wrap:wrap;flex-shrink:0}
-  #game-btns > button{width:auto;margin:0;padding:8px 16px;font-size:13px}
+  #game-btns{display:flex;gap:8px;justify-content:center;padding:8px 12px;flex-wrap:wrap;flex-shrink:0;order:10;z-index:5}
+  #game-btns > button{width:auto;margin:0;padding:8px 16px;font-size:13px;display:inline-block!important}
+  @media(max-width:768px){
+    #game-area{justify-content:flex-start!important;overflow:visible!important}
+    #game-btns{padding:6px;gap:6px;position:relative;background:#08081a;border-top:1px solid #334;width:100%;flex-shrink:0}
+    #game-btns > button{padding:6px 10px;font-size:11px}
+  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
