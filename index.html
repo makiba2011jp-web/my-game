@@ -1,22 +1,4 @@
 <!DOCTYPE html>
-<!--
-================================================================
- Supabase schema for map & custom tile realtime sync (run once
- in the Supabase SQL Editor):
-
-   CREATE TABLE IF NOT EXISTS game_world (
-     id TEXT PRIMARY KEY,
-     map_data JSONB,
-     custom_tiles JSONB,
-     next_custom_tile_id INTEGER,
-     updated_at TIMESTAMPTZ DEFAULT now()
-   );
-   ALTER TABLE game_world ENABLE ROW LEVEL SECURITY;
-   CREATE POLICY "public read"  ON game_world FOR SELECT USING (true);
-   CREATE POLICY "public write" ON game_world FOR ALL    USING (true);
-   ALTER PUBLICATION supabase_realtime ADD TABLE game_world;
-================================================================
--->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -1270,93 +1252,6 @@ async function dbRemoveNPC(id){
   if(error)console.warn('Supabase delete error',error);
 }
 
-// ---- World (map + custom tiles) realtime sync ----
-let _localWorldUpdateTs=0;
-
-function showSyncToast(msg,isError){
-  let t=document.getElementById('sync-toast');
-  if(!t){
-    t=document.createElement('div');
-    t.id='sync-toast';
-    t.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);padding:8px 20px;background:rgba(0,0,40,.9);border:2px solid #88a;border-radius:8px;color:#fff;font-family:"DotGothic16",monospace;font-size:13px;z-index:9999;pointer-events:none;transition:opacity .3s;opacity:0';
-    document.body.appendChild(t);
-  }
-  t.textContent=msg;
-  t.style.borderColor=isError?'#a66':'#88a';
-  t.style.opacity='1';
-  clearTimeout(t._timer);
-  t._timer=setTimeout(()=>{t.style.opacity='0';},2000);
-}
-
-async function dbSaveWorld(override){
-  const now=Date.now();
-  _localWorldUpdateTs=now;
-  const payload=Object.assign({
-    id:'main',
-    map_data:{cols:COLS,rows:ROWS,map:MAP},
-    custom_tiles:customTiles,
-    next_custom_tile_id:nextCustomTileId,
-  },override||{},{
-    id:'main',
-    updated_at:new Date(now).toISOString()
-  });
-  const{error}=await _sb.from('game_world').upsert(payload);
-  if(error){
-    console.warn('World save error',error);
-    showSyncToast('❌ 同期失敗: '+error.message,true);
-    return false;
-  }
-  showSyncToast('☁️ 同期しました');
-  return true;
-}
-
-function applyWorldData(row){
-  if(!row)return;
-  if(row.map_data){
-    const md=row.map_data;
-    if(Array.isArray(md.map)){
-      MAP.length=0;
-      md.map.forEach(r=>MAP.push([...r]));
-      if(typeof md.cols==='number')COLS=md.cols;
-      if(typeof md.rows==='number')ROWS=md.rows;
-      W=COLS*S;H=ROWS*S;
-      cv.width=W;cv.height=H;
-    }
-  }
-  if(Array.isArray(row.custom_tiles)){
-    customTiles.forEach(t=>{WALKABLE.delete(t.id);BLOCK.delete(t.id);});
-    customTiles.length=0;
-    row.custom_tiles.forEach(t=>{
-      customTiles.push(t);
-      if(t.walkable)WALKABLE.add(t.id);else BLOCK.add(t.id);
-    });
-  }
-  if(typeof row.next_custom_tile_id==='number')nextCustomTileId=row.next_custom_tile_id;
-  staticCache.clear();
-  Object.keys(customTileCache).forEach(k=>delete customTileCache[k]);
-  for(let r=0;r<ROWS;r++)for(let cl=0;cl<COLS;cl++){
-    const t=MAP[r][cl];
-    if(t!==T.WATER)getTileCanvas(cl,r,t);
-  }
-  if(typeof npcs!=='undefined'&&Array.isArray(npcs)){
-    npcs.forEach(n=>{
-      n.x=Math.max(0,Math.min(COLS-1,n.x));
-      n.y=Math.max(0,Math.min(ROWS-1,n.y));
-    });
-  }
-  if(typeof player!=='undefined'&&player){
-    player.x=Math.max(0,Math.min(COLS-1,player.x));
-    player.y=Math.max(0,Math.min(ROWS-1,player.y));
-  }
-  if(document.getElementById('map-editor-overlay')?.classList.contains('open')){
-    meCols=COLS;meRows=ROWS;meMap=MAP.map(r=>r.slice());
-    const cE=document.getElementById('me-cols'),rE=document.getElementById('me-rows');
-    if(cE)cE.value=meCols;if(rE)rE.value=meRows;
-    if(typeof meRenderPalette==='function')meRenderPalette();
-    if(typeof meRenderEditor==='function')meRenderEditor();
-  }
-}
-
 async function loadState(){
   // プレイヤー位置をlocalStorageから
   try{
@@ -1394,29 +1289,6 @@ async function loadState(){
     });
   }
   renderNPCList();
-  // World (map + custom tiles) 読み込み
-  try{
-    const{data:worldData,error:wErr}=await _sb.from('game_world').select('*').eq('id','main').maybeSingle();
-    if(!wErr&&worldData){
-      applyWorldData(worldData);
-    }else if(!wErr){
-      await dbSaveWorld();
-    }
-  }catch(e){console.warn('world load error',e);}
-  // World realtime subscription
-  _sb.channel('world-changes').on('postgres_changes',{event:'*',schema:'public',table:'game_world'},payload=>{
-    const row=payload.new;
-    if(!row||row.id!=='main')return;
-    const rowTs=new Date(row.updated_at).getTime();
-    if(Math.abs(rowTs-_localWorldUpdateTs)<1000)return;
-    const editorOpen=document.getElementById('map-editor-overlay')?.classList.contains('open');
-    if(editorOpen&&meEditorDirty){
-      if(!confirm('他のユーザーがマップを更新しました。あなたの編集を破棄して最新版を表示しますか？'))return;
-    }
-    applyWorldData(row);
-    if(editorOpen)meEditorDirty=false;
-    showSyncToast('🔄 マップが更新されました');
-  }).subscribe();
   // リアルタイム同期
   _sb.channel('npcs-changes').on('postgres_changes',{event:'INSERT',schema:'public',table:'npcs'},payload=>{
     if(payload.new.id==='__player__')return;
@@ -2481,7 +2353,7 @@ function openDotEditor(target,existingPixels){
   renderDotCanvas();
 }
 
-async function saveTileFromDotEditor(){
+function saveTileFromDotEditor(){
   const name=document.getElementById('dot-tile-name').value.trim()||`カスタムタイル${customTiles.length+1}`;
   const walkable=document.querySelector('input[name="dot-tile-walkable"]:checked').value==='1';
   const pixels=[...dotPixels];
@@ -2507,7 +2379,6 @@ async function saveTileFromDotEditor(){
     meRenderPalette();
     meRenderEditor();
   }
-  try{await dbSaveWorld();}catch(e){console.warn('world sync after tile save failed',e);}
 }
 
 function saveCustomTilesLocal(){
@@ -3612,7 +3483,6 @@ let meSelectedStamp=null;
 let meFillMode=false;
 let meUndoStack=[];
 let meIsDragging=false;
-let meEditorDirty=false;
 const ME_TILE_PX=32;
 const mePreviewCache={};
 
@@ -3766,7 +3636,6 @@ function meFloodFill(cx,cy,target,newT){
 
 function mePaintAt(cx,cy){
   if(cx<0||cy<0||cx>=meCols||cy>=meRows)return;
-  meEditorDirty=true;
   if(meSelectedStamp!==null){
     const st=ME_STAMPS[meSelectedStamp];
     for(let r=0;r<st.pattern.length;r++)for(let cl=0;cl<st.pattern[r].length;cl++){
@@ -3792,7 +3661,6 @@ function meCellFromEvent(ev){
 
 function meResize(newCols,newRows){
   mePushUndo();
-  meEditorDirty=true;
   const newMap=[];
   for(let r=0;r<newRows;r++){
     const row=[];
@@ -3817,7 +3685,6 @@ function meOpenEditor(){
   meCols=COLS;meRows=ROWS;
   meMap=MAP.map(r=>r.slice());
   meUndoStack=[];
-  meEditorDirty=false;
   meFillMode=false;
   document.getElementById('me-fill').classList.remove('active');
   document.getElementById('me-cols').value=meCols;
@@ -3872,17 +3739,11 @@ document.getElementById('me-resize').addEventListener('click',()=>{
   meResize(c,r);
   meToast(`サイズを ${c}×${r} に変更`);
 });
-document.getElementById('me-save').addEventListener('click',async()=>{
+document.getElementById('me-save').addEventListener('click',()=>{
   try{
     localStorage.setItem('customMap',JSON.stringify({cols:meCols,rows:meRows,map:meMap}));
     meToast('💾 マップを保存しました');
   }catch(e){meToast('保存に失敗しました');}
-  await dbSaveWorld({
-    map_data:{cols:meCols,rows:meRows,map:meMap},
-    custom_tiles:customTiles,
-    next_custom_tile_id:nextCustomTileId
-  });
-  meEditorDirty=false;
 });
 document.getElementById('me-export').addEventListener('click',()=>{
   const blob=new Blob([JSON.stringify({cols:meCols,rows:meRows,map:meMap},null,2)],{type:'application/json'});
