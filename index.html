@@ -71,6 +71,9 @@
   .npc-card-pos{color:#667;font-size:10px;margin-top:2px}
   .npc-edit{background:#203060;color:#aaf;border:1px solid #448;border-radius:4px;cursor:pointer;font-family:'DotGothic16',monospace;font-size:11px;padding:4px 8px;flex-shrink:0}
   .npc-edit:hover{background:#304080}
+  #guide-btn{display:block;text-align:center;padding:8px;background:linear-gradient(180deg,#2a3a20,#1a2a10);color:#cfc;border:2px solid #6a8;border-radius:6px;text-decoration:none;font-family:'DotGothic16',monospace;font-size:13px;margin-bottom:8px}
+  #guide-btn:hover{background:linear-gradient(180deg,#3a4a30,#2a3a20)}
+  #mobile-guide-btn{padding:10px 12px;font-family:'DotGothic16',monospace;font-size:12px;background:linear-gradient(180deg,#2a3a20,#1a2a10);color:#cfc;border:2px solid #6a8;border-radius:8px;cursor:pointer;text-decoration:none;display:flex;align-items:center;justify-content:center}
   #auth-area{background:linear-gradient(180deg,#14142a,#101028);border:2px solid #446;border-radius:8px;padding:10px;margin-bottom:8px;text-align:center}
   #auth-area .auth-name{color:#ffd;font-size:14px;font-weight:bold}
   #auth-form{display:flex;flex-direction:column;gap:6px}
@@ -310,6 +313,7 @@
   </div>
   <div id="mobile-side-btns">
     <button id="mobile-npc-btn">NPC一覧</button>
+    <a href="guide.html" target="_blank" id="mobile-guide-btn" class="dp-btn">📖 ガイド</a>
   </div>
 </div>
 <div id="game-btns">
@@ -321,6 +325,7 @@
 <div id="side-panel">
   <button id="mobile-close-panel">✕ 閉じる</button>
   <div id="side-panel-top">
+    <a href="guide.html" target="_blank" id="guide-btn">📖 はじめての方へ（ガイド）</a>
     <div id="auth-area">
       <div id="auth-display"></div>
       <div id="auth-form">
