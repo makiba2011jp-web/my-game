@@ -230,38 +230,6 @@
   #soccer-start-btn:disabled{opacity:.4;cursor:default}
   #soccer-cancel-btn{padding:10px 24px;font-family:'DotGothic16',monospace;font-size:14px;background:#333;color:#fff;border:2px solid #666;border-radius:6px;cursor:pointer}
 
-  /* ---- MAP EDITOR ---- */
-  #map-editor-btn{width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:linear-gradient(180deg,#4a3a6a,#2a1a4a);color:#dcf;border:2px solid #86a;border-radius:6px;cursor:pointer;margin-bottom:6px}
-  #map-editor-btn:hover{background:linear-gradient(180deg,#6a5a8a,#4a3a6a)}
-  #map-editor-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:600;background:#080810;flex-direction:column;color:#fff;font-family:'DotGothic16',monospace}
-  #map-editor-overlay.open{display:flex}
-  #me-toolbar{background:linear-gradient(180deg,#14142a,#08081a);border-bottom:3px solid #88a;padding:8px 10px;display:flex;flex-direction:column;gap:6px;flex-shrink:0}
-  #me-row1,#me-row2,#me-row3{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-  #me-palette{display:flex;gap:4px;flex-wrap:wrap;flex:1;min-width:0}
-  .me-tile{width:38px;height:38px;border:2px solid #446;border-radius:4px;cursor:pointer;padding:1px;background:#000;position:relative;flex-shrink:0}
-  .me-tile.selected{border-color:#ffd33a;box-shadow:0 0 8px rgba(255,200,50,.6)}
-  .me-tile canvas{width:100%;height:100%;image-rendering:pixelated;display:block}
-  .me-tile .me-tile-label{position:absolute;bottom:-13px;left:0;right:0;text-align:center;font-size:9px;color:#aac;pointer-events:none;text-shadow:0 0 2px #000}
-  #me-palette{padding-bottom:14px}
-  .me-stamp{width:auto;padding:4px 8px;height:38px;background:linear-gradient(180deg,#2a3a5a,#1a2a4a);border:2px solid #446;border-radius:4px;color:#dcf;font-family:'DotGothic16',monospace;font-size:12px;cursor:pointer;flex-shrink:0}
-  .me-stamp.selected{border-color:#ffd33a;background:linear-gradient(180deg,#3a5a7a,#2a3a5a)}
-  .me-stamp:hover{background:linear-gradient(180deg,#3a4a6a,#2a3a5a)}
-  #me-row2 label,#me-row3 label{font-size:12px;color:#aac}
-  #me-row2 input[type="number"]{width:56px;padding:4px 6px;background:#0a0a20;color:#fff;border:1px solid #446;border-radius:4px;font-family:monospace;font-size:12px}
-  #me-toolbar button{padding:6px 12px;font-family:'DotGothic16',monospace;font-size:12px;background:linear-gradient(180deg,#2a3a60,#1a2a50);color:#fff;border:2px solid #88a;border-radius:6px;cursor:pointer}
-  #me-toolbar button:hover{background:linear-gradient(180deg,#3a4a80,#2a3a60)}
-  #me-toolbar button.active{background:linear-gradient(180deg,#6a5a2a,#4a3a1a);border-color:#ffd33a}
-  #me-toolbar button.close-btn{background:linear-gradient(180deg,#6a2a2a,#4a1a1a);border-color:#a66;color:#fcc;margin-left:auto}
-  #me-toolbar button.save-btn{background:linear-gradient(180deg,#2a6a3a,#1a4a2a);border-color:#6a8;color:#cfc}
-  #me-canvas-wrap{flex:1;min-height:0;overflow:auto;padding:12px;display:flex;align-items:flex-start;justify-content:flex-start;background:#05050a}
-  #me-canvas{background:#111;border:2px solid #446;image-rendering:pixelated;display:block;touch-action:none;cursor:crosshair}
-  #me-toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:rgba(40,120,40,.95);color:#fff;padding:10px 20px;border:2px solid #8c8;border-radius:8px;font-family:'DotGothic16',monospace;font-size:14px;z-index:700;opacity:0;transition:opacity .3s;pointer-events:none}
-  #me-toast.show{opacity:1}
-  @media(max-width:768px){
-    #me-canvas-wrap{padding:4px}
-    .me-tile{width:32px;height:32px}
-    #me-toolbar{padding:6px}
-  }
 
   /* ---- GAME-AREA ACTION BUTTONS ---- */
   #game-btns{display:flex;gap:8px;justify-content:center;padding:8px 12px;flex-wrap:wrap;flex-shrink:0;order:10;z-index:5}
@@ -345,7 +313,6 @@
   </div>
 </div>
 <div id="game-btns">
-  <button id="map-editor-btn">🗺 マップ編集</button>
   <button id="pvp-btn">⚔ PVPバトル</button>
   <button id="soccer-btn">⚽ サッカー試合</button>
   <button id="npc-create-btn">＋ NPC作成</button>
@@ -436,18 +403,6 @@
         <div id="dot-img-preview"></div>
       </div>
     </div>
-    <div id="dot-tile-form" style="display:none;width:100%;max-width:420px;background:#101028;border:2px solid #446;border-radius:6px;padding:10px;margin-top:8px">
-      <label style="display:block;color:#aac;font-size:12px;margin-bottom:4px">タイル名</label>
-      <input type="text" id="dot-tile-name" placeholder="タイル名を入力" style="width:100%;padding:6px;font-family:'DotGothic16',monospace;font-size:13px;background:#0a0a20;color:#fff;border:1px solid #446;border-radius:4px;outline:none;margin-bottom:8px;box-sizing:border-box">
-      <div style="display:flex;gap:16px;margin-bottom:8px">
-        <label style="color:#ccc;font-size:13px;cursor:pointer"><input type="radio" name="dot-tile-walkable" value="1" checked> 通行可</label>
-        <label style="color:#ccc;font-size:13px;cursor:pointer"><input type="radio" name="dot-tile-walkable" value="0"> 通行不可</label>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button type="button" id="dot-save-tile" style="flex:1;padding:10px;font-family:'DotGothic16',monospace;font-size:14px;background:linear-gradient(180deg,#2a6a30,#1a5a20);color:#fff;border:2px solid #6a6;border-radius:6px;cursor:pointer">💾 タイルとして保存</button>
-        <button type="button" id="dot-tile-close" style="padding:10px 18px;font-family:'DotGothic16',monospace;font-size:14px;background:linear-gradient(180deg,#602020,#501818);color:#fff;border:2px solid #a66;border-radius:6px;cursor:pointer">閉じる</button>
-      </div>
-    </div>
     <div id="dot-actions">
       <button id="dot-apply">キャラに反映</button>
       <button id="dot-download">画像を保存</button>
@@ -508,32 +463,6 @@
   </div>
   <button id="soccer-exit-btn" style="display:none">閉じる</button>
 </div>
-<div id="map-editor-overlay">
-  <div id="me-toolbar">
-    <div id="me-row1">
-      <div id="me-palette"></div>
-    </div>
-    <div id="me-row2">
-      <label>列数<input type="number" id="me-cols" min="8" max="40" value="22"></label>
-      <label>行数<input type="number" id="me-rows" min="8" max="40" value="16"></label>
-      <button id="me-resize">サイズ適用</button>
-      <button id="me-fill">🪣 塗りつぶし</button>
-      <button id="me-undo">↶ 元に戻す</button>
-      <span id="me-status" style="font-size:11px;color:#8ac;margin-left:8px"></span>
-    </div>
-    <div id="me-row3">
-      <button id="me-save" class="save-btn">💾 保存</button>
-      <button id="me-export">📤 エクスポート</button>
-      <button id="me-import">📥 インポート</button>
-      <input type="file" id="me-import-file" accept="application/json" style="display:none">
-      <button id="me-close" class="close-btn">✕ 閉じて反映</button>
-    </div>
-  </div>
-  <div id="me-canvas-wrap">
-    <canvas id="me-canvas"></canvas>
-  </div>
-</div>
-<div id="me-toast"></div>
 <script>
 // ================================================================
 const WORKER_URL='https://my-game-api.makiba2011jp.workers.dev';
@@ -2329,63 +2258,13 @@ function openDotEditor(target,existingPixels){
   if(existingPixels)dotPixels=[...existingPixels];
   else dotPixels=new Array(DOT_SIZE*DOT_SIZE).fill(null);
   const label=document.getElementById('dot-target-label');
-  const tileForm=document.getElementById('dot-tile-form');
-  const actions=document.getElementById('dot-actions');
-  const imgSection=document.getElementById('dot-img-section');
-  if(target.type==='tile'){
-    const existing=target.tileId!=null?customTiles.find(t=>t.id===target.tileId):null;
-    label.textContent='対象: タイル編集 - '+(existing?existing.name:'新規タイル');
-    tileForm.style.display='block';
-    actions.style.display='none';
-    if(imgSection)imgSection.style.display='none';
-    document.getElementById('dot-tile-name').value=existing?existing.name:'';
-    const walkVal=existing?(existing.walkable?'1':'0'):'1';
-    document.querySelectorAll('input[name="dot-tile-walkable"]').forEach(r=>{r.checked=r.value===walkVal;});
-  }else{
-    tileForm.style.display='none';
-    actions.style.display='';
-    if(imgSection)imgSection.style.display='';
-    if(target.type==='player')label.textContent='対象: 主人公';
-    else if(target.type==='new-npc')label.textContent='対象: 新規NPC';
-    else label.textContent='対象: '+npcs[target.index].name;
-  }
+  if(target.type==='player')label.textContent='対象: 主人公';
+  else if(target.type==='new-npc')label.textContent='対象: 新規NPC';
+  else label.textContent='対象: '+npcs[target.index].name;
   dotOverlay.classList.add('open');
   renderDotCanvas();
 }
 
-function saveTileFromDotEditor(){
-  const name=document.getElementById('dot-tile-name').value.trim()||`カスタムタイル${customTiles.length+1}`;
-  const walkable=document.querySelector('input[name="dot-tile-walkable"]:checked').value==='1';
-  const pixels=[...dotPixels];
-  const dataURL=dotToImageData().toDataURL();
-  const existing=dotTarget&&dotTarget.tileId!=null?customTiles.find(t=>t.id===dotTarget.tileId):null;
-  if(existing){
-    if(existing.walkable)WALKABLE.delete(existing.id);else BLOCK.delete(existing.id);
-    existing.name=name;
-    existing.walkable=walkable;
-    existing.pixels=pixels;
-    existing.dataURL=dataURL;
-    if(walkable)WALKABLE.add(existing.id);else BLOCK.add(existing.id);
-    delete customTileCache['custom_'+existing.id];
-  }else{
-    const id=nextCustomTileId++;
-    customTiles.push({id,name,walkable,pixels,dataURL});
-    if(walkable)WALKABLE.add(id);else BLOCK.add(id);
-  }
-  saveCustomTilesLocal();
-  try{saveState();}catch(e){}
-  closeDotEditor();
-  if(document.getElementById('map-editor-overlay').classList.contains('open')){
-    meRenderPalette();
-    meRenderEditor();
-  }
-}
-
-function saveCustomTilesLocal(){
-  try{
-    localStorage.setItem('my-game:custom-tiles',JSON.stringify({customTiles,nextCustomTileId}));
-  }catch(e){console.warn('custom tiles save failed',e);}
-}
 function loadCustomTilesLocal(){
   try{
     const raw=localStorage.getItem('my-game:custom-tiles');
@@ -2401,9 +2280,6 @@ function loadCustomTilesLocal(){
   }catch(e){console.warn('custom tiles load failed',e);}
 }
 loadCustomTilesLocal();
-
-document.getElementById('dot-save-tile').addEventListener('click',saveTileFromDotEditor);
-document.getElementById('dot-tile-close').addEventListener('click',closeDotEditor);
 
 function closeDotEditor(){
   dotOverlay.classList.remove('open');
@@ -2577,8 +2453,7 @@ _dotImgClear.addEventListener('click',()=>{
 const _origOpenDotEditor=openDotEditor;
 openDotEditor=function(target,existingPixels){
   // Load existing image for this target
-  if(target.type==='tile'){dotImgData=null;}
-  else if(target.type==='player'){dotImgData=player.spriteImgData||null;}
+  if(target.type==='player'){dotImgData=player.spriteImgData||null;}
   else if(target.type==='new-npc'){dotImgData=null;}
   else{dotImgData=npcs[target.index].spriteImgData||null;}
   updateDotImgUI();
@@ -3473,319 +3348,6 @@ function socRenderLoop(){
   socAnim=requestAnimationFrame(socRenderLoop);
 }
 
-// ================================================================
-//  MAP EDITOR
-// ================================================================
-let meCols=COLS, meRows=ROWS;
-let meMap=[];
-let meSelectedTile=T.GRASS;
-let meSelectedStamp=null;
-let meFillMode=false;
-let meUndoStack=[];
-let meIsDragging=false;
-const ME_TILE_PX=32;
-const mePreviewCache={};
-
-const ME_TILES=[
-  {type:T.GRASS,label:'草'},{type:T.PATH,label:'道'},{type:T.COB,label:'石畳'},
-  {type:T.WALL,label:'壁'},{type:T.WIN,label:'窓'},{type:T.ROOF,label:'屋根'},
-  {type:T.DOOR,label:'扉'},{type:T.TREE,label:'木'},{type:T.FLOWER,label:'花'},
-  {type:T.FENCE,label:'柵'},{type:T.WELL,label:'井戸'},{type:T.SIGN,label:'看板'},
-  {type:T.WATER,label:'水'},
-];
-const ME_STAMPS=[
-  {name:'🏠 小屋',pattern:[[T.ROOF,T.ROOF,T.ROOF],[T.WIN,T.WALL,T.WIN],[T.WALL,T.DOOR,T.WALL]]},
-  {name:'🌊 池',pattern:[[T.WATER,T.WATER,T.WATER],[T.WATER,T.WATER,T.WATER],[T.WATER,T.WATER,T.WATER]]},
-  {name:'🌳 木立',pattern:[[T.TREE,T.TREE],[T.TREE,T.TREE]]},
-];
-
-function meGetPreview(type){
-  if(type>=100){
-    const cc=getCustomTileCached(type);
-    if(cc)return cc;
-  }
-  if(mePreviewCache[type])return mePreviewCache[type];
-  const oc=document.createElement('canvas');oc.width=S;oc.height=S;
-  const g=oc.getContext('2d');g.scale(SC,SC);
-  switch(type){
-    case T.GRASS:drawGrass(g,0,0);break;
-    case T.PATH:drawPath(g,0,0);break;
-    case T.COB:drawCobble(g,0,0);break;
-    case T.WALL:drawWall(g,0,0);break;
-    case T.WIN:drawWindow(g,0,0);break;
-    case T.ROOF:drawRoof(g,0,0);break;
-    case T.DOOR:drawDoor(g,0,0);break;
-    case T.TREE:drawTree(g,0,0);break;
-    case T.FLOWER:drawFlower(g,0,0);break;
-    case T.FENCE:drawFence(g,0,0);break;
-    case T.WELL:drawWell(g,0,0);break;
-    case T.SIGN:drawSign(g,0,0);break;
-    case T.WATER:
-      g.fillStyle='#185090';g.fillRect(0,0,BASE,BASE);
-      g.fillStyle='#306fb0';for(let i=0;i<10;i++)g.fillRect((i*13)%BASE,(i*7)%BASE,18,3);
-      break;
-    default:g.fillStyle='#444';g.fillRect(0,0,BASE,BASE);
-  }
-  mePreviewCache[type]=oc;
-  return oc;
-}
-
-function meRenderPalette(){
-  const el=document.getElementById('me-palette');
-  el.innerHTML='';
-  ME_TILES.forEach(t=>{
-    const d=document.createElement('div');
-    d.className='me-tile'+(meSelectedTile===t.type&&meSelectedStamp===null?' selected':'');
-    d.title=t.label;
-    const pc=meGetPreview(t.type);
-    const c2=document.createElement('canvas');c2.width=32;c2.height=32;
-    const g2=c2.getContext('2d');g2.imageSmoothingEnabled=false;
-    g2.drawImage(pc,0,0,32,32);
-    d.appendChild(c2);
-    const lb=document.createElement('span');lb.className='me-tile-label';lb.textContent=t.label;d.appendChild(lb);
-    d.addEventListener('click',()=>{meSelectedTile=t.type;meSelectedStamp=null;meRenderPalette();updateStatus();});
-    el.appendChild(d);
-  });
-  ME_STAMPS.forEach((st,i)=>{
-    const b=document.createElement('button');
-    b.className='me-stamp'+(meSelectedStamp===i?' selected':'');
-    b.textContent=st.name;
-    b.addEventListener('click',()=>{meSelectedStamp=i;meRenderPalette();updateStatus();});
-    el.appendChild(b);
-  });
-  customTiles.forEach(ct=>{
-    const d=document.createElement('div');
-    d.className='me-tile me-custom-tile'+(meSelectedTile===ct.id&&meSelectedStamp===null?' selected':'');
-    d.title=ct.name+(ct.walkable?' (通行可)':' (通行不可)');
-    const img=document.createElement('img');
-    img.src=ct.dataURL;
-    img.style.cssText='width:100%;height:100%;image-rendering:pixelated;display:block';
-    d.appendChild(img);
-    const lb=document.createElement('span');lb.className='me-tile-label';lb.textContent=ct.name;d.appendChild(lb);
-    d.addEventListener('click',()=>{meSelectedTile=ct.id;meSelectedStamp=null;meRenderPalette();updateStatus();});
-    d.addEventListener('dblclick',()=>{openDotEditor({type:'tile',tileId:ct.id},ct.pixels);});
-    const edit=document.createElement('span');
-    edit.textContent='✏';
-    edit.title='編集';
-    edit.style.cssText='position:absolute;top:-6px;right:-6px;background:#446;color:#fff;border:1px solid #88a;border-radius:50%;width:18px;height:18px;font-size:10px;text-align:center;line-height:16px;cursor:pointer;z-index:2';
-    edit.addEventListener('click',e=>{e.stopPropagation();openDotEditor({type:'tile',tileId:ct.id},ct.pixels);});
-    d.appendChild(edit);
-    el.appendChild(d);
-  });
-  const nt=document.createElement('button');
-  nt.id='btn-new-custom-tile';
-  nt.className='me-stamp';
-  nt.textContent='＋ 新規タイル作成';
-  nt.addEventListener('click',()=>openDotEditor({type:'tile',tileId:null},null));
-  el.appendChild(nt);
-  function updateStatus(){
-    let s;
-    if(meSelectedStamp!==null)s='スタンプ:'+ME_STAMPS[meSelectedStamp].name;
-    else if(meSelectedTile>=100){const ct=customTiles.find(t=>t.id===meSelectedTile);s='タイル:'+(ct?ct.name:'?');}
-    else s='タイル:'+((ME_TILES.find(t=>t.type===meSelectedTile)||{}).label||'');
-    document.getElementById('me-status').textContent=`${meCols}×${meRows} | ${s}${meFillMode?' | 🪣塗りつぶし':''}`;
-  }
-  updateStatus();
-}
-
-function meRenderEditor(){
-  const cv2=document.getElementById('me-canvas');
-  cv2.width=meCols*ME_TILE_PX;
-  cv2.height=meRows*ME_TILE_PX;
-  const g=cv2.getContext('2d');
-  g.imageSmoothingEnabled=false;
-  g.fillStyle='#0a0a14';g.fillRect(0,0,cv2.width,cv2.height);
-  for(let r=0;r<meRows;r++)for(let cl=0;cl<meCols;cl++){
-    const t=meMap[r][cl];
-    const pc=meGetPreview(t);
-    g.drawImage(pc,cl*ME_TILE_PX,r*ME_TILE_PX,ME_TILE_PX,ME_TILE_PX);
-  }
-  g.strokeStyle='rgba(255,255,255,0.1)';g.lineWidth=1;
-  for(let i=0;i<=meCols;i++){g.beginPath();g.moveTo(i*ME_TILE_PX+.5,0);g.lineTo(i*ME_TILE_PX+.5,meRows*ME_TILE_PX);g.stroke();}
-  for(let i=0;i<=meRows;i++){g.beginPath();g.moveTo(0,i*ME_TILE_PX+.5);g.lineTo(meCols*ME_TILE_PX,i*ME_TILE_PX+.5);g.stroke();}
-  const s=meSelectedStamp!==null?'スタンプ:'+ME_STAMPS[meSelectedStamp].name:'タイル:'+(ME_TILES.find(t=>t.type===meSelectedTile)||{}).label;
-  document.getElementById('me-status').textContent=`${meCols}×${meRows} | ${s}${meFillMode?' | 🪣塗りつぶし':''}`;
-}
-
-function mePushUndo(){
-  meUndoStack.push({cols:meCols,rows:meRows,map:meMap.map(r=>r.slice())});
-  if(meUndoStack.length>20)meUndoStack.shift();
-}
-
-function meUndo(){
-  const prev=meUndoStack.pop();
-  if(!prev){meToast('これ以上戻せません');return;}
-  meCols=prev.cols;meRows=prev.rows;meMap=prev.map;
-  document.getElementById('me-cols').value=meCols;
-  document.getElementById('me-rows').value=meRows;
-  meRenderEditor();
-}
-
-function meFloodFill(cx,cy,target,newT){
-  if(target===newT)return;
-  const q=[[cx,cy]];const seen=new Set();
-  while(q.length){
-    const [x,y]=q.shift();
-    if(x<0||y<0||x>=meCols||y>=meRows)continue;
-    const k=x+','+y;if(seen.has(k))continue;seen.add(k);
-    if(meMap[y][x]!==target)continue;
-    meMap[y][x]=newT;
-    q.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);
-  }
-}
-
-function mePaintAt(cx,cy){
-  if(cx<0||cy<0||cx>=meCols||cy>=meRows)return;
-  if(meSelectedStamp!==null){
-    const st=ME_STAMPS[meSelectedStamp];
-    for(let r=0;r<st.pattern.length;r++)for(let cl=0;cl<st.pattern[r].length;cl++){
-      const tx=cx+cl, ty=cy+r;
-      if(tx<meCols&&ty<meRows)meMap[ty][tx]=st.pattern[r][cl];
-    }
-  }else if(meFillMode){
-    meFloodFill(cx,cy,meMap[cy][cx],meSelectedTile);
-  }else{
-    meMap[cy][cx]=meSelectedTile;
-  }
-  meRenderEditor();
-}
-
-function meCellFromEvent(ev){
-  const cv2=document.getElementById('me-canvas');
-  const r=cv2.getBoundingClientRect();
-  const t=ev.touches&&ev.touches[0]?ev.touches[0]:(ev.changedTouches&&ev.changedTouches[0]?ev.changedTouches[0]:ev);
-  const px=(t.clientX-r.left)*(cv2.width/r.width);
-  const py=(t.clientY-r.top)*(cv2.height/r.height);
-  return{cx:Math.floor(px/ME_TILE_PX),cy:Math.floor(py/ME_TILE_PX)};
-}
-
-function meResize(newCols,newRows){
-  mePushUndo();
-  const newMap=[];
-  for(let r=0;r<newRows;r++){
-    const row=[];
-    for(let cl=0;cl<newCols;cl++){
-      row.push(r<meRows&&cl<meCols?meMap[r][cl]:T.GRASS);
-    }
-    newMap.push(row);
-  }
-  meCols=newCols;meRows=newRows;meMap=newMap;
-  meRenderEditor();
-}
-
-function meToast(msg){
-  const el=document.getElementById('me-toast');
-  el.textContent=msg;
-  el.classList.add('show');
-  clearTimeout(meToast._t);
-  meToast._t=setTimeout(()=>el.classList.remove('show'),1800);
-}
-
-function meOpenEditor(){
-  meCols=COLS;meRows=ROWS;
-  meMap=MAP.map(r=>r.slice());
-  meUndoStack=[];
-  meFillMode=false;
-  document.getElementById('me-fill').classList.remove('active');
-  document.getElementById('me-cols').value=meCols;
-  document.getElementById('me-rows').value=meRows;
-  document.getElementById('map-editor-overlay').classList.add('open');
-  document.getElementById('side-panel').classList.remove('mobile-open');
-  meRenderPalette();
-  meRenderEditor();
-}
-
-function meApplyToGame(){
-  COLS=meCols;ROWS=meRows;
-  MAP=meMap.map(r=>r.slice());
-  W=COLS*S;H=ROWS*S;
-  cv.width=W;cv.height=H;
-  staticCache.clear();
-  for(let r=0;r<ROWS;r++)for(let cl=0;cl<COLS;cl++){
-    const t=MAP[r][cl];
-    if(t!==T.WATER)getTileCanvas(cl,r,t);
-  }
-  npcs.forEach(n=>{
-    n.x=Math.max(0,Math.min(COLS-1,n.x));
-    n.y=Math.max(0,Math.min(ROWS-1,n.y));
-  });
-  try{
-    if(typeof player!=='undefined'&&player){
-      player.x=Math.max(0,Math.min(COLS-1,player.x));
-      player.y=Math.max(0,Math.min(ROWS-1,player.y));
-    }
-  }catch(e){}
-}
-
-function meCloseEditor(){
-  meApplyToGame();
-  document.getElementById('map-editor-overlay').classList.remove('open');
-  try{saveState&&saveState();}catch(e){}
-}
-
-document.getElementById('map-editor-btn').addEventListener('click',meOpenEditor);
-document.getElementById('me-close').addEventListener('click',meCloseEditor);
-document.getElementById('me-fill').addEventListener('click',()=>{
-  meFillMode=!meFillMode;
-  document.getElementById('me-fill').classList.toggle('active',meFillMode);
-  meRenderEditor();
-});
-document.getElementById('me-undo').addEventListener('click',meUndo);
-document.getElementById('me-resize').addEventListener('click',()=>{
-  const nc=parseInt(document.getElementById('me-cols').value)||meCols;
-  const nr=parseInt(document.getElementById('me-rows').value)||meRows;
-  const c=Math.max(8,Math.min(40,nc));
-  const r=Math.max(8,Math.min(40,nr));
-  meResize(c,r);
-  meToast(`サイズを ${c}×${r} に変更`);
-});
-document.getElementById('me-save').addEventListener('click',()=>{
-  try{
-    localStorage.setItem('customMap',JSON.stringify({cols:meCols,rows:meRows,map:meMap}));
-    meToast('💾 マップを保存しました');
-  }catch(e){meToast('保存に失敗しました');}
-});
-document.getElementById('me-export').addEventListener('click',()=>{
-  const blob=new Blob([JSON.stringify({cols:meCols,rows:meRows,map:meMap},null,2)],{type:'application/json'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;a.download=`map-${meCols}x${meRows}.json`;
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
-  meToast('📤 エクスポート完了');
-});
-document.getElementById('me-import').addEventListener('click',()=>document.getElementById('me-import-file').click());
-document.getElementById('me-import-file').addEventListener('change',e=>{
-  const f=e.target.files[0];if(!f)return;
-  const rd=new FileReader();
-  rd.onload=ev=>{
-    try{
-      const d=JSON.parse(ev.target.result);
-      if(!d.map||!Array.isArray(d.map))throw new Error('invalid');
-      mePushUndo();
-      meCols=d.cols||d.map[0].length;
-      meRows=d.rows||d.map.length;
-      meMap=d.map.map(row=>row.slice());
-      document.getElementById('me-cols').value=meCols;
-      document.getElementById('me-rows').value=meRows;
-      meRenderEditor();
-      meToast('📥 インポート完了');
-    }catch(err){meToast('JSONの読み込みに失敗');}
-  };
-  rd.readAsText(f);
-  e.target.value='';
-});
-(function(){
-  const cv2=document.getElementById('me-canvas');
-  const start=(ev)=>{ev.preventDefault();mePushUndo();meIsDragging=true;const{cx,cy}=meCellFromEvent(ev);mePaintAt(cx,cy);};
-  const move=(ev)=>{if(!meIsDragging)return;ev.preventDefault();const{cx,cy}=meCellFromEvent(ev);mePaintAt(cx,cy);};
-  const end=()=>{meIsDragging=false;};
-  cv2.addEventListener('mousedown',start);
-  window.addEventListener('mousemove',move);
-  window.addEventListener('mouseup',end);
-  cv2.addEventListener('touchstart',start,{passive:false});
-  cv2.addEventListener('touchmove',move,{passive:false});
-  cv2.addEventListener('touchend',end);
-})();
 
 // Load custom map from localStorage
 (function(){
