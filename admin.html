@@ -1,4 +1,23 @@
 <!DOCTYPE html>
+<!--
+================================================================
+ Supabase schema for map & custom tile realtime sync.
+ Run once in the Supabase SQL Editor:
+
+   CREATE TABLE IF NOT EXISTS game_world (
+     id TEXT PRIMARY KEY,
+     map_data JSONB,
+     custom_tiles JSONB,
+     next_custom_tile_id INTEGER,
+     client_id TEXT,
+     updated_at TIMESTAMPTZ DEFAULT now()
+   );
+   ALTER TABLE game_world ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY "public read"  ON game_world FOR SELECT USING (true);
+   CREATE POLICY "public write" ON game_world FOR ALL    USING (true);
+   ALTER PUBLICATION supabase_realtime ADD TABLE game_world;
+================================================================
+-->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -251,6 +270,57 @@ const _sb=supabase.createClient(
   'https://ubvqdkiujoiegujwipus.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVidnFka2l1am9pZWd1andpcHVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNTkwOTQsImV4cCI6MjA5MDkzNTA5NH0.r-Xoiirz8CbivvrD_bBYy6_F7tokSGPHGu-9q6bVJwA'
 );
+
+// ================================================================
+//  WORLD SYNC (map + custom tiles via Supabase game_world table)
+// ================================================================
+const CLIENT_ID='admin-'+Math.random().toString(36).slice(2,10);
+
+async function dbSaveWorld(partial){
+  const{data:current,error:fetchErr}=await _sb.from('game_world').select('*').eq('id','main').maybeSingle();
+  if(fetchErr)console.warn('[ADMIN] fetch before save warning',fetchErr);
+  const payload={
+    id:'main',
+    map_data:partial.map_data??current?.map_data??{cols:22,rows:16,map:[]},
+    custom_tiles:partial.custom_tiles??current?.custom_tiles??[],
+    next_custom_tile_id:partial.next_custom_tile_id??current?.next_custom_tile_id??100,
+    client_id:CLIENT_ID,
+    updated_at:new Date().toISOString()
+  };
+  const{error}=await _sb.from('game_world').upsert(payload);
+  console.log('[ADMIN SAVED]',{error,payload});
+  if(error){
+    showToast('❌ 保存失敗: '+(error.message||error.code||'unknown'),'rgba(160,40,40,.95)');
+    return false;
+  }
+  return true;
+}
+
+async function loadWorldFromSupabase(){
+  const{data,error}=await _sb.from('game_world').select('*').eq('id','main').maybeSingle();
+  console.log('[ADMIN LOADED WORLD]',{data,error});
+  if(error||!data)return;
+  if(data.map_data&&Array.isArray(data.map_data.map)){
+    meMap=data.map_data.map.map(r=>r.slice());
+    meCols=data.map_data.cols||meMap[0].length;
+    meRows=data.map_data.rows||meMap.length;
+    const cE=document.getElementById('me-cols'),rE=document.getElementById('me-rows');
+    if(cE)cE.value=meCols;if(rE)rE.value=meRows;
+  }
+  if(Array.isArray(data.custom_tiles)){
+    customTiles.forEach(t=>{WALKABLE.delete(t.id);BLOCK.delete(t.id);});
+    customTiles.length=0;
+    data.custom_tiles.forEach(t=>{
+      customTiles.push(t);
+      if(t.walkable)WALKABLE.add(t.id);else BLOCK.add(t.id);
+    });
+    Object.keys(customTileCache).forEach(k=>delete customTileCache[k]);
+  }
+  if(typeof data.next_custom_tile_id==='number')nextCustomTileId=data.next_custom_tile_id;
+  if(typeof meRenderEditor==='function')meRenderEditor();
+  if(typeof meRenderPalette==='function')meRenderPalette();
+  if(typeof renderTilesList==='function')renderTilesList();
+}
 
 // ================================================================
 //  GAME CONSTANTS (mirrored from index.html)
@@ -884,6 +954,9 @@ function saveTileFromDotEditor(){
   meRenderEditor();
   renderTilesList();
   showToast('💾 タイルを保存しました');
+  dbSaveWorld({custom_tiles:customTiles,next_custom_tile_id:nextCustomTileId})
+    .then(ok=>{if(ok)showToast('☁️ タイルを同期しました');})
+    .catch(e=>console.warn('tile sync failed',e));
 }
 
 function saveCustomTilesLocal(){
@@ -1203,11 +1276,10 @@ document.getElementById('me-resize').addEventListener('click',()=>{
   meResize(c,r);
   showToast(`サイズを ${c}×${r} に変更`);
 });
-document.getElementById('me-save').addEventListener('click',()=>{
-  try{
-    localStorage.setItem('customMap',JSON.stringify({cols:meCols,rows:meRows,map:meMap}));
-    showToast('💾 マップを保存しました');
-  }catch(e){showToast('保存に失敗しました','rgba(160,40,40,.95)');}
+document.getElementById('me-save').addEventListener('click',async()=>{
+  try{localStorage.setItem('customMap',JSON.stringify({cols:meCols,rows:meRows,map:meMap}));}catch(e){}
+  const ok=await dbSaveWorld({map_data:{cols:meCols,rows:meRows,map:meMap}});
+  if(ok)showToast('☁️ マップを保存（全ブラウザに同期）');
 });
 document.getElementById('me-export').addEventListener('click',()=>{
   const blob=new Blob([JSON.stringify({cols:meCols,rows:meRows,map:meMap},null,2)],{type:'application/json'});
@@ -1593,6 +1665,8 @@ tabButtons.forEach(b=>{
 // ================================================================
 meInit();
 renderTilesList();
+// Pull latest world from Supabase (may override local state)
+loadWorldFromSupabase().catch(e=>console.warn('loadWorldFromSupabase failed',e));
 // NPC and player tabs load lazily when opened
 </script>
 </body>

@@ -1218,6 +1218,22 @@ async function loadState(){
     });
   }
   renderNPCList();
+  // World (map + custom tiles) 読み込み from Supabase
+  try{
+    const{data:worldData,error:wErr}=await _sb.from('game_world').select('*').eq('id','main').maybeSingle();
+    console.log('[GAME LOADED WORLD]',{data:worldData,error:wErr});
+    if(!wErr&&worldData)applyWorldData(worldData);
+  }catch(e){console.warn('world load error',e);}
+  // World リアルタイム購読
+  _sb.channel('world-changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:'game_world'},payload=>{
+      console.log('[WORLD RECEIVED]',payload);
+      const row=payload.new;
+      if(!row||row.id!=='main')return;
+      applyWorldData(row);
+      showWorldSyncToast('🔄 マップが更新されました');
+    })
+    .subscribe(status=>console.log('[WORLD CHANNEL]',status));
   // リアルタイム同期
   _sb.channel('npcs-changes').on('postgres_changes',{event:'INSERT',schema:'public',table:'npcs'},payload=>{
     if(payload.new.id==='__player__')return;
@@ -1235,6 +1251,56 @@ async function loadState(){
     const idx=npcs.findIndex(n=>n.id===payload.old.id);
     if(idx>=0){npcs.splice(idx,1);renderNPCList();}
   }).subscribe();
+}
+
+function applyWorldData(row){
+  if(!row)return;
+  if(row.map_data&&Array.isArray(row.map_data.map)){
+    MAP.length=0;
+    row.map_data.map.forEach(r=>MAP.push([...r]));
+    if(typeof row.map_data.cols==='number')COLS=row.map_data.cols;
+    if(typeof row.map_data.rows==='number')ROWS=row.map_data.rows;
+    W=COLS*S;H=ROWS*S;
+    cv.width=W;cv.height=H;
+  }
+  if(Array.isArray(row.custom_tiles)){
+    customTiles.forEach(t=>{WALKABLE.delete(t.id);BLOCK.delete(t.id);});
+    customTiles.length=0;
+    row.custom_tiles.forEach(t=>{
+      customTiles.push(t);
+      if(t.walkable)WALKABLE.add(t.id);else BLOCK.add(t.id);
+    });
+  }
+  if(typeof row.next_custom_tile_id==='number')nextCustomTileId=row.next_custom_tile_id;
+  if(typeof staticCache!=='undefined')staticCache.clear();
+  if(typeof customTileCache!=='undefined')Object.keys(customTileCache).forEach(k=>delete customTileCache[k]);
+  for(let r=0;r<ROWS;r++)for(let cl=0;cl<COLS;cl++){
+    const t=MAP[r][cl];
+    if(t!==T.WATER)getTileCanvas(cl,r,t);
+  }
+  npcs.forEach(n=>{
+    n.x=Math.max(0,Math.min(COLS-1,n.x));
+    n.y=Math.max(0,Math.min(ROWS-1,n.y));
+  });
+  if(typeof player!=='undefined'&&player){
+    player.x=Math.max(0,Math.min(COLS-1,player.x));
+    player.y=Math.max(0,Math.min(ROWS-1,player.y));
+    player.px=player.x;player.py=player.y;
+  }
+}
+
+function showWorldSyncToast(msg){
+  let t=document.getElementById('world-sync-toast');
+  if(!t){
+    t=document.createElement('div');
+    t.id='world-sync-toast';
+    t.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);padding:8px 20px;background:rgba(0,0,40,.9);border:2px solid #88a;border-radius:8px;color:#fff;font-family:"DotGothic16",monospace;font-size:13px;z-index:9999;pointer-events:none;transition:opacity .3s;opacity:0';
+    document.body.appendChild(t);
+  }
+  t.textContent=msg;
+  t.style.opacity='1';
+  clearTimeout(t._timer);
+  t._timer=setTimeout(()=>{t.style.opacity='0';},2500);
 }
 
 // ================================================================
