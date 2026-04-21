@@ -1330,65 +1330,8 @@ function drawPlayer2(){
   c.restore();
 }
 
-function isSlime(npc){const n=(npc.name||'');return n==='プヨン'||n.includes('スライム')||n.toLowerCase().includes('slime');}
-function drawSlime(tx,ty,body){
-  c.save();c.translate(tx*S,ty*S);c.scale(SC,SC);
-  const t=Date.now()/400;
-  const bob=Math.sin(t)*2.5;
-  const squish=(Math.sin(t*2)+1)*.06; // 0..0.12
-  const w=40*(1+squish), h=44*(1-squish*0.7);
-  const baseY=94+bob;
-  // shadow
-  c.fillStyle='rgba(0,0,0,0.35)';
-  c.beginPath();c.ellipse(48,94,w*0.75,6,0,0,Math.PI*2);c.fill();
-  // body gradient
-  const grad=c.createRadialGradient(40,baseY-h*.75,4,48,baseY-h*.4,w);
-  grad.addColorStop(0,lighten(body,.4));
-  grad.addColorStop(.5,body);
-  grad.addColorStop(1,darken(body,.25));
-  c.fillStyle=grad;
-  c.beginPath();
-  c.moveTo(48,baseY-h*1.05);
-  c.bezierCurveTo(48-w*.55,baseY-h*1.02, 48-w,baseY-h*.55, 48-w,baseY-4);
-  c.bezierCurveTo(48-w,baseY+2, 48-w*.5,baseY+4, 48,baseY+4);
-  c.bezierCurveTo(48+w*.5,baseY+4, 48+w,baseY+2, 48+w,baseY-4);
-  c.bezierCurveTo(48+w,baseY-h*.55, 48+w*.55,baseY-h*1.02, 48,baseY-h*1.05);
-  c.fill();
-  // bottom rim shadow
-  c.fillStyle='rgba(0,0,0,.15)';
-  c.beginPath();c.ellipse(48,baseY,w*.9,5,0,0,Math.PI);c.fill();
-  // top highlight shine
-  c.fillStyle='rgba(255,255,255,.55)';
-  c.beginPath();c.ellipse(40,baseY-h*.78,7,12,-.35,0,Math.PI*2);c.fill();
-  c.fillStyle='rgba(255,255,255,.3)';
-  c.beginPath();c.ellipse(56,baseY-h*.55,3,6,-.2,0,Math.PI*2);c.fill();
-  // eyes
-  const eyY=baseY-h*.5;
-  c.fillStyle='#fff';
-  c.beginPath();c.arc(38,eyY,5.5,0,Math.PI*2);c.fill();
-  c.beginPath();c.arc(58,eyY,5.5,0,Math.PI*2);c.fill();
-  c.fillStyle='#111';
-  c.beginPath();c.arc(39,eyY+1,3.2,0,Math.PI*2);c.fill();
-  c.beginPath();c.arc(59,eyY+1,3.2,0,Math.PI*2);c.fill();
-  c.fillStyle='#fff';
-  c.beginPath();c.arc(40,eyY,1.6,0,Math.PI*2);c.fill();
-  c.beginPath();c.arc(60,eyY,1.6,0,Math.PI*2);c.fill();
-  // mouth
-  c.strokeStyle='#111';c.lineWidth=2;c.lineCap='round';
-  c.beginPath();
-  c.moveTo(43,baseY-h*.22);
-  c.quadraticCurveTo(48,baseY-h*.13,53,baseY-h*.22);
-  c.stroke();
-  // cheek blush
-  c.fillStyle='rgba(255,120,140,.35)';
-  c.beginPath();c.arc(32,eyY+6,3,0,Math.PI*2);c.fill();
-  c.beginPath();c.arc(64,eyY+6,3,0,Math.PI*2);c.fill();
-  c.restore();
-}
-
 function drawNPC2(npc){
-  if(isSlime(npc)){drawSlime(npc.x,npc.y,npc.color);}
-  else{drawChar(npc.x,npc.y,npc.color,npc.hair,npc.skin,0,0,npc.acc);}
+  drawChar(npc.x,npc.y,npc.color,npc.hair,npc.skin,0,0,npc.acc);
   c.save();c.translate(npc.x*S,npc.y*S);c.scale(SC,SC);
   const dx=Math.abs(player.x-npc.x),dy=Math.abs(player.y-npc.y);
   if(dx+dy<=2&&!chatOpen){
