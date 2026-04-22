@@ -118,6 +118,7 @@
 <div class="wrap">
   <nav class="toc" id="toc">
     <a href="#sec-basic" data-target="sec-basic">🗺 基本操作</a>
+    <a href="#sec-auth" data-target="sec-auth">🔑 登録・ログイン</a>
     <a href="#sec-npc" data-target="sec-npc">👤 NPC作成</a>
     <a href="#sec-battle" data-target="sec-battle">⚔ バトル</a>
     <a href="#sec-pvp" data-target="sec-pvp">🏆 PVP/サッカー</a>
@@ -165,6 +166,55 @@
         <li style="margin-bottom:6px;color:#ddd;font-size:14px">② <strong style="color:#ffcc66">Enter</strong>（スマホなら「話す」）を押す</li>
         <li style="color:#ddd;font-size:14px">③ チャット画面が開いてAIとの会話がスタート！</li>
       </ul>
+    </div>
+  </section>
+
+  <section id="sec-auth">
+    <h2>🔑 登録・ログイン</h2>
+    <p>キャラクターIDを登録すると、自分が作ったNPCに鍵をかけて他の人が編集・削除できないようにできます。</p>
+
+    <h3>📝 新規登録</h3>
+    <div class="step">
+      <div class="step-num">STEP 1</div>
+      <div class="step-title">サイドパネルを開く</div>
+      <ul>
+        <li>PC：右側のサイドパネル上部に登録フォームがあります</li>
+        <li>スマホ：「NPC一覧」ボタン → パネル上部の登録フォーム</li>
+      </ul>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 2</div>
+      <div class="step-title">キャラクターIDとパスワードを入力</div>
+      <ul>
+        <li>「キャラID」に好きなIDを入力（例：C1F9）</li>
+        <li>「キャラ名」に表示名を入力</li>
+        <li>「パスワード」を設定</li>
+        <li>「登録／ログイン」ボタンを押す</li>
+      </ul>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 3</div>
+      <div class="step-title">✅ 登録完了</div>
+      <ul>
+        <li>登録後に作成したNPCには 🔒 マークが付きます</li>
+        <li>自分のNPCだけ編集・削除ができます</li>
+        <li>他の人のNPCは 🔒 が付いていて編集できません</li>
+      </ul>
+    </div>
+
+    <h3>🔓 ログイン（別端末・別ブラウザから）</h3>
+    <div class="card">
+      <ul style="list-style:none;padding:0">
+        <li style="margin-bottom:6px;color:#ddd;font-size:14px">① 同じフォームに登録済みのキャラIDとパスワードを入力</li>
+        <li style="margin-bottom:6px;color:#ddd;font-size:14px">② 「登録／ログイン」を押すとログイン完了</li>
+        <li style="color:#ddd;font-size:14px">③ 自分のNPCの編集・削除権限が復活します</li>
+      </ul>
+    </div>
+
+    <div class="warn">
+      ⚠️ <strong>注意：</strong>パスワードを忘れると再設定できません。
+      メモしておきましょう。また、登録は任意です。
+      登録なしでもNPCの作成・会話・バトルは楽しめます。
     </div>
   </section>
 
@@ -301,7 +351,7 @@
     <h3>🤔 なぜAPIキーが必要？</h3>
     <div class="info-box free">
       <div class="ib-title">🆓 無料プランの場合</div>
-      <p>1日5回までAIと会話できます。</p>
+      <p>1日5回までAIと会話できます。（暫定です）</p>
     </div>
     <div class="info-box premium">
       <div class="ib-title">🔑 自分のAPIキーを設定すると</div>
