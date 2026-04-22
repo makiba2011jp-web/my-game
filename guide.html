@@ -186,11 +186,20 @@
       <div class="step-num">STEP 2</div>
       <div class="step-title">キャラクターIDとパスワードを入力</div>
       <ul>
-        <li>「キャラID」に好きなIDを入力（例：C1F9）</li>
+        <li>「キャラID」にゲーム内の<strong style="color:#ffcc66">元素ID</strong>を入力します</li>
+        <li>
+          元素IDはキャラクターステータス画面のキャラ名の下に表示されています<br>
+          <span style="font-size:12px;color:#aac">例：「まきば <strong>(C1F9)</strong>」の場合、元素IDは <code style="background:#0a0a1e;color:#adf;padding:2px 6px;border-radius:3px">C1F9</code> です</span>
+        </li>
         <li>「キャラ名」に表示名を入力</li>
         <li>「パスワード」を設定</li>
         <li>「登録／ログイン」ボタンを押す</li>
       </ul>
+      <div class="hint">
+        📸 <strong>ヒント：</strong>元素IDはキャラクターステータス画面の
+        名前の横（カッコ内）に表示されています。<br>
+        <span style="color:#aac;font-size:12px">例： まきば <strong style="color:#ffcc66">(C1F9)</strong> → 元素ID は <strong style="color:#ffcc66">C1F9</strong></span>
+      </div>
     </div>
     <div class="step">
       <div class="step-num">STEP 3</div>
@@ -377,12 +386,20 @@
     </div>
     <div class="step">
       <div class="step-num">STEP 3</div>
-      <div class="step-title">🔑 APIキーを発行</div>
+      <div class="step-title">🔑 APIキーを発行（専用キー推奨）</div>
       <ul>
         <li>左メニューの「API Keys」を開く</li>
         <li>「Create Key」を押して新しいキーを作成</li>
         <li><code style="background:#0a0a1e;color:#adf;padding:2px 6px;border-radius:3px">sk-ant-...</code> で始まるキーをコピー</li>
       </ul>
+      <div class="hint" style="background:rgba(255,180,0,.08);border-color:#a80;color:#fda">
+        ⭐ <strong>推奨：このゲーム専用のキーを作成しましょう</strong><br>
+        <ul style="margin-top:8px;padding-left:16px;color:#fda;font-size:13px">
+          <li>「API Keys」画面で用途がわかる名前をつける（例：「不滅騎士用」）</li>
+          <li>キー作成後、<strong>「Usage limits」から月の上限金額を設定</strong>することを強くおすすめします（例：$5/月）</li>
+          <li>万が一キーが漏れても、このゲーム専用キーを削除するだけで被害を最小限にできます</li>
+        </ul>
+      </div>
     </div>
     <div class="step">
       <div class="step-num">STEP 4</div>
@@ -394,7 +411,10 @@
     </div>
 
     <div class="warn">
-      ⚠️ <strong>注意：</strong> APIキーは他人に見せないでください。第三者に知られるとあなたのアカウントで請求が発生する可能性があります。キーは各端末のブラウザに保存され、サーバーには送られません。
+      ⚠️ <strong>注意：</strong>APIキーは絶対に他人に見せないでください。
+      第三者に知られると、あなたのアカウントで意図しない請求が発生する可能性があります。<br>
+      <strong style="color:#faa">必ず上限金額を設定</strong>して、万が一の場合に備えましょう。
+      キーは各端末のブラウザにのみ保存され、サーバーには送られません。
     </div>
   </section>
 
