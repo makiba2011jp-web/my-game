@@ -477,7 +477,7 @@ const WORKER_URL='https://my-game-api.makiba2011jp.workers.dev';
 const CLAUDE_MODEL='claude-haiku-4-5-20251001';
 const RATE_LIMIT_MSG='本日の利用回数（5回）に達しました。明日また遊んでください！\n自身のAnthropic APIキーを画面上部のBOXに入力すれば無限に会話できます。';
 function formatApiError(status,msg){
-  if(status===429||(msg&&/rate.?limit|too many|quota/i.test(msg)))return RATE_LIMIT_MSG;
+  if(status===429||(msg&&/rate.?limit|too many|quota|利用回数/i.test(msg)))return RATE_LIMIT_MSG;
   return msg||('API Error '+status);
 }
 
