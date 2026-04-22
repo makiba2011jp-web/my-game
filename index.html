@@ -1174,9 +1174,22 @@ function saveState(){
 
 // Supabase NPC操作
 async function dbAddNPC(npc){
-  const row={id:npc.id,name:npc.name,x:npc.x,y:npc.y,color:npc.color,hair:npc.hair,skin:npc.skin,acc:npc.acc,personality:npc.personality,stats:npc.stats,sprite_image:npc.spriteImgData||null,owner_game_id:npc.owner_game_id||null,owner_name:npc.owner_name||null};
-  await _sb.from('npcs').delete().eq('id',npc.id);
-  const{error}=await _sb.from('npcs').insert(row);
+  const row={
+    id:npc.id,
+    name:npc.name,
+    x:npc.x,
+    y:npc.y,
+    color:npc.color,
+    hair:npc.hair,
+    skin:npc.skin,
+    acc:npc.acc,
+    personality:npc.personality,
+    stats:npc.stats,
+    sprite_image:npc.spriteImgData||null,
+    owner_game_id:npc.owner_game_id||null,
+    owner_name:npc.owner_name||null
+  };
+  const{error}=await _sb.from('npcs').upsert(row);
   if(error)console.warn('Supabase save error',error);
 }
 async function dbSavePlayerSprite(imgData){
@@ -1245,14 +1258,33 @@ async function loadState(){
   // リアルタイム同期
   _sb.channel('npcs-changes').on('postgres_changes',{event:'INSERT',schema:'public',table:'npcs'},payload=>{
     if(payload.new.id==='__player__')return;
-    if(!npcs.find(n=>n.id===payload.new.id)){
-      const msgs=loadMsgs();
-      const npc={...payload.new,messages:msgs[payload.new.id]||[]};
+    // すでに存在するIDは無視（upsert由来のINSERTで重複しないよう）
+    if(npcs.find(n=>n.id===payload.new.id))return;
+    const msgs=loadMsgs();
+    const npc={...payload.new,messages:msgs[payload.new.id]||[]};
+    if(payload.new.sprite_image){
+      npc.spriteImgData=payload.new.sprite_image;
+      b64ToImg(payload.new.sprite_image).then(img=>{if(img)npc.spriteImg=img;});
+    }
+    npcs.push(npc);
+    renderNPCList();
+  }).on('postgres_changes',{event:'UPDATE',schema:'public',table:'npcs'},payload=>{
+    // 既存NPCの内容を更新（会話履歴は手元のものを維持）
+    if(payload.new.id==='__player__'){
       if(payload.new.sprite_image){
-        npc.spriteImgData=payload.new.sprite_image;
-        b64ToImg(payload.new.sprite_image).then(img=>{if(img)npc.spriteImg=img;});
+        player.spriteImgData=payload.new.sprite_image;
+        b64ToImg(payload.new.sprite_image).then(img=>{if(img)player.spriteImg=img;});
       }
-      npcs.push(npc);
+      return;
+    }
+    const idx=npcs.findIndex(n=>n.id===payload.new.id);
+    if(idx>=0){
+      const messages=npcs[idx].messages;
+      npcs[idx]={...npcs[idx],...payload.new,messages};
+      if(payload.new.sprite_image){
+        npcs[idx].spriteImgData=payload.new.sprite_image;
+        b64ToImg(payload.new.sprite_image).then(img=>{if(img)npcs[idx].spriteImg=img;});
+      }
       renderNPCList();
     }
   }).on('postgres_changes',{event:'DELETE',schema:'public',table:'npcs'},payload=>{
