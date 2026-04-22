@@ -1193,8 +1193,7 @@ async function dbAddNPC(npc){
   if(error)console.warn('Supabase save error',error);
 }
 async function dbSavePlayerSprite(imgData){
-  await _sb.from('npcs').delete().eq('id','__player__');
-  const{error}=await _sb.from('npcs').insert({id:'__player__',name:'__player__',x:0,y:0,color:'#000',hair:'#000',skin:'#000',sprite_image:imgData||null});
+  const{error}=await _sb.from('npcs').upsert({id:'__player__',name:'__player__',x:0,y:0,color:'#000',hair:'#000',skin:'#000',sprite_image:imgData||null});
   if(error)console.warn('Supabase player sprite save error',error);
 }
 async function dbRemoveNPC(id){
