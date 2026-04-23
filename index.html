@@ -3258,62 +3258,27 @@ function pvpRenderLoop(){
   pvpBattle.all.forEach(f=>{
     const sz=64;
     const shakeX=f.hitShake>0?(Math.random()-0.5)*6:0;
-    const dx=f.x+f.animOff+shakeX-sz/2, dy=f.y-sz/2;
-
-    // --- shadow ---
-    ctx.save();
-    ctx.fillStyle='rgba(0,0,0,0.35)';
-    ctx.beginPath();ctx.ellipse(f.x+f.animOff+shakeX,f.y+sz*.35,24,6,0,0,Math.PI*2);ctx.fill();
-    ctx.restore();
-
-    // --- sprite (半透明は死亡時のみ) ---
-    ctx.save();
-    if(!f.alive)ctx.globalAlpha=.3;
-    if(f.npc.spriteImg){
-      ctx.imageSmoothingEnabled=false;
-      ctx.drawImage(f.npc.spriteImg,dx,dy,sz,sz);
-    }else if(f.npc.spriteCanvas){
-      ctx.imageSmoothingEnabled=false;
-      ctx.drawImage(f.npc.spriteCanvas,dx,dy,sz,sz);
-    }else{
-      ctx.fillStyle=f.npc.color||'#888';
-      ctx.fillRect(dx+16,dy+12,32,36);
-      ctx.fillStyle=f.npc.hair||'#543';
-      ctx.fillRect(dx+18,dy+4,28,16);
-      ctx.fillStyle='#fdd8c0';
-      ctx.fillRect(dx+22,dy+14,20,14);
-      ctx.fillStyle='#111';
-      ctx.fillRect(dx+26,dy+18,4,4);ctx.fillRect(dx+34,dy+18,4,4);
-    }
-    ctx.restore();
-
-    // --- hit flash (自分の save/restore で独立) ---
-    if(f.hitFlash>0){
-      ctx.save();
-      const flashA=(f.hitFlash/8)*0.7*(f.alive?1:.3);
-      ctx.globalAlpha=Math.min(1,flashA);
-      ctx.fillStyle='#ff2200';
-      ctx.fillRect(dx,dy,sz,sz);
-      f.hitFlash--;
-      ctx.restore();
-    }
     if(f.hitShake>0)f.hitShake--;
-
-    // --- name + HP bar (常に alpha=1) ---
-    ctx.save();
-    ctx.globalAlpha=1;
-    ctx.font='bold 11px "DotGothic16",monospace';ctx.textAlign='center';
-    ctx.fillStyle='rgba(0,0,0,.7)';
+    const cx=f.x+f.animOff+shakeX;
+    const dx=cx-sz/2, dy=f.y-sz/2;
+    ctx.save();ctx.globalAlpha=f.alive?0.35:0.1;ctx.fillStyle='rgba(0,0,0,1)';
+    ctx.beginPath();ctx.ellipse(cx,f.y+sz*.35,24,6,0,0,Math.PI*2);ctx.fill();ctx.restore();
+    ctx.save();ctx.globalAlpha=f.alive?1:0.3;
+    if(f.npc.spriteImg){ctx.imageSmoothingEnabled=false;ctx.drawImage(f.npc.spriteImg,dx,dy,sz,sz);}
+    else if(f.npc.spriteCanvas){ctx.imageSmoothingEnabled=false;ctx.drawImage(f.npc.spriteCanvas,dx,dy,sz,sz);}
+    else{ctx.fillStyle=f.npc.color||'#888';ctx.fillRect(dx+16,dy+12,32,36);ctx.fillStyle=f.npc.hair||'#543';ctx.fillRect(dx+18,dy+4,28,16);ctx.fillStyle='#fdd8c0';ctx.fillRect(dx+22,dy+14,20,14);ctx.fillStyle='#111';ctx.fillRect(dx+26,dy+18,4,4);ctx.fillRect(dx+34,dy+18,4,4);}
+    ctx.restore();
+    if(f.hitFlash>0){ctx.save();ctx.globalAlpha=(f.hitFlash/12)*0.5;ctx.fillStyle='#ff3300';ctx.fillRect(dx,dy,sz,sz);f.hitFlash--;ctx.restore();}
+    ctx.save();ctx.globalAlpha=1;ctx.font='bold 11px "DotGothic16",monospace';ctx.textAlign='center';
     const nm=f.npc.name;const tw=ctx.measureText(nm).width;
-    ctx.fillRect(f.x+f.animOff+shakeX-tw/2-3,dy-14,tw+6,13);
-    ctx.fillStyle=f.alive?'#fff':'#666';
-    ctx.fillText(nm,f.x+f.animOff+shakeX,dy-4);
-    const barW=48,barH=4,barX=f.x+f.animOff+shakeX-barW/2,barY=f.y+sz*.4;
+    ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(cx-tw/2-3,dy-14,tw+6,13);
+    ctx.fillStyle=f.alive?'#fff':'#666';ctx.fillText(nm,cx,dy-4);ctx.restore();
+    ctx.save();ctx.globalAlpha=1;
+    const barW=48,barH=4,barX=cx-barW/2,barY=f.y+sz*.4;
     ctx.fillStyle='#222';ctx.fillRect(barX,barY,barW,barH);
     const pct=Math.max(0,f.hp/f.maxHp);
     ctx.fillStyle=pct>.5?'#6c6':pct>.25?'#cc6':'#c66';
-    ctx.fillRect(barX,barY,barW*pct,barH);
-    ctx.restore();
+    ctx.fillRect(barX,barY,barW*pct,barH);ctx.restore();
   });
   pvpAnim=requestAnimationFrame(pvpRenderLoop);
 }
