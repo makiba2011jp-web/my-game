@@ -2831,8 +2831,12 @@ function pvpMakeFighter(npc,team){
   const lv=st.level||10;
   const atk=parseInt(st.attack)||(80+lv*20);
   const def=parseInt(st.defense)||(40+lv*10);
-  const maxHp=parseInt(st.hp)||(200+lv*50);
-  return{npc,team,hp:maxHp,maxHp,atk,def,alive:true,x:0,y:0,baseX:0,animOff:0};
+  const hpStr=String(st.hp||'');
+  const maxHp=hpStr.includes('/')
+    ?parseInt(hpStr.split('/')[1])
+    :(parseInt(hpStr)||(200+lv*50));
+  const spd=parseInt(st.speed||st.agility)||(30+lv*5);
+  return{npc,team,hp:maxHp,maxHp,atk,def,spd,alive:true,x:0,y:0,baseX:0,animOff:0};
 }
 
 function pvpStart(){
@@ -2844,7 +2848,7 @@ function pvpStart(){
   const fb=pvpTeamB.map(n=>pvpMakeFighter(n,'B'));
   fa.forEach((f,i)=>{f.baseX=w*.2;f.x=f.baseX;f.y=h*.3+i*(h*.1);});
   fb.forEach((f,i)=>{f.baseX=w*.75;f.x=f.baseX;f.y=h*.3+i*(h*.1);});
-  pvpBattle={a:fa,b:fb,all:[...fa,...fb],turn:0,acting:false,done:false,queue:[...fa,...fb].sort(()=>Math.random()-.5),qi:0,logs:[]};
+  pvpBattle={a:fa,b:fb,all:[...fa,...fb],turn:0,acting:false,done:false,queue:[...fa,...fb].sort((a,b)=>b.spd-a.spd),qi:0,logs:[]};
   pvpUpdateStatus();
   pvpLog('⚔ バトル開始！キノコチーム vs タケノコチーム！');
   setTimeout(()=>pvpNextTurn(),1200);
@@ -2896,7 +2900,7 @@ function pvpNextTurn(){
   if(enemies.length===0){pvpEnd();return;}
   const target=enemies[Math.floor(Math.random()*enemies.length)];
   // Calc damage
-  let dmg=f.atk-Math.floor(target.def/3);
+  let dmg=f.atk-target.def;
   dmg=Math.max(1,dmg+Math.floor((Math.random()-.5)*f.atk*.3));
   // Animate attack
   b.acting=true;
