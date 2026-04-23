@@ -3,6 +3,10 @@
   Required Supabase schema (run once in the SQL editor):
     ALTER TABLE npcs ADD COLUMN IF NOT EXISTS client_id TEXT;
   Used to let the realtime UPDATE handler ignore echoes of this tab's own writes.
+
+  Optional cleanup (the player sprite is now localStorage-only, so any
+  legacy __player__ row is no longer read):
+    DELETE FROM npcs WHERE id = '__player__';
 -->
 <html lang="ja">
 <head>
@@ -1203,9 +1207,12 @@ async function dbAddNPC(npc){
   const{error}=await _sb.from('npcs').upsert(row);
   if(error)console.warn('Supabase save error',error);
 }
-async function dbSavePlayerSprite(imgData){
-  const{error}=await _sb.from('npcs').upsert({id:'__player__',name:'__player__',x:0,y:0,color:'#000',hair:'#000',skin:'#000',sprite_image:imgData||null});
-  if(error)console.warn('Supabase player sprite save error',error);
+// Player sprite is local-only so it never overwrites other players' looks.
+function dbSavePlayerSprite(imgData){
+  try{
+    if(imgData)localStorage.setItem('my-game:player-img',imgData);
+    else localStorage.removeItem('my-game:player-img');
+  }catch(e){console.warn('player sprite save failed',e);}
 }
 async function dbRemoveNPC(id){
   const{error}=await _sb.from('npcs').delete().eq('id',id);
@@ -1228,14 +1235,8 @@ async function loadState(){
   if(!error&&Array.isArray(data)){
     npcs.length=0;
     data.forEach(row=>{
-      if(row.id==='__player__'){
-        // プレイヤーのスプライト復元
-        if(row.sprite_image){
-          player.spriteImgData=row.sprite_image;
-          b64ToImg(row.sprite_image).then(img=>{if(img)player.spriteImg=img;});
-        }
-        return;
-      }
+      // __player__ rows are legacy; player sprite now lives in localStorage only.
+      if(row.id==='__player__')return;
       const npc={...row,messages:msgs[row.id]||[]};
       if(row.sprite_image){
         npc.spriteImgData=row.sprite_image;
@@ -1282,13 +1283,7 @@ async function loadState(){
     // 自分自身の upsert が返ってきた場合は、ローカルの座標などが上書きされないよう無視
     if(payload.new.client_id===MY_CLIENT_ID)return;
     // 既存NPCの内容を更新（会話履歴は手元のものを維持）
-    if(payload.new.id==='__player__'){
-      if(payload.new.sprite_image){
-        player.spriteImgData=payload.new.sprite_image;
-        b64ToImg(payload.new.sprite_image).then(img=>{if(img)player.spriteImg=img;});
-      }
-      return;
-    }
+    if(payload.new.id==='__player__')return; // legacy row, ignore
     const idx=npcs.findIndex(n=>n.id===payload.new.id);
     if(idx>=0){
       const messages=npcs[idx].messages;
