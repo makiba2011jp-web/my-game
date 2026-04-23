@@ -3259,12 +3259,16 @@ function pvpRenderLoop(){
     const sz=64;
     const shakeX=f.hitShake>0?(Math.random()-0.5)*6:0;
     const dx=f.x+f.animOff+shakeX-sz/2, dy=f.y-sz/2;
+
+    // --- shadow ---
     ctx.save();
-    if(!f.alive){ctx.globalAlpha=.3;}
-    // shadow
     ctx.fillStyle='rgba(0,0,0,0.35)';
     ctx.beginPath();ctx.ellipse(f.x+f.animOff+shakeX,f.y+sz*.35,24,6,0,0,Math.PI*2);ctx.fill();
-    // sprite
+    ctx.restore();
+
+    // --- sprite (半透明は死亡時のみ) ---
+    ctx.save();
+    if(!f.alive)ctx.globalAlpha=.3;
     if(f.npc.spriteImg){
       ctx.imageSmoothingEnabled=false;
       ctx.drawImage(f.npc.spriteImg,dx,dy,sz,sz);
@@ -3281,16 +3285,22 @@ function pvpRenderLoop(){
       ctx.fillStyle='#111';
       ctx.fillRect(dx+26,dy+18,4,4);ctx.fillRect(dx+34,dy+18,4,4);
     }
-    // hit flash overlay
+    ctx.restore();
+
+    // --- hit flash (自分の save/restore で独立) ---
     if(f.hitFlash>0){
-      const flashA=Math.min(1,(f.hitFlash/8)*0.7);
-      f.hitFlash--;
-      ctx.globalAlpha=flashA*(f.alive?1:.3);
+      ctx.save();
+      const flashA=(f.hitFlash/8)*0.7*(f.alive?1:.3);
+      ctx.globalAlpha=Math.min(1,flashA);
       ctx.fillStyle='#ff2200';
       ctx.fillRect(dx,dy,sz,sz);
+      f.hitFlash--;
+      ctx.restore();
     }
     if(f.hitShake>0)f.hitShake--;
-    // name + HP bar
+
+    // --- name + HP bar (常に alpha=1) ---
+    ctx.save();
     ctx.globalAlpha=1;
     ctx.font='bold 11px "DotGothic16",monospace';ctx.textAlign='center';
     ctx.fillStyle='rgba(0,0,0,.7)';
