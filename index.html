@@ -1385,7 +1385,8 @@ function drawNPC2(npc){
   }
   c.font='14px "DotGothic16",monospace';
   const tw=c.measureText(npc.name).width+20;
-  const nx=48-tw/2,ny=-24;
+  // Y offset sized to S (128px sprite) via overlay 96-base coords
+  const nx=48-tw/2,ny=-(S*0.3)/SC;
   c.fillStyle='rgba(0,0,20,.78)';
   c.beginPath();const rr=5;
   c.moveTo(nx+rr,ny);c.lineTo(nx+tw-rr,ny);c.quadraticCurveTo(nx+tw,ny,nx+tw,ny+rr);
@@ -2349,17 +2350,17 @@ document.getElementById('dot-close').addEventListener('click',closeDotEditor);
 // Player sprite button
 // Draw custom sprite on game canvas
 function drawCustomSprite(tx,ty,spriteCanvas){
-  const cx=tx*S+S/2, cy=ty*S;
   c.save();
+  // shadow (sized to 1 tile = S×S = 128×128px)
   c.fillStyle='rgba(0,0,0,0.35)';
   c.beginPath();
-  c.ellipse(cx,cy+S*0.92,32,8,0,0,Math.PI*2);
+  c.ellipse(tx*S+S/2,ty*S+S-8,S*0.4,S*0.08,0,0,Math.PI*2);
   c.fill();
   c.restore();
   c.save();
-  c.translate(tx*S,ty*S);
   c.imageSmoothingEnabled=false;
-  c.drawImage(spriteCanvas,0,0,S,S);
+  // NPC sprite (1 tile = S×S = 128×128px)
+  c.drawImage(spriteCanvas,tx*S,ty*S,S,S);
   c.restore();
 }
 
@@ -2451,6 +2452,25 @@ function b64ToImg(dataUrl){
   });
 }
 
+// Resize any image source onto a 128×128 (S×S) canvas, aspect-preserved & centered.
+function resizeSpriteToGame(imgSrc,callback){
+  const img=new Image();
+  img.onload=()=>{
+    const cv2=document.createElement('canvas');
+    cv2.width=S;cv2.height=S;
+    const ctx2=cv2.getContext('2d');
+    ctx2.imageSmoothingEnabled=false;
+    const aspect=img.width/img.height;
+    let dw=S,dh=S;
+    if(aspect>1)dh=S/aspect;
+    else dw=S*aspect;
+    const dx=(S-dw)/2,dy=(S-dh)/2;
+    ctx2.drawImage(img,dx,dy,dw,dh);
+    callback(cv2,cv2.toDataURL('image/png'));
+  };
+  img.src=imgSrc;
+}
+
 const _dotImgFile=document.getElementById('dot-img-file');
 const _dotImgBtn=document.getElementById('dot-img-btn');
 const _dotImgClear=document.getElementById('dot-img-clear');
@@ -2484,15 +2504,14 @@ function imgToPixels(img){
 }
 _dotImgFile.addEventListener('change',async e=>{
   const file=e.target.files[0];if(!file)return;
-  const dataUrl=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file);});
-  dotImgData=dataUrl;
-  const img=await b64ToImg(dataUrl);
-  if(img){
+  const rawUrl=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file);});
+  resizeSpriteToGame(rawUrl,(_cv128,dataUrl128)=>{
     pushDotHistory();
-    dotPixels=imgToPixels(img);
+    dotImgData=dataUrl128;
+    dotPixels=new Array(DOT_SIZE*DOT_SIZE).fill(null);
     renderDotCanvas();
-  }
-  updateDotImgUI();
+    updateDotImgUI();
+  });
   _dotImgFile.value='';
 });
 _dotImgClear.addEventListener('click',()=>{
@@ -2518,8 +2537,8 @@ document.getElementById('dot-apply').addEventListener('click',async()=>{
   if(!dotTarget)return;
   const hasPixels=dotPixels.some(p=>p!==null);
   const spriteData=hasPixels?[...dotPixels]:null;
-  // Always use dot canvas result — generate image from canvas for Supabase
-  const canvasImg=hasPixels?dotToImageData().toDataURL('image/png'):null;
+  // Uploaded 128×128 image wins when user hasn't drawn over it; otherwise derive from dot canvas.
+  const canvasImg=hasPixels?dotToImageData().toDataURL('image/png'):(dotImgData||null);
   if(dotTarget.type==='player'){
     player.sprite=spriteData;
     player.spriteCanvas=spriteData?dotToImageData():null;
