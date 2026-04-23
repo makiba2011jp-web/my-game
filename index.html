@@ -2070,6 +2070,11 @@ _fImg.addEventListener('change',async e=>{
       '  "attack": "攻撃力の数値（文字列）",\n'+
       '  "defense": "防御力の数値",\n'+
       '  "magicAttack": "魔法攻撃力の数値",\n'+
+      '  "spirit": "精神の数値（無ければ空文字）",\n'+
+      '  "dexterity": "器用の数値（無ければ空文字）",\n'+
+      '  "vitality": "体力の数値（無ければ空文字）",\n'+
+      '  "intelligence": "知力の数値（無ければ空文字）",\n'+
+      '  "speed": "速さ・素早さの数値（無ければ空文字）",\n'+
       '  "color": "職業・服の色に合うhex (#rrggbb)",\n'+
       '  "hair": "髪色のhex (#rrggbb)",\n'+
       '  "accessories": {"hat":false,"apron":false,"cape":false,"staff":false,"bow":false,"shield":false}\n'+
@@ -2102,11 +2107,16 @@ _fImg.addEventListener('change',async e=>{
     if(info.attack)statBits.push(`攻撃力:${info.attack}`);
     if(info.defense)statBits.push(`防御力:${info.defense}`);
     if(info.magicAttack)statBits.push(`魔攻:${info.magicAttack}`);
+    if(info.spirit)statBits.push(`精神:${info.spirit}`);
+    if(info.dexterity)statBits.push(`器用:${info.dexterity}`);
+    if(info.vitality)statBits.push(`体力:${info.vitality}`);
+    if(info.intelligence)statBits.push(`知力:${info.intelligence}`);
+    if(info.speed)statBits.push(`速さ:${info.speed}`);
     if(statBits.length)lines.push('【ステータス】'+statBits.join(' / '));
     if(info.greeting)lines.push(`口癖: 「${info.greeting}」`);
     lines.push('この設定に沿って、2〜3文程度で短く返答してください。');
     document.getElementById('f-personality').value=lines.join('\n');
-    importedStats={level:info.level,hp:info.hp,mp:info.mp,attack:info.attack,defense:info.defense,magicAttack:info.magicAttack,class:info.class};
+    importedStats={level:info.level,hp:info.hp,mp:info.mp,attack:info.attack,defense:info.defense,magicAttack:info.magicAttack,class:info.class,spirit:info.spirit||null,dexterity:info.dexterity||null,vitality:info.vitality||null,intelligence:info.intelligence||null,speed:info.speed||null};
     _importStatus.textContent='✓ 読み取り完了';
   }catch(err){
     console.error(err);_importStatus.textContent='エラー: '+err.message;
