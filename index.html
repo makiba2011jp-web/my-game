@@ -2943,8 +2943,11 @@ function pvpNextTurn(){
   const enemies=(f.team==='A'?b.b:b.a).filter(e=>e.alive);
   if(enemies.length===0){pvpEnd();return;}
   // Special skill fires once per battle when HP drops to 1/3 or below
-  const cls=f.npc.stats?.class||'';
-  const skill=PVP_SPECIAL_SKILLS_ENABLED?SPECIAL_SKILLS[cls]:null;
+  const cls=(f.npc.stats?.class||'').trim();
+  const skill=PVP_SPECIAL_SKILLS_ENABLED
+    ? (SPECIAL_SKILLS[cls] || Object.entries(SPECIAL_SKILLS).find(([k])=>cls.includes(k)||k.includes(cls))?.[1] || null)
+    : null;
+  console.log('[SPECIAL]',{name:f.npc.name,cls,hpRatio:(f.hp/f.maxHp).toFixed(2),skillFound:!!skill,specialUsed:f.specialUsed});
   if(skill&&!f.specialUsed&&f.hp/f.maxHp<=1/3){
     f.specialUsed=true;
     pvpLog(`✨ ${f.npc.name}の必殺技「${skill.name}」！`);
