@@ -2162,6 +2162,9 @@ let dotColor=DOT_PALETTE[0];
 let dotGridOn=true;
 let dotTarget=null; // {type:'player'} or {type:'npc',index:number}
 let dotDrawing=false;
+// True once the user manually edits dots after an image upload; switches the
+// apply path back to the 32-grid export instead of keeping the 128×128 image.
+let dotTouchedAfterUpload=false;
 
 // Build palette UI
 const palEl=document.getElementById('dot-palette');
@@ -2244,6 +2247,7 @@ function dotPaint(pos){
   const i=pos.y*DOT_SIZE+pos.x;
   if(dotTool==='pen'){dotPixels[i]=dotColor;}
   else if(dotTool==='eraser'){dotPixels[i]=null;}
+  dotTouchedAfterUpload=true;
   renderDotCanvas();
 }
 
@@ -2254,6 +2258,7 @@ function dotFloodFill(pos,fillColor){
   const target=dotPixels[i];
   if(target===col)return;
   pushDotHistory();
+  dotTouchedAfterUpload=true;
   const stack=[i];
   const visited=new Set();
   while(stack.length>0){
@@ -2313,6 +2318,7 @@ function dotToImageData(){
 function openDotEditor(target,existingPixels){
   dotTarget=target;
   dotHistory=[];
+  dotTouchedAfterUpload=false;
   if(existingPixels)dotPixels=[...existingPixels];
   else dotPixels=new Array(DOT_SIZE*DOT_SIZE).fill(null);
   const label=document.getElementById('dot-target-label');
@@ -2514,6 +2520,7 @@ _dotImgFile.addEventListener('change',async e=>{
   resizeSpriteToGame(rawUrl,(_cv128,dataUrl128)=>{
     pushDotHistory();
     dotImgData=dataUrl128;
+    dotTouchedAfterUpload=false;
     // 128px画像をDOT_SIZEにダウンスケールしてdotPixelsに変換
     const tmpImg=new Image();
     tmpImg.onload=()=>{
@@ -2548,8 +2555,9 @@ document.getElementById('dot-apply').addEventListener('click',async()=>{
   if(!dotTarget)return;
   const hasPixels=dotPixels.some(p=>p!==null);
   const spriteData=hasPixels?[...dotPixels]:null;
-  // Uploaded 128×128 image wins when user hasn't drawn over it; otherwise derive from dot canvas.
-  const canvasImg=hasPixels?dotToImageData().toDataURL('image/png'):(dotImgData||null);
+  // Keep the full-resolution upload unless the user has edited dots on top of it.
+  const useUpload=dotImgData&&!dotTouchedAfterUpload;
+  const canvasImg=useUpload?dotImgData:(hasPixels?dotToImageData().toDataURL('image/png'):null);
   if(dotTarget.type==='player'){
     player.sprite=spriteData;
     player.spriteCanvas=spriteData?dotToImageData():null;
