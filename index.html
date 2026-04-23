@@ -2854,6 +2854,29 @@ const SPECIAL_SKILLS={
   'ドラグバスター':{name:'エレメントブラスター',effect:'mag_defdown',  desc:'魔攻1.8倍で敵の防御力2ターン0.8倍'},
   'ドラグセイバー':{name:'サンダーセイバー',   effect:'atk_mag_15',    desc:'攻撃力1.5倍魔攻1.5倍'},
 };
+const SKILL_COLORS={
+  atk2:'#ff6644', mag_splash3:'#44aaff', atk_half_twice:'#ffcc00',
+  heal_spirit:'#44ff88', def_up_team:'#aaaaff', seal_chance:'#cc44ff',
+  drain_half:'#ff44aa', hp_quarter:'#ff2222', revive:'#ffffaa',
+  mag_defdown:'#ff8800', atk_mag_15:'#00ffff'
+};
+
+function pvpAddParticles(x,y,color,count,type){
+  if(!pvpBattle)return;
+  for(let i=0;i<count;i++){
+    const angle=Math.random()*Math.PI*2;
+    const speed=1+Math.random()*4;
+    pvpBattle.particles.push({
+      x,y,
+      vx:Math.cos(angle)*speed,
+      vy:Math.sin(angle)*speed-2,
+      life:30+Math.random()*20,
+      maxLife:50,
+      size:2+Math.random()*4,
+      color,type
+    });
+  }
+}
 
 function pvpMakeFighter(npc,team){
   const st=npc.stats||{};
@@ -2870,7 +2893,9 @@ function pvpMakeFighter(npc,team){
     specialUsed:false, // per-battle one-shot guard
     defBuff:1,         // multiplier applied to def in damage calc
     defBuffTurns:0,    // remaining own-turns before defBuff expires
-    sealed:false       // skip this fighter's next action
+    sealed:false,      // skip this fighter's next action
+    hitFlash:0,        // ヒット時の赤フラッシュ残りフレーム
+    hitShake:0         // ヒット時の横揺れ残りフレーム
   };
 }
 
@@ -2883,7 +2908,7 @@ function pvpStart(){
   const fb=pvpTeamB.map(n=>pvpMakeFighter(n,'B'));
   fa.forEach((f,i)=>{f.baseX=w*.2;f.x=f.baseX;f.y=h*.3+i*(h*.1);});
   fb.forEach((f,i)=>{f.baseX=w*.75;f.x=f.baseX;f.y=h*.3+i*(h*.1);});
-  pvpBattle={a:fa,b:fb,all:[...fa,...fb],turn:0,acting:false,done:false,queue:[...fa,...fb].sort((a,b)=>b.spd-a.spd),qi:0,logs:[]};
+  pvpBattle={a:fa,b:fb,all:[...fa,...fb],turn:0,acting:false,done:false,queue:[...fa,...fb].sort((a,b)=>b.spd-a.spd),qi:0,logs:[],particles:[],dmgTexts:[],skillText:null};
   pvpUpdateStatus();
   pvpLog('⚔ バトル開始！キノコチーム vs タケノコチーム！');
   setTimeout(()=>pvpNextTurn(),1200);
@@ -2974,6 +2999,16 @@ function pvpNextTurn(){
       // Hit
       target.hp=Math.max(0,target.hp-dmg);
       if(target.hp<=0)target.alive=false;
+      target.hitFlash=8;target.hitShake=6;
+      pvpAddParticles(target.x,target.y,'#ffaa44',8,'spark');
+      pvpBattle.dmgTexts.push({
+        x:target.x+(Math.random()-0.5)*20,
+        y:target.y-30,
+        text:String(dmg),
+        color:dmg>500?'#ff4444':dmg>200?'#ffaa00':'#ffffff',
+        size:dmg>500?22:dmg>200?18:14,
+        life:40,maxLife:40
+      });
       pvpLog(`${f.npc.name}のこうげき！→ ${target.npc.name}に${dmg}ダメージ！${target.alive?'':'💀 倒れた！'}`);
       pvpUpdateStatus();
       // Move back
@@ -2997,9 +3032,30 @@ function applySpecialSkill(f,effect,b){
   const enemies=(f.team==='A'?b.b:b.a).filter(e=>e.alive);
   const allies=(f.team==='A'?b.a:b.b).filter(e=>e.alive);
   const randEnemy=()=>enemies[Math.floor(Math.random()*enemies.length)];
+  const skillColor=SKILL_COLORS[effect]||'#ffffff';
+  const skillName=Object.values(SPECIAL_SKILLS).find(s=>s.effect===effect)?.name||'必殺技';
+  pvpBattle.skillText={text:`✨ ${skillName}！`,x:pvpCv.width/2,y:pvpCv.height/2,color:skillColor,size:28,life:50};
+  const casterPType=effect==='heal_spirit'?'heal':(effect.includes('mag')?'magic':'spark');
+  pvpAddParticles(f.x,f.y,skillColor,20,casterPType);
+  const pushDmgText=(t,dmg)=>{
+    pvpBattle.dmgTexts.push({
+      x:t.x+(Math.random()-0.5)*20,y:t.y-30,text:String(dmg),
+      color:dmg>500?'#ff4444':dmg>200?'#ffaa00':'#ffffff',
+      size:dmg>500?22:dmg>200?18:14,life:40,maxLife:40
+    });
+  };
+  const pushHealText=(t,amount)=>{
+    pvpBattle.dmgTexts.push({
+      x:t.x+(Math.random()-0.5)*20,y:t.y-30,text:'+'+amount,
+      color:'#44ff88',size:16,life:40,maxLife:40
+    });
+  };
   const hit=(t,dmg)=>{
     t.hp=Math.max(0,t.hp-dmg);
     if(t.hp<=0)t.alive=false;
+    t.hitFlash=12;t.hitShake=8;
+    pvpAddParticles(t.x,t.y,skillColor,12,casterPType);
+    pushDmgText(t,dmg);
     pvpLog(`  → ${t.npc.name}に${dmg}ダメージ！${t.alive?'':'💀'}`);
   };
   switch(effect){
@@ -3029,11 +3085,16 @@ function applySpecialSkill(f,effect,b){
       const spi=parseInt(f.npc.stats?.spirit)||f.def;
       const heal=Math.floor(spi*2);
       const weakest=[...allies].sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0];
-      if(weakest){weakest.hp=Math.min(weakest.maxHp,weakest.hp+heal);pvpLog(`  → ${weakest.npc.name}のHPが${heal}回復！`);}
+      if(weakest){
+        weakest.hp=Math.min(weakest.maxHp,weakest.hp+heal);
+        pvpAddParticles(weakest.x,weakest.y,skillColor,15,'heal');
+        pushHealText(weakest,heal);
+        pvpLog(`  → ${weakest.npc.name}のHPが${heal}回復！`);
+      }
       break;
     }
     case 'def_up_team':{
-      allies.forEach(a=>{a.defBuff=1.4;a.defBuffTurns=2;});
+      allies.forEach(a=>{a.defBuff=1.4;a.defBuffTurns=2;pvpAddParticles(a.x,a.y,skillColor,8,'magic');});
       pvpLog(`  → 味方全員の防御力が2ターン1.4倍に！`);
       break;
     }
@@ -3041,6 +3102,9 @@ function applySpecialSkill(f,effect,b){
       const t=randEnemy();if(!t)break;
       const dmg=Math.max(1,Math.floor(((f.atk+f.mag)/2-t.def*t.defBuff)/4));
       t.hp=Math.max(0,t.hp-dmg);if(t.hp<=0)t.alive=false;
+      t.hitFlash=12;t.hitShake=8;
+      pvpAddParticles(t.x,t.y,skillColor,12,'magic');
+      pushDmgText(t,dmg);
       if(Math.random()<0.5){
         t.sealed=true;
         pvpLog(`  → ${t.npc.name}に${dmg}ダメージ！さらに次のターン行動不能！${t.alive?'':'💀'}`);
@@ -3055,6 +3119,11 @@ function applySpecialSkill(f,effect,b){
       const drain=Math.floor(dmg/2);
       t.hp=Math.max(0,t.hp-dmg);if(t.hp<=0)t.alive=false;
       f.hp=Math.min(f.maxHp,f.hp+drain);
+      t.hitFlash=12;t.hitShake=8;
+      pvpAddParticles(t.x,t.y,skillColor,12,'spark');
+      pvpAddParticles(f.x,f.y,skillColor,8,'heal');
+      pushDmgText(t,dmg);
+      pushHealText(f,drain);
       pvpLog(`  → ${t.npc.name}に${dmg}ダメージ！${drain}HP吸収！`);
       break;
     }
@@ -3069,6 +3138,8 @@ function applySpecialSkill(f,effect,b){
       if(dead.length>0){
         const t=dead[0];
         t.alive=true;t.hp=Math.floor(t.maxHp/5);
+        pvpAddParticles(t.x,t.y,skillColor,24,'heal');
+        pushHealText(t,t.hp);
         pvpLog(`  → ${t.npc.name}が復活！HP${t.hp}で蘇生！`);
       }else pvpLog(`  → しかし蘇生できる仲間がいない…`);
       break;
@@ -3078,6 +3149,9 @@ function applySpecialSkill(f,effect,b){
       const dmg=Math.max(1,Math.floor(((f.atk+f.mag*1.8)/2-t.def*t.defBuff)/4));
       t.hp=Math.max(0,t.hp-dmg);if(t.hp<=0)t.alive=false;
       t.defBuff=0.8;t.defBuffTurns=2;
+      t.hitFlash=12;t.hitShake=8;
+      pvpAddParticles(t.x,t.y,skillColor,14,'magic');
+      pushDmgText(t,dmg);
       pvpLog(`  → ${t.npc.name}に${dmg}ダメージ！防御力2ターン低下！${t.alive?'':'💀'}`);
       break;
     }
@@ -3124,14 +3198,73 @@ function pvpRenderLoop(){
   if(!pvpBattle)return;
   pvpDrawBg();
   const ctx=pvpCtx;
+
+  // Particles
+  pvpBattle.particles=pvpBattle.particles.filter(p=>p.life>0);
+  pvpBattle.particles.forEach(p=>{
+    p.x+=p.vx;p.y+=p.vy;p.vy+=0.15;p.life--;
+    const a=p.life/p.maxLife;
+    ctx.save();
+    ctx.globalAlpha=a;
+    ctx.fillStyle=p.color;
+    if(p.type==='heal'){
+      ctx.font=`${p.size*3}px monospace`;
+      ctx.textAlign='center';
+      ctx.fillText('♥',p.x,p.y);
+    }else if(p.type==='magic'){
+      ctx.font=`${p.size*3}px monospace`;
+      ctx.textAlign='center';
+      ctx.fillText('✦',p.x,p.y);
+    }else{
+      ctx.beginPath();ctx.arc(p.x,p.y,p.size*a,0,Math.PI*2);ctx.fill();
+    }
+    ctx.restore();
+  });
+
+  // Skill banner
+  if(pvpBattle.skillText&&pvpBattle.skillText.life>0){
+    const st=pvpBattle.skillText;
+    st.life--;
+    const a=Math.min(1,st.life/20);
+    const y=st.y-((50-st.life)*0.8);
+    ctx.save();
+    ctx.globalAlpha=a;
+    ctx.font=`bold ${st.size}px "DotGothic16",monospace`;
+    ctx.textAlign='center';
+    ctx.strokeStyle='rgba(0,0,0,0.8)';ctx.lineWidth=4;
+    ctx.strokeText(st.text,st.x,y);
+    ctx.fillStyle=st.color;
+    ctx.fillText(st.text,st.x,y);
+    ctx.restore();
+  }
+
+  // Damage numbers
+  pvpBattle.dmgTexts=pvpBattle.dmgTexts.filter(d=>d.life>0);
+  pvpBattle.dmgTexts.forEach(d=>{
+    d.y-=1.5;d.life--;
+    const a=d.life/d.maxLife;
+    ctx.save();
+    ctx.globalAlpha=a;
+    ctx.font=`bold ${d.size}px "DotGothic16",monospace`;
+    ctx.textAlign='center';
+    ctx.strokeStyle='rgba(0,0,0,0.8)';ctx.lineWidth=3;
+    ctx.strokeText(d.text,d.x,d.y);
+    ctx.fillStyle=d.color;
+    ctx.fillText(d.text,d.x,d.y);
+    ctx.restore();
+  });
+
+  // Fighters
   pvpBattle.all.forEach(f=>{
     const sz=64;
-    const dx=f.x+f.animOff-sz/2, dy=f.y-sz/2;
+    const shakeX=f.hitShake>0?(Math.random()-0.5)*6:0;
+    const dx=f.x+f.animOff+shakeX-sz/2, dy=f.y-sz/2;
     ctx.save();
     if(!f.alive){ctx.globalAlpha=.3;}
     // shadow
     ctx.fillStyle='rgba(0,0,0,0.35)';
-    ctx.beginPath();ctx.ellipse(f.x+f.animOff,f.y+sz*.35,24,6,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(f.x+f.animOff+shakeX,f.y+sz*.35,24,6,0,0,Math.PI*2);ctx.fill();
+    // sprite
     if(f.npc.spriteImg){
       ctx.imageSmoothingEnabled=false;
       ctx.drawImage(f.npc.spriteImg,dx,dy,sz,sz);
@@ -3139,27 +3272,33 @@ function pvpRenderLoop(){
       ctx.imageSmoothingEnabled=false;
       ctx.drawImage(f.npc.spriteCanvas,dx,dy,sz,sz);
     }else{
-      // Simple colored rect character
       ctx.fillStyle=f.npc.color||'#888';
       ctx.fillRect(dx+16,dy+12,32,36);
       ctx.fillStyle=f.npc.hair||'#543';
       ctx.fillRect(dx+18,dy+4,28,16);
       ctx.fillStyle='#fdd8c0';
       ctx.fillRect(dx+22,dy+14,20,14);
-      // eyes
       ctx.fillStyle='#111';
       ctx.fillRect(dx+26,dy+18,4,4);ctx.fillRect(dx+34,dy+18,4,4);
     }
-    // name
+    // hit flash overlay
+    if(f.hitFlash>0){
+      const flashA=Math.min(1,(f.hitFlash/8)*0.7);
+      f.hitFlash--;
+      ctx.globalAlpha=flashA*(f.alive?1:.3);
+      ctx.fillStyle='#ff2200';
+      ctx.fillRect(dx,dy,sz,sz);
+    }
+    if(f.hitShake>0)f.hitShake--;
+    // name + HP bar
     ctx.globalAlpha=1;
     ctx.font='bold 11px "DotGothic16",monospace';ctx.textAlign='center';
     ctx.fillStyle='rgba(0,0,0,.7)';
     const nm=f.npc.name;const tw=ctx.measureText(nm).width;
-    ctx.fillRect(f.x+f.animOff-tw/2-3,dy-14,tw+6,13);
+    ctx.fillRect(f.x+f.animOff+shakeX-tw/2-3,dy-14,tw+6,13);
     ctx.fillStyle=f.alive?'#fff':'#666';
-    ctx.fillText(nm,f.x+f.animOff,dy-4);
-    // HP bar
-    const barW=48,barH=4,barX=f.x+f.animOff-barW/2,barY=f.y+sz*.4;
+    ctx.fillText(nm,f.x+f.animOff+shakeX,dy-4);
+    const barW=48,barH=4,barX=f.x+f.animOff+shakeX-barW/2,barY=f.y+sz*.4;
     ctx.fillStyle='#222';ctx.fillRect(barX,barY,barW,barH);
     const pct=Math.max(0,f.hp/f.maxHp);
     ctx.fillStyle=pct>.5?'#6c6':pct>.25?'#cc6':'#c66';
