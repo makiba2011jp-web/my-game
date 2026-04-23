@@ -3038,9 +3038,15 @@ function applySpecialSkill(f,effect,b){
       break;
     }
     case 'seal_chance':{
-      const t=randEnemy();
-      if(t&&Math.random()<0.5){t.sealed=true;pvpLog(`  → ${t.npc.name}は次のターン行動不能！`);}
-      else pvpLog(`  → しかし失敗した…`);
+      const t=randEnemy();if(!t)break;
+      const dmg=Math.max(1,Math.floor(((f.atk+f.mag)/2-t.def*t.defBuff)/4));
+      t.hp=Math.max(0,t.hp-dmg);if(t.hp<=0)t.alive=false;
+      if(Math.random()<0.5){
+        t.sealed=true;
+        pvpLog(`  → ${t.npc.name}に${dmg}ダメージ！さらに次のターン行動不能！${t.alive?'':'💀'}`);
+      }else{
+        pvpLog(`  → ${t.npc.name}に${dmg}ダメージ！${t.alive?'':'💀'}`);
+      }
       break;
     }
     case 'drain_half':{
