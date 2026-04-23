@@ -2902,7 +2902,7 @@ function pvpNextTurn(){
   const target=enemies[Math.floor(Math.random()*enemies.length)];
   // Calc damage
   let dmg=Math.floor(((f.atk+f.mag)/2-target.def)/4);
-  dmg=Math.max(1,dmg+Math.floor((Math.random()-.5)*((f.atk+f.mag)/2)*.3));
+  dmg=Math.max(1,Math.floor(dmg*(1+(Math.random()-.5)*.3)));
   // Animate attack
   b.acting=true;
   const dir=f.team==='A'?1:-1;
