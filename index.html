@@ -1788,7 +1788,7 @@ function showCreateForm(){
   document.getElementById('btn-npc-dot-edit').style.display='block';
   document.getElementById('npc-pos-section').style.display='none';
   newNpcSprite=null;
-  newNpcImgData=null;
+  newNpcSpriteImgData=null;
   document.getElementById('f-name').focus();
 }
 
@@ -1867,9 +1867,9 @@ function createNPCFromForm(){
     sprite:newNpcSprite||null
   };
   // Uploaded 128×128 image wins; else derive from dot pixels.
-  if(newNpcImgData){
-    npcData.spriteImgData=newNpcImgData;
-    b64ToImg(newNpcImgData).then(img=>{if(img)npcData.spriteImg=img;});
+  if(newNpcSpriteImgData){
+    npcData.spriteImgData=newNpcSpriteImgData;
+    b64ToImg(newNpcSpriteImgData).then(img=>{if(img)npcData.spriteImg=img;});
   }else if(newNpcSprite){
     const bk=[...dotPixels];dotPixels=newNpcSprite;
     const cv2=dotToImageData();
@@ -1878,7 +1878,7 @@ function createNPCFromForm(){
     dotPixels=bk;
   }
   newNpcSprite=null;
-  newNpcImgData=null;
+  newNpcSpriteImgData=null;
   hideCreateForm();
   startPlacement(npcData);
 }
@@ -1957,7 +1957,7 @@ document.getElementById('npc-create-btn').addEventListener('click',showCreateFor
 document.getElementById('btn-form-ok').addEventListener('click',createNPCFromForm);
 document.getElementById('btn-form-cancel').addEventListener('click',hideCreateForm);
 let newNpcSprite=null;
-let newNpcImgData=null;
+let newNpcSpriteImgData=null;
 document.getElementById('btn-npc-dot-edit').addEventListener('click',()=>{
   if(editingNPCIdx>=0){
     openDotEditor({type:'npc',index:editingNPCIdx},npcs[editingNPCIdx].sprite||null);
@@ -2530,7 +2530,7 @@ const _origOpenDotEditor=openDotEditor;
 openDotEditor=function(target,existingPixels){
   // Load existing image for this target
   if(target.type==='player'){dotImgData=player.spriteImgData||null;}
-  else if(target.type==='new-npc'){dotImgData=newNpcImgData||null;}
+  else if(target.type==='new-npc'){dotImgData=newNpcSpriteImgData||null;}
   else{dotImgData=npcs[target.index].spriteImgData||null;}
   updateDotImgUI();
   _origOpenDotEditor(target,existingPixels);
@@ -2555,7 +2555,7 @@ document.getElementById('dot-apply').addEventListener('click',async()=>{
     dbSavePlayerSprite(canvasImg);
   }else if(dotTarget.type==='new-npc'){
     newNpcSprite=spriteData;
-    newNpcImgData=canvasImg;
+    newNpcSpriteImgData=canvasImg;
   }else{
     const npc=npcs[dotTarget.index];
     npc.sprite=spriteData;
