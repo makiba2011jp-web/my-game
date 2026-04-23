@@ -2514,9 +2514,14 @@ _dotImgFile.addEventListener('change',async e=>{
   resizeSpriteToGame(rawUrl,(_cv128,dataUrl128)=>{
     pushDotHistory();
     dotImgData=dataUrl128;
-    dotPixels=new Array(DOT_SIZE*DOT_SIZE).fill(null);
-    renderDotCanvas();
-    updateDotImgUI();
+    // 128px画像をDOT_SIZEにダウンスケールしてdotPixelsに変換
+    const tmpImg=new Image();
+    tmpImg.onload=()=>{
+      dotPixels=imgToPixels(tmpImg);
+      renderDotCanvas();
+      updateDotImgUI();
+    };
+    tmpImg.src=dataUrl128;
   });
   _dotImgFile.value='';
 });
