@@ -1469,7 +1469,7 @@ function tryMove(nx,ny){
         ghostMode=true;
         bumpCount=0;
         clearTimeout(ghostModeTimer);
-        ghostModeTimer=setTimeout(()=>{ghostMode=false;},3000);
+        ghostModeTimer=setTimeout(()=>{ghostMode=false;},1000);
       }
     }else{
       bumpCount=1;
