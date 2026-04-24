@@ -14,7 +14,7 @@
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
 <meta name="theme-color" content="#080810">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>不滅騎士</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
@@ -212,7 +212,8 @@
   #mobile-side-btns button{padding:10px 12px;font-family:'DotGothic16',monospace;font-size:12px;background:linear-gradient(180deg,#2a3a70,#1a2a60);color:#fff;border:2px solid #88a;border-radius:8px;cursor:pointer}
   #mobile-close-panel{display:none;width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:#602020;color:#fff;border:2px solid #a66;border-radius:6px;cursor:pointer;margin-bottom:8px}
   @media(max-width:768px){
-    body{flex-direction:column;overflow:hidden}
+    body{flex-direction:column;overflow:hidden;padding-top:env(safe-area-inset-top,20px)}
+    #game-area{margin-top:8px}
     #player-panel{display:none!important}
     #side-panel{display:none;position:fixed;bottom:0;left:0;right:0;height:92vh;z-index:300;border-left:none;border-top:3px solid #446;overflow:hidden;width:100%!important}
     #side-panel.mobile-open{display:flex}
