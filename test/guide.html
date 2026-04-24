@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/png" href="../favicon.png">
+<link rel="apple-touch-icon" href="../favicon.png">
+<meta name="theme-color" content="#080810">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>冒険者ガイド - 不滅騎士</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:#080810;color:#fff;font-family:'DotGothic16',monospace;line-height:1.7;min-height:100vh;padding-bottom:60px}
+  a{color:#8af}
+  .wrap{max-width:700px;margin:0 auto;padding:20px 16px}
+  header{text-align:center;padding:24px 16px;background:linear-gradient(180deg,#14142a,#08081a);border-bottom:3px solid #88a;margin-bottom:20px}
+  header h1{color:#ffcc66;font-size:22px;margin-bottom:6px;text-shadow:0 0 12px rgba(255,200,100,.3)}
+  header .tagline{color:#aac;font-size:13px;margin-bottom:14px}
+  .back-btn{display:inline-block;padding:8px 20px;background:linear-gradient(180deg,#2a3a70,#1a2a60);color:#fff;border:2px solid #88a;border-radius:8px;text-decoration:none;font-family:inherit;font-size:14px;transition:transform .15s}
+  .back-btn:hover{transform:translateY(-1px);background:linear-gradient(180deg,#3a4a90,#2a3a70)}
+
+  nav.toc{position:sticky;top:0;z-index:10;background:rgba(8,8,16,.95);backdrop-filter:blur(4px);padding:10px 12px;margin:0 -16px 20px;border-bottom:2px solid #334;display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  nav.toc a{display:inline-block;padding:6px 12px;background:#14142a;border:1px solid #446;border-radius:6px;color:#aac;font-size:12px;white-space:nowrap;text-decoration:none;flex-shrink:0}
+  nav.toc a.active{background:linear-gradient(180deg,#3a3a6a,#2a2a5a);border-color:#ffcc66;color:#ffcc66}
+  nav.toc a:hover{border-color:#88a;color:#fff}
+
+  section{margin-bottom:36px;opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
+  section.visible{opacity:1;transform:translateY(0)}
+  section h2{font-size:20px;color:#aaf;border-bottom:2px solid #334;padding-bottom:8px;margin-bottom:16px}
+  section h3{font-size:16px;color:#ffcc66;margin:18px 0 10px}
+  p{color:#ccc;font-size:15px;margin-bottom:10px}
+
+  .card{background:linear-gradient(180deg,#14142a,#101028);border:2px solid #446;border-radius:10px;padding:14px 16px;margin-bottom:12px}
+  .card.accent-gold{border-color:#a83;box-shadow:0 0 12px rgba(255,200,100,.15)}
+  .card.accent-blue{border-color:#668}
+  .card.accent-green{border-color:#484;box-shadow:0 0 10px rgba(100,200,100,.1)}
+
+  .keys{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:320px;margin:12px auto}
+  .keys.wide{grid-template-columns:repeat(2,1fr);max-width:360px}
+  .key{background:linear-gradient(180deg,#2a2a50,#1a1a40);border:2px solid #88a;border-top-color:#aac;border-bottom-color:#557;border-radius:6px;padding:10px 4px;text-align:center;color:#fff;font-size:13px;box-shadow:0 3px 0 #334,inset 0 0 4px rgba(255,255,255,.08)}
+  .key .kcap{display:block;font-weight:bold;color:#ffe;font-size:15px;margin-bottom:2px}
+  .key.blank{visibility:hidden}
+  .key .klabel{font-size:11px;color:#aac}
+
+  .mobile-op{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .mobile-op li{list-style:none;background:#0e0e22;border-left:3px solid #6a8;padding:8px 12px;border-radius:0 6px 6px 0;font-size:14px;color:#ddd}
+
+  .step-flow{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;margin:14px 0 20px}
+  .step-flow .step-pill{background:linear-gradient(180deg,#2a3a6a,#1a2a5a);border:2px solid #88a;border-radius:20px;padding:6px 14px;font-size:12px;color:#cde}
+  .step-flow .arrow{color:#668}
+  .step{position:relative;background:linear-gradient(180deg,#14142a,#101028);border:2px solid #446;border-left:4px solid #ffcc66;border-radius:8px;padding:14px 16px;margin-bottom:10px}
+  .step .step-num{font-size:12px;color:#ffcc66;font-weight:bold;margin-bottom:4px;letter-spacing:1px}
+  .step .step-title{color:#fff;font-size:16px;margin-bottom:6px}
+  .step ul{list-style:none;padding-left:0}
+  .step li{position:relative;padding-left:18px;color:#ccc;font-size:14px;margin-bottom:4px}
+  .step li::before{content:'▸';position:absolute;left:4px;color:#88a}
+  .step .hint{background:rgba(255,200,100,.08);border:1px dashed #a83;border-radius:6px;padding:8px 10px;margin-top:8px;color:#ffd;font-size:13px}
+
+  .cmd-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
+  .cmd-box{background:linear-gradient(180deg,#1a1230,#0f0820);border:2px solid #a55;border-radius:8px;padding:14px 10px;text-align:center}
+  .cmd-box .cmd-icon{font-size:28px;margin-bottom:4px}
+  .cmd-box .cmd-name{color:#ffcc66;font-size:14px;font-weight:bold;margin-bottom:4px}
+  .cmd-box .cmd-desc{color:#ccc;font-size:12px;line-height:1.5}
+
+  .feature-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .feature-badge{background:#0e0e22;border:1px solid #668;border-radius:12px;padding:4px 10px;font-size:12px;color:#aac}
+
+  .stat-conv{background:#0a0a1e;border:1px dashed #668;border-radius:6px;padding:10px 14px;margin:10px 0;font-family:'DotGothic16',monospace;font-size:13px;color:#adf;line-height:1.9}
+  .stat-conv .eq{color:#ffcc66;margin:0 6px}
+
+  .pixel-scene{background:#1a5a20;border:3px solid #fff;border-radius:4px;padding:0;margin:14px auto;width:264px;height:132px;position:relative;image-rendering:pixelated;overflow:hidden}
+  .pixel-scene::before,.pixel-scene::after{content:'';position:absolute;width:32px;height:48px;top:42px}
+  .pixel-scene::before{left:44px;background:linear-gradient(180deg,#6b4226 0 18px,#f0d0b0 18px 28px,#4a8 28px 42px,#222 42px 48px)}
+  .pixel-scene::after{left:164px;background:linear-gradient(180deg,#cc7030 0 18px,#f0d0b0 18px 28px,#c85 28px 42px,#222 42px 48px)}
+  .pixel-scene .tag{position:absolute;font-size:10px;color:#fff;background:rgba(0,0,30,.8);padding:2px 6px;border-radius:3px}
+  .pixel-scene .tag.p{top:26px;left:36px}
+  .pixel-scene .tag.n{top:26px;left:156px}
+  .pixel-scene .bubble{position:absolute;left:200px;top:16px;background:#fff;color:#d44;font-weight:bold;width:22px;height:22px;border-radius:50%;text-align:center;line-height:22px;font-size:16px;animation:bob 1s infinite ease-in-out}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+
+  .teams{display:flex;align-items:center;gap:10px;justify-content:center;margin:12px 0;font-size:18px;flex-wrap:wrap}
+  .team-chip{background:linear-gradient(180deg,#2a2a4a,#1a1a3a);border:2px solid #88a;border-radius:20px;padding:6px 16px}
+  .team-chip.a{border-color:#c94}
+  .team-chip.b{border-color:#4a8}
+  .vs{color:#faa;font-weight:bold}
+
+  .skill-note{background:rgba(255,200,100,.08);border:1px dashed #a83;border-radius:6px;padding:8px 10px;margin:10px 0;color:#ffd;font-size:13px}
+  .skill-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px;background:#0e0e22;border:1px solid #446;border-radius:6px;overflow:hidden}
+  .skill-table th,.skill-table td{padding:6px 8px;border-bottom:1px solid #223;text-align:left;vertical-align:top}
+  .skill-table th{background:#1a1a3a;color:#ffcc66;font-size:12px;font-weight:bold}
+  .skill-table tr:last-child td{border-bottom:none}
+  .skill-table td:nth-child(1){color:#faa;white-space:nowrap}
+  .skill-table td:nth-child(2){color:#adf;white-space:nowrap}
+  .skill-table td:nth-child(3){color:#ccc;font-size:12px}
+  .skill-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  .info-box{background:linear-gradient(180deg,#14142a,#0a0a1e);border:2px solid #668;border-radius:10px;padding:14px 16px;margin:12px 0}
+  .info-box.free{border-color:#668}
+  .info-box.premium{border-color:#a83;background:linear-gradient(180deg,#1e1a0e,#141006)}
+  .info-box .ib-title{font-size:15px;margin-bottom:6px}
+  .info-box.free .ib-title{color:#aac}
+  .info-box.premium .ib-title{color:#ffcc66}
+  .info-box p{color:#cdc;font-size:13px;margin:0}
+
+  .warn{background:rgba(255,100,100,.08);border:1px solid #a55;border-left:4px solid #c66;border-radius:0 6px 6px 0;padding:10px 14px;margin:12px 0;color:#fcc;font-size:13px}
+
+  .to-top{position:fixed;bottom:16px;right:16px;background:linear-gradient(180deg,#2a3a70,#1a2a60);color:#fff;border:2px solid #88a;border-radius:50%;width:44px;height:44px;font-size:18px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s;font-family:inherit}
+  .to-top.show{opacity:.85;pointer-events:auto}
+  .to-top:hover{opacity:1;transform:scale(1.05)}
+
+  footer{text-align:center;padding:24px 16px;color:#556;font-size:12px;margin-top:40px;border-top:1px solid #223}
+  footer a{color:#8af}
+
+  @media(max-width:520px){
+    header h1{font-size:18px}
+    section h2{font-size:17px}
+    .keys{grid-template-columns:repeat(3,1fr);max-width:100%}
+    .key{padding:8px 2px;font-size:12px}
+    .pixel-scene{width:100%;max-width:264px;height:auto;aspect-ratio:2/1}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚔ 不滅騎士 - 冒険者ガイド</h1>
+  <div class="tagline">「はじめての冒険者へ贈る手引き書」</div>
+  <a href="index.html" class="back-btn">🎮 ゲームに戻る</a>
+</header>
+
+<div class="wrap">
+  <nav class="toc" id="toc">
+    <a href="#sec-basic" data-target="sec-basic">🗺 基本操作</a>
+    <a href="#sec-auth" data-target="sec-auth">🔑 登録・ログイン</a>
+    <a href="#sec-npc" data-target="sec-npc">👤 NPC作成</a>
+    <a href="#sec-battle" data-target="sec-battle">⚔ バトル</a>
+    <a href="#sec-pvp" data-target="sec-pvp">🏆 PVP/サッカー</a>
+    <a href="#sec-apikey" data-target="sec-apikey">🔑 APIキー</a>
+  </nav>
+
+  <section id="sec-basic">
+    <h2>🗺 基本操作</h2>
+
+    <h3>💻 PCの操作</h3>
+    <div class="card">
+      <div class="keys">
+        <div class="key blank"></div>
+        <div class="key"><span class="kcap">W</span><span class="klabel">↑ 上</span></div>
+        <div class="key blank"></div>
+        <div class="key"><span class="kcap">A</span><span class="klabel">← 左</span></div>
+        <div class="key"><span class="kcap">S</span><span class="klabel">↓ 下</span></div>
+        <div class="key"><span class="kcap">D</span><span class="klabel">→ 右</span></div>
+      </div>
+      <div class="keys wide">
+        <div class="key"><span class="kcap">Enter</span><span class="klabel">話しかける</span></div>
+        <div class="key"><span class="kcap">ESC</span><span class="klabel">会話を閉じる</span></div>
+      </div>
+      <p style="margin-top:10px;font-size:13px;color:#aac">矢印キー（↑↓←→）も使えます。</p>
+    </div>
+
+    <h3>📱 スマホの操作</h3>
+    <div class="card accent-green">
+      <ul class="mobile-op">
+        <li>📱 画面下の十字キーで上下左右に移動</li>
+        <li>💬 中央の「話す」ボタンでNPCに話しかける</li>
+        <li>📋 「NPC一覧」ボタンでNPCパネルを開閉</li>
+      </ul>
+    </div>
+
+    <h3>💬 NPCへの話しかけ方</h3>
+    <div class="card">
+      <div class="pixel-scene" aria-label="NPCとプレイヤーが並んでいる図">
+        <span class="tag p">主人公</span>
+        <span class="tag n">NPC</span>
+        <span class="bubble">!</span>
+      </div>
+      <ul style="list-style:none;padding:0">
+        <li style="margin-bottom:6px;color:#ddd;font-size:14px">① NPCの隣のマスに移動すると <strong style="color:#faa">「!」</strong> マークが出ます</li>
+        <li style="margin-bottom:6px;color:#ddd;font-size:14px">② <strong style="color:#ffcc66">Enter</strong>（スマホなら「話す」）を押す</li>
+        <li style="color:#ddd;font-size:14px">③ チャット画面が開いてAIとの会話がスタート！</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="sec-auth">
+    <h2>🔑 登録・ログイン</h2>
+    <p>キャラクターIDを登録すると、自分が作ったNPCに鍵をかけて他の人が編集・削除できないようにできます。</p>
+
+    <h3>📝 新規登録</h3>
+    <div class="step">
+      <div class="step-num">STEP 1</div>
+      <div class="step-title">サイドパネルを開く</div>
+      <ul>
+        <li>PC：右側のサイドパネル上部に登録フォームがあります</li>
+        <li>スマホ：「NPC一覧」ボタン → パネル上部の登録フォーム</li>
+      </ul>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 2</div>
+      <div class="step-title">キャラクターIDとパスワードを入力</div>
+      <ul>
+        <li>「キャラID」にゲーム内の<strong style="color:#ffcc66">元素ID</strong>を入力します</li>
+        <li>
+          元素IDはキャラクターステータス画面のキャラ名の下に表示されています<br>
+          <span style="font-size:12px;color:#aac">例：「まきば <strong>(C1F9)</strong>」の場合、元素IDは <code style="background:#0a0a1e;color:#adf;padding:2px 6px;border-radius:3px">C1F9</code> です</span>
+        </li>
+        <li>「キャラ名」に表示名を入力</li>
+        <li>「パスワード」を設定</li>
+        <li>「登録／ログイン」ボタンを押す</li>
+      </ul>
+      <div class="hint">
+        📸 <strong>ヒント：</strong>元素IDはキャラクターステータス画面の
+        名前の横（カッコ内）に表示されています。<br>
+        <span style="color:#aac;font-size:12px">例： まきば <strong style="color:#ffcc66">(C1F9)</strong> → 元素ID は <strong style="color:#ffcc66">C1F9</strong></span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 3</div>
+      <div class="step-title">✅ 登録完了</div>
+      <ul>
+        <li>登録後に作成したNPCには 🔒 マークが付きます</li>
+        <li>自分のNPCだけ編集・削除ができます</li>
+        <li>他の人のNPCは 🔒 が付いていて編集できません</li>
+      </ul>
+    </div>
+
+    <h3>🔓 ログイン（別端末・別ブラウザから）</h3>
+    <div class="card">
+      <ul style="list-style:none;padding:0">
+        <li style="margin-bottom:6px;color:#ddd;font-size:14px">① 同じフォームに登録済みのキャラIDとパスワードを入力</li>
+        <li style="margin-bottom:6px;color:#ddd;font-size:14px">② 「登録／ログイン」を押すとログイン完了</li>
+        <li style="color:#ddd;font-size:14px">③ 自分のNPCの編集・削除権限が復活します</li>
+      </ul>
+    </div>
+
+    <div class="warn">
+      ⚠️ <strong>注意：</strong>パスワードを忘れると再設定できません。
+      メモしておきましょう。また、登録は任意です。
+      登録なしでもNPCの作成・会話・バトルは楽しめます。
+    </div>
+  </section>
+
+  <section id="sec-npc">
+    <h2>👤 NPCを作ろう</h2>
+    <p>オリジナルのNPCを作って自分だけの村をつくろう。</p>
+
+    <div class="step-flow">
+      <span class="step-pill">STEP 1</span><span class="arrow">➜</span>
+      <span class="step-pill">STEP 2</span><span class="arrow">➜</span>
+      <span class="step-pill">STEP 3</span><span class="arrow">➜</span>
+      <span class="step-pill">STEP 4</span>
+    </div>
+
+    <div class="step">
+      <div class="step-num">STEP 1</div>
+      <div class="step-title">🖊 NPCパネルを開く</div>
+      <ul>
+        <li>PC：右側のサイドパネルにある「＋ NPC作成」ボタンをクリック</li>
+        <li>スマホ：下の「NPC一覧」ボタン → 「＋ NPCを作成」</li>
+      </ul>
+    </div>
+
+    <div class="step">
+      <div class="step-num">STEP 2</div>
+      <div class="step-title">🎨 キャラクターを設定する</div>
+      <ul>
+        <li>名前を入力</li>
+        <li>性格・設定（AIプロンプト）を記入</li>
+        <li>服・髪の色をカラーピッカーで選ぶ</li>
+        <li>帽子・杖・マントなどのアクセサリを選ぶ</li>
+      </ul>
+      <div class="hint">💡 <strong>ヒント：</strong>他のゲームのキャラクターステータス画面のスクリーンショットを取り込んで、名前やステータスを自動入力できます！</div>
+      <div class="hint" style="background:rgba(100,200,255,.08);border-color:#488;color:#cef">✏️ 性格の例：「陽気な商人。『いらっしゃい！』が口癖で、お金の話になると目を輝かせる。」</div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">STEP 3</div>
+      <div class="step-title">📍 マップに配置する</div>
+      <ul>
+        <li>「配置モードへ」を押すと十字カーソルになる</li>
+        <li>マップの通行可能な場所（草・道など）をクリックして配置</li>
+        <li>赤くハイライトされたマスは配置不可（壁・NPC既存地点など）</li>
+      </ul>
+    </div>
+
+    <div class="step">
+      <div class="step-num">STEP 4</div>
+      <div class="step-title">💬 話しかけてみよう</div>
+      <ul>
+        <li>NPCの隣に移動して話しかけるとAI会話がスタート！</li>
+        <li>会話履歴は自動で記憶され、続きから話せます</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="sec-battle">
+    <h2>⚔ バトルの遊び方</h2>
+
+    <h3>🎯 バトルの始め方</h3>
+    <div class="card accent-gold">
+      <p>NPCとの会話中に <strong style="color:#ffcc66">「バトル」「戦う」「決闘」</strong> などと入力するとバトルモードに突入！</p>
+      <p style="margin-top:6px">画面上部に専用のコマンドウィンドウが開きます。</p>
+    </div>
+
+    <h3>⚡ バトルコマンド</h3>
+    <div class="cmd-grid">
+      <div class="cmd-box">
+        <div class="cmd-icon">⚔</div>
+        <div class="cmd-name">攻撃</div>
+        <div class="cmd-desc">相手にダメージを与える</div>
+      </div>
+      <div class="cmd-box">
+        <div class="cmd-icon">🛡</div>
+        <div class="cmd-name">防御</div>
+        <div class="cmd-desc">次の被ダメージを半減</div>
+      </div>
+      <div class="cmd-box">
+        <div class="cmd-icon">🏃</div>
+        <div class="cmd-name">逃げる</div>
+        <div class="cmd-desc">バトルを終了して会話に戻る</div>
+      </div>
+    </div>
+
+    <h3>🎊 バトルの結末</h3>
+    <div class="card accent-green">
+      <p>🏆 <strong style="color:#6c6">勝利：</strong> 経験値と報酬を獲得。AIが称賛の言葉をくれる。</p>
+      <p>💔 <strong style="color:#faa">敗北：</strong> 倒れても会話は続けられる。</p>
+      <p>🏃 <strong style="color:#cdc">逃走：</strong> 再戦はいつでも可能。</p>
+    </div>
+  </section>
+
+  <section id="sec-pvp">
+    <h2>🏆 PVP・サッカー</h2>
+    <p>作ったNPCたちを戦わせる対戦モードもあります。</p>
+
+    <h3>⚔ PVPバトル</h3>
+    <div class="card accent-gold">
+      <p>サイドパネルの <strong style="color:#faa">「⚔ PVPバトル」</strong> ボタンから開始。</p>
+      <div class="teams">
+        <span class="team-chip a">🍄 キノコ</span>
+        <span class="vs">VS</span>
+        <span class="team-chip b">🎋 タケノコ</span>
+      </div>
+      <ul style="list-style:none;padding:0;margin-top:8px">
+        <li style="color:#ccc;font-size:14px;margin-bottom:4px">▸ 各チーム最大4体までNPCを編成</li>
+        <li style="color:#ccc;font-size:14px;margin-bottom:4px">▸ ターン制の自動バトル</li>
+        <li style="color:#ccc;font-size:14px">▸ ステータス(HP/攻撃/防御)が勝敗を左右</li>
+      </ul>
+    </div>
+
+    <h3>✨ 必殺技一覧</h3>
+    <div class="skill-note">⚡ <strong>発動条件：</strong>自分のHPが最大HPの1/3以下になると発動します。</div>
+    <div class="skill-table-wrap">
+    <table class="skill-table">
+      <thead>
+        <tr><th>技名</th><th>職業</th><th>効果</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>スラッシュ</td><td>ファイター</td><td>((攻×2 + 魔攻)/2 − 防×バフ) /4</td></tr>
+        <tr><td>エクスプロージョン</td><td>ウィザード</td><td>((攻 + 魔攻×1.2)/2 − 防×バフ) /4 ×3体</td></tr>
+        <tr><td>フェイントアタック</td><td>シーフ</td><td>((攻×0.5 + 魔攻)/2 − 防×バフ) /4 ×2回</td></tr>
+        <tr><td>ヒール</td><td>クレリック</td><td>一人のHPを精神で回復</td></tr>
+        <tr><td>城壁の陣</td><td>ガーディアン</td><td>味方全員の防御力2ターン1.4倍</td></tr>
+        <tr><td>ルーンアタック</td><td>マジックナイト</td><td>通常同式 + 50%行動不能</td></tr>
+        <tr><td>ギガドレイン</td><td>ウォーロック</td><td>通常同式。ダメージの1/2吸収</td></tr>
+        <tr><td>猛毒手</td><td>アサシン</td><td>相手残りHP / 4</td></tr>
+        <tr><td>蘇生</td><td>ビショップ</td><td>味方の死者を最大HPの1/5で生き返らせる</td></tr>
+        <tr><td>鉄拳</td><td>モンク</td><td>((攻×2 + 魔攻)/2 − 防×バフ) /4</td></tr>
+        <tr><td>ランサートルネード</td><td>ドラグランサー</td><td>ランダム3体に((攻 + 魔攻×1.2)/2 − 防×バフ) /4</td></tr>
+        <tr><td>エレメントブラスター</td><td>ドラグバスター</td><td>((攻 + 魔攻×1.8)/2 − 防×バフ) /4</td></tr>
+        <tr><td>サンダーセイバー</td><td>ドラグセイバー</td><td>((攻×1.5 + 魔攻×1.5)/2 − 防×バフ) /4</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>⚽ サッカー試合</h3>
+    <div class="card accent-green">
+      <p><strong style="color:#6c6">「⚽ サッカー試合」</strong> ボタンから試合開始。</p>
+      <div class="feature-row">
+        <span class="feature-badge">GK 1人</span>
+        <span class="feature-badge">DF 1人</span>
+        <span class="feature-badge">MF 1人</span>
+        <span class="feature-badge">FW 1人</span>
+      </div>
+      <p style="margin-top:10px;color:#ccc;font-size:14px">NPCのステータスがサッカー能力に変換されます：</p>
+      <div class="stat-conv">
+        攻撃力 <span class="eq">➜</span> キック力<br>
+        防御力 <span class="eq">➜</span> タックル成功率<br>
+        素早さ <span class="eq">➜</span> 移動速度
+      </div>
+      <p style="color:#cdc;font-size:14px">⏱ 60秒試合で多くゴールしたチームが勝利！</p>
+    </div>
+  </section>
+
+  <section id="sec-apikey">
+    <h2>🔑 APIキーの設定方法</h2>
+
+    <h3>🤔 なぜAPIキーが必要？</h3>
+    <div class="info-box free">
+      <div class="ib-title">🆓 無料プランの場合</div>
+      <p>1日5回までAIと会話できます。（暫定です）</p>
+    </div>
+    <div class="info-box premium">
+      <div class="ib-title">🔑 自分のAPIキーを設定すると</div>
+      <p>無制限にAI会話を楽しめます！費用は自分のAnthropicアカウントに請求されます。</p>
+    </div>
+
+    <h3>📝 APIキーの取得方法</h3>
+
+    <div class="step">
+      <div class="step-num">STEP 1</div>
+      <div class="step-title">🌐 Anthropicコンソールを開く</div>
+      <ul>
+        <li><a href="https://console.anthropic.com" target="_blank" rel="noopener">https://console.anthropic.com</a> にアクセス</li>
+      </ul>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 2</div>
+      <div class="step-title">👤 アカウントを作成</div>
+      <ul>
+        <li>メールアドレスまたはGoogleアカウントで登録</li>
+        <li>初回はクレジットをチャージ（$5〜）する必要があります</li>
+      </ul>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 3</div>
+      <div class="step-title">🔑 APIキーを発行（専用キー推奨）</div>
+      <ul>
+        <li>左メニューの「API Keys」を開く</li>
+        <li>「Create Key」を押して新しいキーを作成</li>
+        <li><code style="background:#0a0a1e;color:#adf;padding:2px 6px;border-radius:3px">sk-ant-...</code> で始まるキーをコピー</li>
+      </ul>
+      <div class="hint" style="background:rgba(255,180,0,.08);border-color:#a80;color:#fda">
+        ⭐ <strong>推奨：このゲーム専用のキーを作成しましょう</strong><br>
+        <ul style="margin-top:8px;padding-left:16px;color:#fda;font-size:13px">
+          <li>「API Keys」画面で用途がわかる名前をつける（例：「不滅騎士用」）</li>
+          <li>キー作成後、<strong>「Usage limits」から月の上限金額を設定</strong>することを強くおすすめします（例：$5/月）</li>
+          <li>万が一キーが漏れても、このゲーム専用キーを削除するだけで被害を最小限にできます</li>
+        </ul>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 4</div>
+      <div class="step-title">✅ ゲームに設定</div>
+      <ul>
+        <li>ゲーム画面上部の「Anthropic APIキー」入力欄にペースト</li>
+        <li>「🔑 マイキー使用中（無制限）」と表示されればOK！</li>
+      </ul>
+    </div>
+
+    <div class="warn">
+      ⚠️ <strong>注意：</strong>APIキーは絶対に他人に見せないでください。
+      第三者に知られると、あなたのアカウントで意図しない請求が発生する可能性があります。<br>
+      <strong style="color:#faa">必ず上限金額を設定</strong>して、万が一の場合に備えましょう。
+      キーは各端末のブラウザにのみ保存され、サーバーには送られません。
+    </div>
+  </section>
+
+  <footer>
+    <p>🎮 楽しい冒険を！</p>
+    <p style="margin-top:6px"><a href="index.html">ゲームに戻る</a></p>
+  </footer>
+</div>
+
+<button class="to-top" id="to-top" aria-label="トップへ戻る">↑</button>
+
+<script>
+// Scroll-spy for TOC
+const tocLinks=document.querySelectorAll('nav.toc a');
+const sections=document.querySelectorAll('section');
+const secObserver=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      e.target.classList.add('visible');
+      const id=e.target.id;
+      tocLinks.forEach(l=>l.classList.toggle('active',l.dataset.target===id));
+    }
+  });
+},{threshold:0.18,rootMargin:'-10% 0px -40% 0px'});
+sections.forEach(s=>secObserver.observe(s));
+
+// To-top button
+const toTop=document.getElementById('to-top');
+window.addEventListener('scroll',()=>{
+  toTop.classList.toggle('show',window.scrollY>300);
+},{passive:true});
+toTop.addEventListener('click',()=>window.scrollTo({top:0,behavior:'smooth'}));
+</script>
+</body>
+</html>
