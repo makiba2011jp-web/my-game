@@ -1381,6 +1381,13 @@ function drawPlayer2(){
 
 function drawNPC2(npc){
   drawChar(npc.x,npc.y,npc.color,npc.hair,npc.skin,0,0,npc.acc);
+  if(ghostMode){
+    c.save();
+    c.font=`${S*0.4}px serif`;
+    c.textAlign='center';
+    c.fillText('👻',npc.x*S+S/2,npc.y*S-S*0.05);
+    c.restore();
+  }
   c.save();c.translate(npc.x*S,npc.y*S);c.scale(SC,SC);
   const dx=Math.abs(player.x-npc.x),dy=Math.abs(player.y-npc.y);
   if(dx+dy<=2&&!chatOpen){
@@ -1437,11 +1444,44 @@ render();
 // ================================================================
 //  MOVEMENT
 // ================================================================
+let bumpCount=0;
+let bumpTimer=null;
+let bumpLastPos={x:-1,y:-1};
+let ghostMode=false;
+let ghostModeTimer=null;
 function canMove(nx,ny){
   if(nx<0||ny<0||nx>=COLS||ny>=ROWS)return false;
   if(BLOCK.has(MAP[ny][nx]))return false;
-  if(npcs.some(n=>n.x===nx&&n.y===ny))return false;
+  if(!ghostMode && npcs.some(n=>n.x===nx&&n.y===ny))return false;
   return true;
+}
+function tryMove(nx,ny){
+  if(canMove(nx,ny)){
+    player.x=nx;player.y=ny;player.frame++;addDust(nx,ny);saveState();
+    bumpCount=0;
+    bumpLastPos={x:-1,y:-1};
+    return true;
+  }
+  if(npcs.some(n=>n.x===nx&&n.y===ny)){
+    if(bumpLastPos.x===nx&&bumpLastPos.y===ny){
+      bumpCount++;
+      if(bumpCount>=2&&!ghostMode){
+        ghostMode=true;
+        bumpCount=0;
+        clearTimeout(ghostModeTimer);
+        ghostModeTimer=setTimeout(()=>{ghostMode=false;},3000);
+      }
+    }else{
+      bumpCount=1;
+      bumpLastPos={x:nx,y:ny};
+    }
+    clearTimeout(bumpTimer);
+    bumpTimer=setTimeout(()=>{
+      bumpCount=0;
+      bumpLastPos={x:-1,y:-1};
+    },500);
+  }
+  return false;
 }
 const ks={};
 const GK=new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d','W','A','S','D']);
@@ -1456,8 +1496,7 @@ function updateMove(dt){
   if(ks.ArrowUp||ks.w||ks.W){dy=-1;player.dir=3;}
   if(ks.ArrowDown||ks.s||ks.S){dy=1;player.dir=0;}
   if(dx||dy){
-    const nx=player.x+dx,ny=player.y+dy;
-    if(canMove(nx,ny)){player.x=nx;player.y=ny;player.frame++;addDust(nx,ny);saveState();}
+    tryMove(player.x+dx,player.y+dy);
     mt=0;
   }
 }
