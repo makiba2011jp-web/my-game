@@ -2124,7 +2124,7 @@ _fImg.addEventListener('change',async e=>{
         messages:[{role:'user',content:[
           {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
           {type:'text',text:prompt}]}]});
-    if(!res.ok){const er=await res.json().catch(()=>({}));throw new Error(er.error?.message||('API Error '+res.status));}
+    if(!res.ok){const er=await res.json().catch(()=>({}));throw{status:res.status,msg:er.error?.message||('API Error '+res.status)};}
     data=await res.json();
     text=(data.content?.[0]?.text||'').trim();
     text=text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'');
@@ -2159,7 +2159,14 @@ _fImg.addEventListener('change',async e=>{
     importedStats={level:info.level,hp:info.hp,mp:info.mp,attack:info.attack,defense:info.defense,magicAttack:info.magicAttack,class:info.class,spirit:info.spirit||null,dexterity:info.dexterity||null,vitality:info.vitality||null,intelligence:info.intelligence||null,speed:info.speed||null};
     _importStatus.textContent='✓ 読み取り完了';
   }catch(err){
-    console.error(err);_importStatus.textContent='エラー: '+err.message;
+    console.error(err);
+    if(err&&err.status){
+      _importStatus.textContent=formatApiError(err.status,err.msg);
+    }else if(err&&err.message&&/利用回数|rate.?limit|too many|quota/i.test(err.message)){
+      _importStatus.textContent=RATE_LIMIT_MSG;
+    }else{
+      _importStatus.textContent='エラー: '+(err&&err.message?err.message:err);
+    }
   }finally{_btnImport.disabled=false;_fImg.value='';}
 });
 
