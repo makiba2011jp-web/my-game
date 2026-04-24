@@ -1,12 +1,22 @@
 <!DOCTYPE html>
+<!--
+  Required Supabase schema (run once in the SQL editor):
+    ALTER TABLE npcs ADD COLUMN IF NOT EXISTS client_id TEXT;
+  Used to let the realtime UPDATE handler ignore echoes of this tab's own writes.
+
+  Optional cleanup (the player sprite is now localStorage-only, so any
+  legacy __player__ row is no longer read):
+    DELETE FROM npcs WHERE id = '__player__';
+-->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
 <meta name="theme-color" content="#080810">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>不滅騎士</title>
+<style>body{visibility:hidden}</style>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
@@ -203,11 +213,13 @@
   #mobile-side-btns button{padding:10px 12px;font-family:'DotGothic16',monospace;font-size:12px;background:linear-gradient(180deg,#2a3a70,#1a2a60);color:#fff;border:2px solid #88a;border-radius:8px;cursor:pointer}
   #mobile-close-panel{display:none;width:100%;padding:8px;font-family:'DotGothic16',monospace;font-size:13px;background:#602020;color:#fff;border:2px solid #a66;border-radius:6px;cursor:pointer;margin-bottom:8px}
   @media(max-width:768px){
-    body{flex-direction:column;overflow:hidden}
+    body{flex-direction:column;overflow:hidden;padding-top:env(safe-area-inset-top,20px)}
+    #game-area{margin-top:8px}
     #player-panel{display:none!important}
-    #side-panel{display:none;position:fixed;bottom:0;left:0;right:0;height:72vh;z-index:300;border-left:none;border-top:3px solid #446;overflow:hidden;width:100%!important}
+    #side-panel{display:none;position:fixed;bottom:0;left:0;right:0;height:92vh;z-index:300;border-left:none;border-top:3px solid #446;overflow:hidden;width:100%!important}
     #side-panel.mobile-open{display:flex}
     #mobile-close-panel{display:block}
+    #guide-btn{display:none!important}
     #game-area{flex:1;min-height:0;overflow:hidden}
     #chat-input-box{flex-wrap:wrap;height:auto;padding:8px 12px;gap:6px;bottom:8px}
     #chat-input{width:100%;flex:none}
@@ -475,9 +487,12 @@
   <button id="soccer-exit-btn" style="display:none">閉じる</button>
 </div>
 <script>
+document.body.style.visibility='visible';
 // ================================================================
 const WORKER_URL='https://my-game-api.makiba2011jp.workers.dev';
 const CLAUDE_MODEL='claude-haiku-4-5-20251001';
+// Tag each of this tab's upserts so realtime UPDATE events originating here can be ignored.
+const MY_CLIENT_ID=Math.random().toString(36).slice(2,10);
 const RATE_LIMIT_MSG='本日の利用回数（5回）に達しました。明日また遊んでください！\n自身のAnthropic APIキーを画面上部のBOXに入力すれば無限に会話できます。';
 function formatApiError(status,msg){
   if(status===429||(msg&&/rate.?limit|too many|quota|利用回数/i.test(msg)))return RATE_LIMIT_MSG;
@@ -1190,14 +1205,18 @@ async function dbAddNPC(npc){
     stats:npc.stats,
     sprite_image:npc.spriteImgData||null,
     owner_game_id:npc.owner_game_id||null,
-    owner_name:npc.owner_name||null
+    owner_name:npc.owner_name||null,
+    client_id:MY_CLIENT_ID
   };
   const{error}=await _sb.from('npcs').upsert(row);
   if(error)console.warn('Supabase save error',error);
 }
-async function dbSavePlayerSprite(imgData){
-  const{error}=await _sb.from('npcs').upsert({id:'__player__',name:'__player__',x:0,y:0,color:'#000',hair:'#000',skin:'#000',sprite_image:imgData||null});
-  if(error)console.warn('Supabase player sprite save error',error);
+// Player sprite is local-only so it never overwrites other players' looks.
+function dbSavePlayerSprite(imgData){
+  try{
+    if(imgData)localStorage.setItem('my-game:player-img',imgData);
+    else localStorage.removeItem('my-game:player-img');
+  }catch(e){console.warn('player sprite save failed',e);}
 }
 async function dbRemoveNPC(id){
   const{error}=await _sb.from('npcs').delete().eq('id',id);
@@ -1220,14 +1239,8 @@ async function loadState(){
   if(!error&&Array.isArray(data)){
     npcs.length=0;
     data.forEach(row=>{
-      if(row.id==='__player__'){
-        // プレイヤーのスプライト復元
-        if(row.sprite_image){
-          player.spriteImgData=row.sprite_image;
-          b64ToImg(row.sprite_image).then(img=>{if(img)player.spriteImg=img;});
-        }
-        return;
-      }
+      // __player__ rows are legacy; player sprite now lives in localStorage only.
+      if(row.id==='__player__')return;
       const npc={...row,messages:msgs[row.id]||[]};
       if(row.sprite_image){
         npc.spriteImgData=row.sprite_image;
@@ -1271,14 +1284,10 @@ async function loadState(){
     npcs.push(npc);
     renderNPCList();
   }).on('postgres_changes',{event:'UPDATE',schema:'public',table:'npcs'},payload=>{
+    // 自分自身の upsert が返ってきた場合は、ローカルの座標などが上書きされないよう無視
+    if(payload.new.client_id===MY_CLIENT_ID)return;
     // 既存NPCの内容を更新（会話履歴は手元のものを維持）
-    if(payload.new.id==='__player__'){
-      if(payload.new.sprite_image){
-        player.spriteImgData=payload.new.sprite_image;
-        b64ToImg(payload.new.sprite_image).then(img=>{if(img)player.spriteImg=img;});
-      }
-      return;
-    }
+    if(payload.new.id==='__player__')return; // legacy row, ignore
     const idx=npcs.findIndex(n=>n.id===payload.new.id);
     if(idx>=0){
       const messages=npcs[idx].messages;
@@ -1374,6 +1383,13 @@ function drawPlayer2(){
 
 function drawNPC2(npc){
   drawChar(npc.x,npc.y,npc.color,npc.hair,npc.skin,0,0,npc.acc);
+  if(ghostMode){
+    c.save();
+    c.font=`${S*0.4}px serif`;
+    c.textAlign='center';
+    c.fillText('👻',npc.x*S+S/2,npc.y*S-S*0.05);
+    c.restore();
+  }
   c.save();c.translate(npc.x*S,npc.y*S);c.scale(SC,SC);
   const dx=Math.abs(player.x-npc.x),dy=Math.abs(player.y-npc.y);
   if(dx+dy<=2&&!chatOpen){
@@ -1385,7 +1401,8 @@ function drawNPC2(npc){
   }
   c.font='14px "DotGothic16",monospace';
   const tw=c.measureText(npc.name).width+20;
-  const nx=48-tw/2,ny=-24;
+  // Y offset sized to S (128px sprite) via overlay 96-base coords
+  const nx=48-tw/2,ny=-(S*0.3)/SC;
   c.fillStyle='rgba(0,0,20,.78)';
   c.beginPath();const rr=5;
   c.moveTo(nx+rr,ny);c.lineTo(nx+tw-rr,ny);c.quadraticCurveTo(nx+tw,ny,nx+tw,ny+rr);
@@ -1429,11 +1446,44 @@ render();
 // ================================================================
 //  MOVEMENT
 // ================================================================
+let bumpCount=0;
+let bumpTimer=null;
+let bumpLastPos={x:-1,y:-1};
+let ghostMode=false;
+let ghostModeTimer=null;
 function canMove(nx,ny){
   if(nx<0||ny<0||nx>=COLS||ny>=ROWS)return false;
   if(BLOCK.has(MAP[ny][nx]))return false;
-  if(npcs.some(n=>n.x===nx&&n.y===ny))return false;
+  if(!ghostMode && npcs.some(n=>n.x===nx&&n.y===ny))return false;
   return true;
+}
+function tryMove(nx,ny){
+  if(canMove(nx,ny)){
+    player.x=nx;player.y=ny;player.frame++;addDust(nx,ny);saveState();
+    bumpCount=0;
+    bumpLastPos={x:-1,y:-1};
+    return true;
+  }
+  if(npcs.some(n=>n.x===nx&&n.y===ny)){
+    if(bumpLastPos.x===nx&&bumpLastPos.y===ny){
+      bumpCount++;
+      if(bumpCount>=2&&!ghostMode){
+        ghostMode=true;
+        bumpCount=0;
+        clearTimeout(ghostModeTimer);
+        ghostModeTimer=setTimeout(()=>{ghostMode=false;},1000);
+      }
+    }else{
+      bumpCount=1;
+      bumpLastPos={x:nx,y:ny};
+    }
+    clearTimeout(bumpTimer);
+    bumpTimer=setTimeout(()=>{
+      bumpCount=0;
+      bumpLastPos={x:-1,y:-1};
+    },500);
+  }
+  return false;
 }
 const ks={};
 const GK=new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d','W','A','S','D']);
@@ -1448,8 +1498,7 @@ function updateMove(dt){
   if(ks.ArrowUp||ks.w||ks.W){dy=-1;player.dir=3;}
   if(ks.ArrowDown||ks.s||ks.S){dy=1;player.dir=0;}
   if(dx||dy){
-    const nx=player.x+dx,ny=player.y+dy;
-    if(canMove(nx,ny)){player.x=nx;player.y=ny;player.frame++;addDust(nx,ny);saveState();}
+    tryMove(player.x+dx,player.y+dy);
     mt=0;
   }
 }
@@ -1787,6 +1836,7 @@ function showCreateForm(){
   document.getElementById('btn-npc-dot-edit').style.display='block';
   document.getElementById('npc-pos-section').style.display='none';
   newNpcSprite=null;
+  newNpcSpriteImgData=null;
   document.getElementById('f-name').focus();
 }
 
@@ -1821,6 +1871,10 @@ function hideCreateForm(){
   document.getElementById('npc-create-btn').style.display='block';
 }
 
+function generateNpcId(){
+  return 'npc_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
+}
+
 function createNPCFromForm(){
   const name=document.getElementById('f-name').value.trim();
   const personality=document.getElementById('f-personality').value.trim();
@@ -1850,7 +1904,7 @@ function createNPCFromForm(){
     return;
   }
   const npcData={
-    id:'npc_'+(npcIdCounter++),
+    id:generateNpcId(),
     name:name,
     x:0,y:0,
     color:color,
@@ -1864,8 +1918,11 @@ function createNPCFromForm(){
     owner_name:authOwnerName||null,
     sprite:newNpcSprite||null
   };
-  // Generate spriteImgData from sprite pixels for Supabase persistence
-  if(newNpcSprite){
+  // Uploaded 128×128 image wins; else derive from dot pixels.
+  if(newNpcSpriteImgData){
+    npcData.spriteImgData=newNpcSpriteImgData;
+    b64ToImg(newNpcSpriteImgData).then(img=>{if(img)npcData.spriteImg=img;});
+  }else if(newNpcSprite){
     const bk=[...dotPixels];dotPixels=newNpcSprite;
     const cv2=dotToImageData();
     npcData.spriteCanvas=cv2;
@@ -1873,6 +1930,7 @@ function createNPCFromForm(){
     dotPixels=bk;
   }
   newNpcSprite=null;
+  newNpcSpriteImgData=null;
   hideCreateForm();
   startPlacement(npcData);
 }
@@ -1951,6 +2009,7 @@ document.getElementById('npc-create-btn').addEventListener('click',showCreateFor
 document.getElementById('btn-form-ok').addEventListener('click',createNPCFromForm);
 document.getElementById('btn-form-cancel').addEventListener('click',hideCreateForm);
 let newNpcSprite=null;
+let newNpcSpriteImgData=null;
 document.getElementById('btn-npc-dot-edit').addEventListener('click',()=>{
   if(editingNPCIdx>=0){
     openDotEditor({type:'npc',index:editingNPCIdx},npcs[editingNPCIdx].sprite||null);
@@ -2053,6 +2112,14 @@ _fImg.addEventListener('change',async e=>{
       '  "attack": "攻撃力の数値（文字列）",\n'+
       '  "defense": "防御力の数値",\n'+
       '  "magicAttack": "魔法攻撃力の数値",\n'+
+      '  "guild": "ギルド名（無ければ空文字）",\n'+
+      '  "spirit": "精神の数値（無ければ空文字）",\n'+
+      '  "dexterity": "器用の数値（無ければ空文字）",\n'+
+      '  "vitality": "体力の数値（無ければ空文字）",\n'+
+      '  "intelligence": "知力の数値（無ければ空文字）",\n'+
+      '  "speed": "速さ・素早さの数値（無ければ空文字）",\n'+
+      '  "strength": "腕力の数値（無ければ空文字）",\n'+
+      '  "evasion": "回避値の数値（無ければ空文字）",\n'+
       '  "color": "職業・服の色に合うhex (#rrggbb)",\n'+
       '  "hair": "髪色のhex (#rrggbb)",\n'+
       '  "accessories": {"hat":false,"apron":false,"cape":false,"staff":false,"bow":false,"shield":false}\n'+
@@ -2062,7 +2129,7 @@ _fImg.addEventListener('change',async e=>{
         messages:[{role:'user',content:[
           {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
           {type:'text',text:prompt}]}]});
-    if(!res.ok){const er=await res.json().catch(()=>({}));throw new Error(er.error?.message||('API Error '+res.status));}
+    if(!res.ok){const er=await res.json().catch(()=>({}));throw{status:res.status,msg:er.error?.message||('API Error '+res.status)};}
     data=await res.json();
     text=(data.content?.[0]?.text||'').trim();
     text=text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'');
@@ -2085,14 +2152,30 @@ _fImg.addEventListener('change',async e=>{
     if(info.attack)statBits.push(`攻撃力:${info.attack}`);
     if(info.defense)statBits.push(`防御力:${info.defense}`);
     if(info.magicAttack)statBits.push(`魔攻:${info.magicAttack}`);
+    if(info.guild)statBits.push(`ギルド:${info.guild}`);
+    if(info.spirit)statBits.push(`精神:${info.spirit}`);
+    if(info.dexterity)statBits.push(`器用:${info.dexterity}`);
+    if(info.vitality)statBits.push(`体力:${info.vitality}`);
+    if(info.intelligence)statBits.push(`知力:${info.intelligence}`);
+    if(info.speed)statBits.push(`速さ:${info.speed}`);
+    if(info.strength)statBits.push(`腕力:${info.strength}`);
+    if(info.evasion)statBits.push(`回避:${info.evasion}`);
     if(statBits.length)lines.push('【ステータス】'+statBits.join(' / '));
+    if(info.guild)lines.push(`ギルド: ${info.guild}`);
     if(info.greeting)lines.push(`口癖: 「${info.greeting}」`);
     lines.push('この設定に沿って、2〜3文程度で短く返答してください。');
     document.getElementById('f-personality').value=lines.join('\n');
-    importedStats={level:info.level,hp:info.hp,mp:info.mp,attack:info.attack,defense:info.defense,magicAttack:info.magicAttack,class:info.class};
+    importedStats={level:info.level,hp:info.hp,mp:info.mp,attack:info.attack,defense:info.defense,magicAttack:info.magicAttack,class:info.class,spirit:info.spirit||null,dexterity:info.dexterity||null,vitality:info.vitality||null,intelligence:info.intelligence||null,speed:info.speed||null,guild:info.guild||null,strength:info.strength||null,evasion:info.evasion||null};
     _importStatus.textContent='✓ 読み取り完了';
   }catch(err){
-    console.error(err);_importStatus.textContent='エラー: '+err.message;
+    console.error(err);
+    if(err&&err.status){
+      _importStatus.textContent=formatApiError(err.status,err.msg);
+    }else if(err&&err.message&&/利用回数|rate.?limit|too many|quota/i.test(err.message)){
+      _importStatus.textContent=RATE_LIMIT_MSG;
+    }else{
+      _importStatus.textContent='エラー: '+(err&&err.message?err.message:err);
+    }
   }finally{_btnImport.disabled=false;_fImg.value='';}
 });
 
@@ -2125,7 +2208,7 @@ updatePlayerPanel();
 // ================================================================
 //  DOT EDITOR
 // ================================================================
-const DOT_SIZE=32, DOT_PX=16;
+const DOT_SIZE=128, DOT_PX=4;
 const DOT_PALETTE=[
   // 基本
   '#000000','#333333','#666666','#999999','#cccccc','#ffffff',
@@ -2349,17 +2432,17 @@ document.getElementById('dot-close').addEventListener('click',closeDotEditor);
 // Player sprite button
 // Draw custom sprite on game canvas
 function drawCustomSprite(tx,ty,spriteCanvas){
-  const cx=tx*S+S/2, cy=ty*S;
   c.save();
+  // shadow (sized to 1 tile = S×S = 128×128px)
   c.fillStyle='rgba(0,0,0,0.35)';
   c.beginPath();
-  c.ellipse(cx,cy+S*0.92,32,8,0,0,Math.PI*2);
+  c.ellipse(tx*S+S/2,ty*S+S-8,S*0.4,S*0.08,0,0,Math.PI*2);
   c.fill();
   c.restore();
   c.save();
-  c.translate(tx*S,ty*S);
   c.imageSmoothingEnabled=false;
-  c.drawImage(spriteCanvas,0,0,S,S);
+  // NPC sprite (1 tile = S×S = 128×128px)
+  c.drawImage(spriteCanvas,tx*S,ty*S,S,S);
   c.restore();
 }
 
@@ -2451,6 +2534,25 @@ function b64ToImg(dataUrl){
   });
 }
 
+// Resize any image source onto a 128×128 (S×S) canvas, aspect-preserved & centered.
+function resizeSpriteToGame(imgSrc,callback){
+  const img=new Image();
+  img.onload=()=>{
+    const cv2=document.createElement('canvas');
+    cv2.width=S;cv2.height=S;
+    const ctx2=cv2.getContext('2d');
+    ctx2.imageSmoothingEnabled=false;
+    const aspect=img.width/img.height;
+    let dw=S,dh=S;
+    if(aspect>1)dh=S/aspect;
+    else dw=S*aspect;
+    const dx=(S-dw)/2,dy=(S-dh)/2;
+    ctx2.drawImage(img,dx,dy,dw,dh);
+    callback(cv2,cv2.toDataURL('image/png'));
+  };
+  img.src=imgSrc;
+}
+
 const _dotImgFile=document.getElementById('dot-img-file');
 const _dotImgBtn=document.getElementById('dot-img-btn');
 const _dotImgClear=document.getElementById('dot-img-clear');
@@ -2484,15 +2586,19 @@ function imgToPixels(img){
 }
 _dotImgFile.addEventListener('change',async e=>{
   const file=e.target.files[0];if(!file)return;
-  const dataUrl=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file);});
-  dotImgData=dataUrl;
-  const img=await b64ToImg(dataUrl);
-  if(img){
+  const rawUrl=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file);});
+  resizeSpriteToGame(rawUrl,(_cv128,dataUrl128)=>{
     pushDotHistory();
-    dotPixels=imgToPixels(img);
-    renderDotCanvas();
-  }
-  updateDotImgUI();
+    dotImgData=dataUrl128;
+    // 128px画像をDOT_SIZEにダウンスケールしてdotPixelsに変換
+    const tmpImg=new Image();
+    tmpImg.onload=()=>{
+      dotPixels=imgToPixels(tmpImg);
+      renderDotCanvas();
+      updateDotImgUI();
+    };
+    tmpImg.src=dataUrl128;
+  });
   _dotImgFile.value='';
 });
 _dotImgClear.addEventListener('click',()=>{
@@ -2505,7 +2611,7 @@ const _origOpenDotEditor=openDotEditor;
 openDotEditor=function(target,existingPixels){
   // Load existing image for this target
   if(target.type==='player'){dotImgData=player.spriteImgData||null;}
-  else if(target.type==='new-npc'){dotImgData=null;}
+  else if(target.type==='new-npc'){dotImgData=newNpcSpriteImgData||null;}
   else{dotImgData=npcs[target.index].spriteImgData||null;}
   updateDotImgUI();
   _origOpenDotEditor(target,existingPixels);
@@ -2518,8 +2624,8 @@ document.getElementById('dot-apply').addEventListener('click',async()=>{
   if(!dotTarget)return;
   const hasPixels=dotPixels.some(p=>p!==null);
   const spriteData=hasPixels?[...dotPixels]:null;
-  // Always use dot canvas result — generate image from canvas for Supabase
-  const canvasImg=hasPixels?dotToImageData().toDataURL('image/png'):null;
+  // Uploaded image always wins when present; otherwise fall back to the dot grid.
+  const canvasImg=dotImgData?dotImgData:(hasPixels?dotToImageData().toDataURL('image/png'):null);
   if(dotTarget.type==='player'){
     player.sprite=spriteData;
     player.spriteCanvas=spriteData?dotToImageData():null;
@@ -2530,6 +2636,7 @@ document.getElementById('dot-apply').addEventListener('click',async()=>{
     dbSavePlayerSprite(canvasImg);
   }else if(dotTarget.type==='new-npc'){
     newNpcSprite=spriteData;
+    newNpcSpriteImgData=canvasImg;
   }else{
     const npc=npcs[dotTarget.index];
     npc.sprite=spriteData;
@@ -2785,13 +2892,67 @@ function pvpDrawBg(){
 }
 
 // Battle
+// Flip to false to disable all class-based special skills (HP≤1/3 trigger,
+// seal, defBuff — all become inert no-ops, damage formula unchanged).
+const PVP_SPECIAL_SKILLS_ENABLED=true;
+const SPECIAL_SKILLS={
+  'ファイター':    {name:'スラッシュ',         effect:'atk2',          desc:'攻撃力2倍'},
+  'ウィザード':    {name:'エクスプロージョン', effect:'mag_splash3',   desc:'ランダム3体に魔攻1.2倍'},
+  'シーフ':        {name:'フェイントアタック', effect:'atk_half_twice',desc:'攻撃力1/2で二回攻撃'},
+  'クレリック':    {name:'ヒール',             effect:'heal_spirit',   desc:'一人のHPを精神で回復'},
+  'ガーディアン':  {name:'城壁の陣',           effect:'def_up_team',   desc:'味方全員の防御力2ターン1.4倍'},
+  'マジックナイト':{name:'ルーンアタック',     effect:'seal_chance',   desc:'1/2の確率で次の攻撃が不能'},
+  'ウォーロック':  {name:'ギガドレイン',     effect:'drain_half',    desc:'ダメージ値の1/2HP回復'},
+  'アサシン':      {name:'猛毒手',             effect:'hp_quarter',    desc:'相手の残りHPの1/4ダメージ'},
+  'ビショップ':    {name:'蘇生',               effect:'revive',        desc:'死者を最大HPの1/5で生き返らせる'},
+  'モンク':        {name:'鉄拳',               effect:'atk2',          desc:'攻撃力2倍'},
+  'ドラグランサー':{name:'ランサートルネード', effect:'mag_splash3',   desc:'ランダム3体に攻撃力1.2倍'},
+  'ドラグバスター':{name:'エレメントブラスター',effect:'mag_defdown',  desc:'魔攻1.8倍で敵の防御力2ターン0.8倍'},
+  'ドラグセイバー':{name:'サンダーセイバー',   effect:'atk_mag_15',    desc:'攻撃力1.5倍魔攻1.5倍'},
+};
+const SKILL_COLORS={
+  atk2:'#ff6644', mag_splash3:'#44aaff', atk_half_twice:'#ffcc00',
+  heal_spirit:'#44ff88', def_up_team:'#aaaaff', seal_chance:'#cc44ff',
+  drain_half:'#ff44aa', hp_quarter:'#ff2222', revive:'#ffffaa',
+  mag_defdown:'#ff8800', atk_mag_15:'#00ffff'
+};
+
+function pvpAddParticles(x,y,color,count,type){
+  if(!pvpBattle)return;
+  for(let i=0;i<count;i++){
+    const angle=Math.random()*Math.PI*2;
+    const speed=1+Math.random()*4;
+    pvpBattle.particles.push({
+      x,y,
+      vx:Math.cos(angle)*speed,
+      vy:Math.sin(angle)*speed-2,
+      life:30+Math.random()*20,
+      maxLife:50,
+      size:2+Math.random()*4,
+      color,type
+    });
+  }
+}
+
 function pvpMakeFighter(npc,team){
   const st=npc.stats||{};
   const lv=st.level||10;
-  const atk=parseInt(st.attack)||(80+lv*20);
+  const atk=parseInt(st.attack)||1000;
+  const mag=parseInt(st.magicAttack)||1000;
   const def=parseInt(st.defense)||(40+lv*10);
-  const maxHp=parseInt(st.hp)||(200+lv*50);
-  return{npc,team,hp:maxHp,maxHp,atk,def,alive:true,x:0,y:0,baseX:0,animOff:0};
+  const hpStr=String(st.hp||'');
+  const maxHp=hpStr.includes('/')
+    ?parseInt(hpStr.split('/')[1])
+    :(parseInt(hpStr)||(200+lv*50));
+  const spd=parseInt(st.speed||st.agility)||(30+lv*5);
+  return{npc,team,hp:maxHp,maxHp,atk,mag,def,spd,alive:true,x:0,y:0,baseX:0,animOff:0,
+    specialUsed:false, // per-battle one-shot guard
+    defBuff:1,         // multiplier applied to def in damage calc
+    defBuffTurns:0,    // remaining own-turns before defBuff expires
+    sealed:false,      // skip this fighter's next action
+    hitFlash:0,        // ヒット時の赤フラッシュ残りフレーム
+    hitShake:0         // ヒット時の横揺れ残りフレーム
+  };
 }
 
 function pvpStart(){
@@ -2803,7 +2964,7 @@ function pvpStart(){
   const fb=pvpTeamB.map(n=>pvpMakeFighter(n,'B'));
   fa.forEach((f,i)=>{f.baseX=w*.2;f.x=f.baseX;f.y=h*.3+i*(h*.1);});
   fb.forEach((f,i)=>{f.baseX=w*.75;f.x=f.baseX;f.y=h*.3+i*(h*.1);});
-  pvpBattle={a:fa,b:fb,all:[...fa,...fb],turn:0,acting:false,done:false,queue:[...fa,...fb].sort(()=>Math.random()-.5),qi:0,logs:[]};
+  pvpBattle={a:fa,b:fb,all:[...fa,...fb],turn:0,acting:false,done:false,queue:[...fa,...fb].sort((a,b)=>b.spd-a.spd),qi:0,logs:[],particles:[],dmgTexts:[],skillText:null};
   pvpUpdateStatus();
   pvpLog('⚔ バトル開始！キノコチーム vs タケノコチーム！');
   setTimeout(()=>pvpNextTurn(),1200);
@@ -2850,13 +3011,38 @@ function pvpNextTurn(){
     if(candidate.alive){f=candidate;break;}
   }
   if(!f){pvpEnd();return;}
+  // Expire defBuff at the start of this fighter's own turn
+  if(f.defBuffTurns>0){f.defBuffTurns--;if(f.defBuffTurns<=0)f.defBuff=1;}
+  // Sealed fighters skip their action
+  if(f.sealed){
+    f.sealed=false;
+    pvpLog(`${f.npc.name}は行動不能！`);
+    setTimeout(()=>pvpNextTurn(),600);
+    return;
+  }
   // Pick random alive enemy
   const enemies=(f.team==='A'?b.b:b.a).filter(e=>e.alive);
   if(enemies.length===0){pvpEnd();return;}
+  // Special skill fires once per battle when HP drops to 1/3 or below
+  const cls=(f.npc.stats?.class||'').trim();
+  const skill=PVP_SPECIAL_SKILLS_ENABLED
+    ? (SPECIAL_SKILLS[cls] || Object.entries(SPECIAL_SKILLS).find(([k])=>cls.includes(k)||k.includes(cls))?.[1] || null)
+    : null;
+  console.log('[SPECIAL]',{name:f.npc.name,cls,hpRatio:(f.hp/f.maxHp).toFixed(2),skillFound:!!skill,specialUsed:f.specialUsed});
+  if(skill&&!f.specialUsed&&f.hp/f.maxHp<=1/3){
+    f.specialUsed=true;
+    pvpLog(`✨ ${f.npc.name}の必殺技「${skill.name}」！`);
+    applySpecialSkill(f,skill.effect,b);
+    pvpUpdateStatus();
+    const aAlive=b.a.some(x=>x.alive),bAlive=b.b.some(x=>x.alive);
+    if(!aAlive||!bAlive){pvpEnd();return;}
+    setTimeout(()=>pvpNextTurn(),800);
+    return;
+  }
   const target=enemies[Math.floor(Math.random()*enemies.length)];
   // Calc damage
-  let dmg=f.atk-Math.floor(target.def/3);
-  dmg=Math.max(1,dmg+Math.floor((Math.random()-.5)*f.atk*.3));
+  let dmg=Math.floor(((f.atk+f.mag)/2-target.def*target.defBuff)/4);
+  dmg=Math.max(1,Math.floor(dmg*(1+(Math.random()-.5)*.3)));
   // Animate attack
   b.acting=true;
   const dir=f.team==='A'?1:-1;
@@ -2869,6 +3055,16 @@ function pvpNextTurn(){
       // Hit
       target.hp=Math.max(0,target.hp-dmg);
       if(target.hp<=0)target.alive=false;
+      target.hitFlash=8;target.hitShake=6;
+      pvpAddParticles(target.x,target.y,'#ffaa44',8,'spark');
+      pvpBattle.dmgTexts.push({
+        x:target.x+(Math.random()-0.5)*20,
+        y:target.y-30,
+        text:String(dmg),
+        color:dmg>500?'#ff4444':dmg>200?'#ffaa00':'#ffffff',
+        size:dmg>500?22:dmg>200?18:14,
+        life:40,maxLife:40
+      });
       pvpLog(`${f.npc.name}のこうげき！→ ${target.npc.name}に${dmg}ダメージ！${target.alive?'':'💀 倒れた！'}`);
       pvpUpdateStatus();
       // Move back
@@ -2884,6 +3080,142 @@ function pvpNextTurn(){
       pvpEnd();
     }else{
       setTimeout(()=>pvpNextTurn(),600);
+    }
+  }
+}
+
+function applySpecialSkill(f,effect,b){
+  const enemies=(f.team==='A'?b.b:b.a).filter(e=>e.alive);
+  const allies=(f.team==='A'?b.a:b.b).filter(e=>e.alive);
+  const randEnemy=()=>enemies[Math.floor(Math.random()*enemies.length)];
+  const skillColor=SKILL_COLORS[effect]||'#ffffff';
+  const skillName=Object.values(SPECIAL_SKILLS).find(s=>s.effect===effect)?.name||'必殺技';
+  pvpBattle.skillText={text:`✨ ${skillName}！`,x:pvpCv.width/2,y:pvpCv.height/2,color:skillColor,size:28,life:50};
+  const casterPType=effect==='heal_spirit'?'heal':(effect.includes('mag')?'magic':'spark');
+  pvpAddParticles(f.x,f.y,skillColor,20,casterPType);
+  const pushDmgText=(t,dmg)=>{
+    pvpBattle.dmgTexts.push({
+      x:t.x+(Math.random()-0.5)*20,y:t.y-30,text:String(dmg),
+      color:dmg>500?'#ff4444':dmg>200?'#ffaa00':'#ffffff',
+      size:dmg>500?22:dmg>200?18:14,life:40,maxLife:40
+    });
+  };
+  const pushHealText=(t,amount)=>{
+    pvpBattle.dmgTexts.push({
+      x:t.x+(Math.random()-0.5)*20,y:t.y-30,text:'+'+amount,
+      color:'#44ff88',size:16,life:40,maxLife:40
+    });
+  };
+  const hit=(t,dmg)=>{
+    t.hp=Math.max(0,t.hp-dmg);
+    if(t.hp<=0)t.alive=false;
+    t.hitFlash=12;t.hitShake=8;
+    pvpAddParticles(t.x,t.y,skillColor,12,casterPType);
+    pushDmgText(t,dmg);
+    pvpLog(`  → ${t.npc.name}に${dmg}ダメージ！${t.alive?'':'💀'}`);
+  };
+  switch(effect){
+    case 'atk2':{
+      const t=randEnemy();if(!t)break;
+      const dmg=Math.max(1,Math.floor(((f.atk*2+f.mag)/2-t.def*t.defBuff)/4));
+      hit(t,dmg);
+      break;
+    }
+    case 'mag_splash3':{
+      const targets=[...enemies].sort(()=>Math.random()-.5).slice(0,Math.min(3,enemies.length));
+      targets.forEach(t=>{
+        const dmg=Math.max(1,Math.floor(((f.atk+f.mag*1.2)/2-t.def*t.defBuff)/4));
+        hit(t,dmg);
+      });
+      break;
+    }
+    case 'atk_half_twice':{
+      for(let i=0;i<2;i++){
+        const t=randEnemy();if(!t||!t.alive)break;
+        const dmg=Math.max(1,Math.floor(((f.atk*0.5+f.mag)/2-t.def*t.defBuff)/4));
+        hit(t,dmg);
+      }
+      break;
+    }
+    case 'heal_spirit':{
+      const spi=parseInt(f.npc.stats?.spirit)||f.def;
+      const heal=Math.floor(spi*2);
+      const weakest=[...allies].sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0];
+      if(weakest){
+        weakest.hp=Math.min(weakest.maxHp,weakest.hp+heal);
+        pvpAddParticles(weakest.x,weakest.y,skillColor,15,'heal');
+        pushHealText(weakest,heal);
+        pvpLog(`  → ${weakest.npc.name}のHPが${heal}回復！`);
+      }
+      break;
+    }
+    case 'def_up_team':{
+      allies.forEach(a=>{a.defBuff=1.4;a.defBuffTurns=2;pvpAddParticles(a.x,a.y,skillColor,8,'magic');});
+      pvpLog(`  → 味方全員の防御力が2ターン1.4倍に！`);
+      break;
+    }
+    case 'seal_chance':{
+      const t=randEnemy();if(!t)break;
+      const dmg=Math.max(1,Math.floor(((f.atk+f.mag)/2-t.def*t.defBuff)/4));
+      t.hp=Math.max(0,t.hp-dmg);if(t.hp<=0)t.alive=false;
+      t.hitFlash=12;t.hitShake=8;
+      pvpAddParticles(t.x,t.y,skillColor,12,'magic');
+      pushDmgText(t,dmg);
+      if(Math.random()<0.5){
+        t.sealed=true;
+        pvpLog(`  → ${t.npc.name}に${dmg}ダメージ！さらに次のターン行動不能！${t.alive?'':'💀'}`);
+      }else{
+        pvpLog(`  → ${t.npc.name}に${dmg}ダメージ！${t.alive?'':'💀'}`);
+      }
+      break;
+    }
+    case 'drain_half':{
+      const t=randEnemy();if(!t)break;
+      const dmg=Math.max(1,Math.floor(((f.atk+f.mag)/2-t.def*t.defBuff)/4));
+      const drain=Math.floor(dmg/2);
+      t.hp=Math.max(0,t.hp-dmg);if(t.hp<=0)t.alive=false;
+      f.hp=Math.min(f.maxHp,f.hp+drain);
+      t.hitFlash=12;t.hitShake=8;
+      pvpAddParticles(t.x,t.y,skillColor,12,'spark');
+      pvpAddParticles(f.x,f.y,skillColor,8,'heal');
+      pushDmgText(t,dmg);
+      pushHealText(f,drain);
+      pvpLog(`  → ${t.npc.name}に${dmg}ダメージ！${drain}HP吸収！`);
+      break;
+    }
+    case 'hp_quarter':{
+      const t=randEnemy();if(!t)break;
+      const dmg=Math.max(1,Math.floor(t.hp/4));
+      hit(t,dmg);
+      break;
+    }
+    case 'revive':{
+      const dead=(f.team==='A'?b.a:b.b).filter(e=>!e.alive);
+      if(dead.length>0){
+        const t=dead[0];
+        t.alive=true;t.hp=Math.floor(t.maxHp/5);
+        pvpAddParticles(t.x,t.y,skillColor,24,'heal');
+        pushHealText(t,t.hp);
+        pvpLog(`  → ${t.npc.name}が復活！HP${t.hp}で蘇生！`);
+      }else pvpLog(`  → しかし蘇生できる仲間がいない…`);
+      break;
+    }
+    case 'mag_defdown':{
+      const t=randEnemy();if(!t)break;
+      const dmg=Math.max(1,Math.floor(((f.atk+f.mag*1.8)/2-t.def*t.defBuff)/4));
+      t.hp=Math.max(0,t.hp-dmg);if(t.hp<=0)t.alive=false;
+      t.defBuff=0.8;t.defBuffTurns=2;
+      t.hitFlash=12;t.hitShake=8;
+      pvpAddParticles(t.x,t.y,skillColor,14,'magic');
+      pushDmgText(t,dmg);
+      pvpLog(`  → ${t.npc.name}に${dmg}ダメージ！防御力2ターン低下！${t.alive?'':'💀'}`);
+      break;
+    }
+    case 'atk_mag_15':{
+      const t=randEnemy();if(!t)break;
+      const dmg=Math.max(1,Math.floor(((f.atk*1.5+f.mag*1.5)/2-t.def*t.defBuff)/4));
+      hit(t,dmg);
+      break;
     }
   }
 }
@@ -2922,47 +3254,89 @@ function pvpRenderLoop(){
   if(!pvpBattle)return;
   pvpDrawBg();
   const ctx=pvpCtx;
+
+  // Particles
+  pvpBattle.particles=pvpBattle.particles.filter(p=>p.life>0);
+  pvpBattle.particles.forEach(p=>{
+    p.x+=p.vx;p.y+=p.vy;p.vy+=0.15;p.life--;
+    if(p.life<=0)return; // life消費後0以下は描画スキップ
+    const a=Math.max(0,Math.min(1,p.life/p.maxLife));
+    ctx.save();
+    ctx.globalAlpha=a;
+    ctx.fillStyle=p.color;
+    if(p.type==='heal'){
+      ctx.font=`${Math.max(1,p.size*3)}px monospace`;
+      ctx.textAlign='center';
+      ctx.fillText('♥',p.x,p.y);
+    }else if(p.type==='magic'){
+      ctx.font=`${Math.max(1,p.size*3)}px monospace`;
+      ctx.textAlign='center';
+      ctx.fillText('✦',p.x,p.y);
+    }else{
+      const r=Math.max(0.1,p.size*a);
+      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();
+    }
+    ctx.restore();
+  });
+
+  // Skill banner
+  if(pvpBattle.skillText&&pvpBattle.skillText.life>0){
+    const st=pvpBattle.skillText;
+    st.life--;
+    const a=Math.min(1,st.life/20);
+    const y=st.y-((50-st.life)*0.8);
+    ctx.save();
+    ctx.globalAlpha=a;
+    ctx.font=`bold ${st.size}px "DotGothic16",monospace`;
+    ctx.textAlign='center';
+    ctx.strokeStyle='rgba(0,0,0,0.8)';ctx.lineWidth=4;
+    ctx.strokeText(st.text,st.x,y);
+    ctx.fillStyle=st.color;
+    ctx.fillText(st.text,st.x,y);
+    ctx.restore();
+  }
+
+  // Damage numbers
+  pvpBattle.dmgTexts=pvpBattle.dmgTexts.filter(d=>d.life>0);
+  pvpBattle.dmgTexts.forEach(d=>{
+    d.y-=1.5;d.life--;
+    const a=d.life/d.maxLife;
+    ctx.save();
+    ctx.globalAlpha=a;
+    ctx.font=`bold ${d.size}px "DotGothic16",monospace`;
+    ctx.textAlign='center';
+    ctx.strokeStyle='rgba(0,0,0,0.8)';ctx.lineWidth=3;
+    ctx.strokeText(d.text,d.x,d.y);
+    ctx.fillStyle=d.color;
+    ctx.fillText(d.text,d.x,d.y);
+    ctx.restore();
+  });
+
+  // Fighters
   pvpBattle.all.forEach(f=>{
     const sz=64;
-    const dx=f.x+f.animOff-sz/2, dy=f.y-sz/2;
-    ctx.save();
-    if(!f.alive){ctx.globalAlpha=.3;}
-    // shadow
-    ctx.fillStyle='rgba(0,0,0,0.35)';
-    ctx.beginPath();ctx.ellipse(f.x+f.animOff,f.y+sz*.35,24,6,0,0,Math.PI*2);ctx.fill();
-    if(f.npc.spriteImg){
-      ctx.imageSmoothingEnabled=false;
-      ctx.drawImage(f.npc.spriteImg,dx,dy,sz,sz);
-    }else if(f.npc.spriteCanvas){
-      ctx.imageSmoothingEnabled=false;
-      ctx.drawImage(f.npc.spriteCanvas,dx,dy,sz,sz);
-    }else{
-      // Simple colored rect character
-      ctx.fillStyle=f.npc.color||'#888';
-      ctx.fillRect(dx+16,dy+12,32,36);
-      ctx.fillStyle=f.npc.hair||'#543';
-      ctx.fillRect(dx+18,dy+4,28,16);
-      ctx.fillStyle='#fdd8c0';
-      ctx.fillRect(dx+22,dy+14,20,14);
-      // eyes
-      ctx.fillStyle='#111';
-      ctx.fillRect(dx+26,dy+18,4,4);ctx.fillRect(dx+34,dy+18,4,4);
-    }
-    // name
-    ctx.globalAlpha=1;
-    ctx.font='bold 11px "DotGothic16",monospace';ctx.textAlign='center';
-    ctx.fillStyle='rgba(0,0,0,.7)';
+    const shakeX=f.hitShake>0?(Math.random()-0.5)*6:0;
+    if(f.hitShake>0)f.hitShake--;
+    const cx=f.x+f.animOff+shakeX;
+    const dx=cx-sz/2, dy=f.y-sz/2;
+    ctx.save();ctx.globalAlpha=f.alive?0.35:0.1;ctx.fillStyle='rgba(0,0,0,1)';
+    ctx.beginPath();ctx.ellipse(cx,f.y+sz*.35,24,6,0,0,Math.PI*2);ctx.fill();ctx.restore();
+    ctx.save();ctx.globalAlpha=f.alive?1:0.3;
+    if(f.npc.spriteImg){ctx.imageSmoothingEnabled=false;ctx.drawImage(f.npc.spriteImg,dx,dy,sz,sz);}
+    else if(f.npc.spriteCanvas){ctx.imageSmoothingEnabled=false;ctx.drawImage(f.npc.spriteCanvas,dx,dy,sz,sz);}
+    else{ctx.fillStyle=f.npc.color||'#888';ctx.fillRect(dx+16,dy+12,32,36);ctx.fillStyle=f.npc.hair||'#543';ctx.fillRect(dx+18,dy+4,28,16);ctx.fillStyle='#fdd8c0';ctx.fillRect(dx+22,dy+14,20,14);ctx.fillStyle='#111';ctx.fillRect(dx+26,dy+18,4,4);ctx.fillRect(dx+34,dy+18,4,4);}
+    ctx.restore();
+    if(f.hitFlash>0){ctx.save();ctx.globalAlpha=(f.hitFlash/12)*0.5;ctx.fillStyle='#ff3300';ctx.fillRect(dx,dy,sz,sz);f.hitFlash--;ctx.restore();}
+    ctx.save();ctx.globalAlpha=1;ctx.font='bold 11px "DotGothic16",monospace';ctx.textAlign='center';
     const nm=f.npc.name;const tw=ctx.measureText(nm).width;
-    ctx.fillRect(f.x+f.animOff-tw/2-3,dy-14,tw+6,13);
-    ctx.fillStyle=f.alive?'#fff':'#666';
-    ctx.fillText(nm,f.x+f.animOff,dy-4);
-    // HP bar
-    const barW=48,barH=4,barX=f.x+f.animOff-barW/2,barY=f.y+sz*.4;
+    ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(cx-tw/2-3,dy-14,tw+6,13);
+    ctx.fillStyle=f.alive?'#fff':'#666';ctx.fillText(nm,cx,dy-4);ctx.restore();
+    ctx.save();ctx.globalAlpha=1;
+    const barW=48,barH=4,barX=cx-barW/2,barY=f.y+sz*.4;
     ctx.fillStyle='#222';ctx.fillRect(barX,barY,barW,barH);
     const pct=Math.max(0,f.hp/f.maxHp);
     ctx.fillStyle=pct>.5?'#6c6':pct>.25?'#cc6':'#c66';
-    ctx.fillRect(barX,barY,barW*pct,barH);
-    ctx.restore();
+    ctx.fillRect(barX,barY,barW*pct,barH);ctx.restore();
   });
   pvpAnim=requestAnimationFrame(pvpRenderLoop);
 }
