@@ -16,6 +16,7 @@
 <meta name="theme-color" content="#080810">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>不滅騎士</title>
+<style>body{visibility:hidden}</style>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
@@ -486,6 +487,7 @@
   <button id="soccer-exit-btn" style="display:none">閉じる</button>
 </div>
 <script>
+document.body.style.visibility='visible';
 // ================================================================
 const WORKER_URL='https://my-game-api.makiba2011jp.workers.dev';
 const CLAUDE_MODEL='claude-haiku-4-5-20251001';
