@@ -3203,20 +3203,22 @@ function pvpRenderLoop(){
   pvpBattle.particles=pvpBattle.particles.filter(p=>p.life>0);
   pvpBattle.particles.forEach(p=>{
     p.x+=p.vx;p.y+=p.vy;p.vy+=0.15;p.life--;
-    const a=p.life/p.maxLife;
+    if(p.life<=0)return; // life消費後0以下は描画スキップ
+    const a=Math.max(0,Math.min(1,p.life/p.maxLife));
     ctx.save();
     ctx.globalAlpha=a;
     ctx.fillStyle=p.color;
     if(p.type==='heal'){
-      ctx.font=`${p.size*3}px monospace`;
+      ctx.font=`${Math.max(1,p.size*3)}px monospace`;
       ctx.textAlign='center';
       ctx.fillText('♥',p.x,p.y);
     }else if(p.type==='magic'){
-      ctx.font=`${p.size*3}px monospace`;
+      ctx.font=`${Math.max(1,p.size*3)}px monospace`;
       ctx.textAlign='center';
       ctx.fillText('✦',p.x,p.y);
     }else{
-      ctx.beginPath();ctx.arc(p.x,p.y,p.size*a,0,Math.PI*2);ctx.fill();
+      const r=Math.max(0.1,p.size*a);
+      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();
     }
     ctx.restore();
   });
