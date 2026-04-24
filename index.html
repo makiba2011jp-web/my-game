@@ -2882,8 +2882,8 @@ function pvpAddParticles(x,y,color,count,type){
 function pvpMakeFighter(npc,team){
   const st=npc.stats||{};
   const lv=st.level||10;
-  const atk=parseInt(st.attack)||(80+lv*20);
-  const mag=parseInt(st.magicAttack)||(40+lv*10);
+  const atk=parseInt(st.attack)||1000;
+  const mag=parseInt(st.magicAttack)||1000;
   const def=parseInt(st.defense)||(40+lv*10);
   const hpStr=String(st.hp||'');
   const maxHp=hpStr.includes('/')
