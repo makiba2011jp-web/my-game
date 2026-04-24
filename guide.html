@@ -85,6 +85,16 @@
   .team-chip.b{border-color:#4a8}
   .vs{color:#faa;font-weight:bold}
 
+  .skill-note{background:rgba(255,200,100,.08);border:1px dashed #a83;border-radius:6px;padding:8px 10px;margin:10px 0;color:#ffd;font-size:13px}
+  .skill-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px;background:#0e0e22;border:1px solid #446;border-radius:6px;overflow:hidden}
+  .skill-table th,.skill-table td{padding:6px 8px;border-bottom:1px solid #223;text-align:left;vertical-align:top}
+  .skill-table th{background:#1a1a3a;color:#ffcc66;font-size:12px;font-weight:bold}
+  .skill-table tr:last-child td{border-bottom:none}
+  .skill-table td:nth-child(1){color:#faa;white-space:nowrap}
+  .skill-table td:nth-child(2){color:#adf;white-space:nowrap}
+  .skill-table td:nth-child(3){color:#ccc;font-size:12px}
+  .skill-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
   .info-box{background:linear-gradient(180deg,#14142a,#0a0a1e);border:2px solid #668;border-radius:10px;padding:14px 16px;margin:12px 0}
   .info-box.free{border-color:#668}
   .info-box.premium{border-color:#a83;background:linear-gradient(180deg,#1e1a0e,#141006)}
@@ -336,6 +346,31 @@
         <li style="color:#ccc;font-size:14px;margin-bottom:4px">▸ ターン制の自動バトル</li>
         <li style="color:#ccc;font-size:14px">▸ ステータス(HP/攻撃/防御)が勝敗を左右</li>
       </ul>
+    </div>
+
+    <h3>✨ 必殺技一覧</h3>
+    <div class="skill-note">⚡ <strong>発動条件：</strong>自分のHPが最大HPの1/3以下になると発動します。</div>
+    <div class="skill-table-wrap">
+    <table class="skill-table">
+      <thead>
+        <tr><th>技名</th><th>職業</th><th>効果</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>スラッシュ</td><td>ファイター</td><td>((攻×2 + 魔攻)/2 − 防×バフ) /4</td></tr>
+        <tr><td>エクスプロージョン</td><td>ウィザード</td><td>((攻 + 魔攻×1.2)/2 − 防×バフ) /4 ×3体</td></tr>
+        <tr><td>フェイントアタック</td><td>シーフ</td><td>((攻×0.5 + 魔攻)/2 − 防×バフ) /4 ×2回</td></tr>
+        <tr><td>ヒール</td><td>クレリック</td><td>一人のHPを精神で回復</td></tr>
+        <tr><td>城壁の陣</td><td>ガーディアン</td><td>味方全員の防御力2ターン1.4倍</td></tr>
+        <tr><td>ルーンアタック</td><td>マジックナイト</td><td>通常同式 + 50%行動不能</td></tr>
+        <tr><td>ギガドレイン</td><td>ウォーロック</td><td>通常同式。ダメージの1/2吸収</td></tr>
+        <tr><td>猛毒手</td><td>アサシン</td><td>相手残りHP / 4</td></tr>
+        <tr><td>蘇生</td><td>ビショップ</td><td>味方の死者を最大HPの1/5で生き返らせる</td></tr>
+        <tr><td>鉄拳</td><td>モンク</td><td>((攻×2 + 魔攻)/2 − 防×バフ) /4</td></tr>
+        <tr><td>ランサートルネード</td><td>ドラグランサー</td><td>ランダム3体に((攻 + 魔攻×1.2)/2 − 防×バフ) /4</td></tr>
+        <tr><td>エレメントブラスター</td><td>ドラグバスター</td><td>((攻 + 魔攻×1.8)/2 − 防×バフ) /4</td></tr>
+        <tr><td>サンダーセイバー</td><td>ドラグセイバー</td><td>((攻×1.5 + 魔攻×1.5)/2 − 防×バフ) /4</td></tr>
+      </tbody>
+    </table>
     </div>
 
     <h3>⚽ サッカー試合</h3>
