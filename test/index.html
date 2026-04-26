@@ -501,7 +501,12 @@
   <!-- 音楽ファイル読み込み -->
   <div id="rhythm-music-area" style="width:100%;max-width:480px;padding:12px 16px;display:flex;flex-direction:column;gap:8px;">
     <label style="color:#aac;font-size:12px">🎵 音楽ファイルを選択（MP3・OGG・WAV）</label>
-    <input type="file" id="rhythm-music-file" accept="audio/*" style="color:#fff;font-size:12px">
+    <label for="rhythm-music-file" style="display:inline-block;padding:8px 16px;background:linear-gradient(180deg,#2a3a70,#1a2a60);color:#fff;border:2px solid #88a;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;">
+      🎵 音楽ファイルを選択
+    </label>
+    <input type="file" id="rhythm-music-file"
+      accept="audio/*,audio/mp3,audio/mpeg,audio/ogg,audio/wav,.mp3,.ogg,.wav,.m4a,.aac"
+      style="display:none">
     <div id="rhythm-music-info" style="color:#668;font-size:11px">ファイルを選択してください</div>
     <div style="display:flex;gap:8px;align-items:center">
       <label style="color:#aac;font-size:12px">BPM:</label>
