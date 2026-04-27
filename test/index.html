@@ -7,6 +7,21 @@
   Optional cleanup (the player sprite is now localStorage-only, so any
   legacy __player__ row is no longer read):
     DELETE FROM npcs WHERE id = '__player__';
+
+  Rhythm chart editor schema (run once in the test Supabase SQL editor):
+    CREATE TABLE IF NOT EXISTS rhythm_charts (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      author TEXT,
+      bpm INTEGER NOT NULL,
+      notes JSONB NOT NULL,
+      difficulty TEXT DEFAULT 'normal',
+      play_count INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+    ALTER TABLE rhythm_charts ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "public read"  ON rhythm_charts FOR SELECT USING (true);
+    CREATE POLICY "public write" ON rhythm_charts FOR ALL    USING (true);
 -->
 <html lang="ja">
 <head>
@@ -525,6 +540,14 @@
         style="width:70px;background:#111;color:#fff;border:1px solid #446;border-radius:4px;padding:4px;font-family:inherit">
       <span style="color:#668;font-size:11px">ズレを感じたら調整</span>
     </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:4px;flex-wrap:wrap">
+      <button onclick="openChartEditor()" style="padding:8px 16px;background:linear-gradient(180deg,#5a2a70,#4a1a60);color:#daf;border:2px solid #a8c;border-radius:6px;font-family:inherit;font-size:13px;cursor:pointer;">
+        🎼 譜面を作る
+      </button>
+      <button onclick="openChartList()" style="padding:8px 16px;background:linear-gradient(180deg,#1a4a6a,#0a3a5a);color:#adf;border:2px solid #48a;border-radius:6px;font-family:inherit;font-size:13px;cursor:pointer;">
+        📋 みんなの譜面
+      </button>
+    </div>
   </div>
 
   <!-- ゲームキャンバス -->
@@ -538,6 +561,77 @@
     <span>SCORE: <span id="rh-score" style="color:#ffcc66">0</span></span>
     <span>COMBO: <span id="rh-combo" style="color:#44ff88">0</span></span>
     <span>PERFECT: <span id="rh-perfect" style="color:#44aaff">0</span></span>
+  </div>
+</div>
+<div id="chart-editor-overlay" style="display:none;position:fixed;inset:0;background:#080818;z-index:600;flex-direction:column;align-items:center;">
+
+  <!-- ヘッダー -->
+  <div style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:#0a0a28;border-bottom:2px solid #334;">
+    <span style="color:#daf;font-size:15px">🎼 譜面エディタ</span>
+    <div style="display:flex;gap:8px">
+      <button onclick="ceSave()" style="padding:4px 14px;background:#2a6a30;color:#cfc;border:1px solid #6a8;border-radius:4px;font-family:inherit;cursor:pointer">💾 保存</button>
+      <button onclick="ceClose()" style="padding:4px 14px;background:#442;color:#ffa;border:1px solid #884;border-radius:4px;font-family:inherit;cursor:pointer">✕ 閉じる</button>
+    </div>
+  </div>
+
+  <!-- 設定エリア -->
+  <div style="width:100%;max-width:560px;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-bottom:1px solid #223;">
+    <div style="display:flex;gap:6px;align-items:center">
+      <label style="color:#aac;font-size:12px">曲名:</label>
+      <input id="ce-title" type="text" placeholder="曲名を入力" style="width:140px;background:#111;color:#fff;border:1px solid #446;border-radius:4px;padding:4px 8px;font-family:inherit;font-size:12px">
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <label style="color:#aac;font-size:12px">BPM:</label>
+      <input id="ce-bpm" type="number" value="138" min="60" max="240" style="width:60px;background:#111;color:#fff;border:1px solid #446;border-radius:4px;padding:4px;font-family:inherit">
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <label style="color:#aac;font-size:12px">難易度:</label>
+      <select id="ce-difficulty" style="background:#111;color:#fff;border:1px solid #446;border-radius:4px;padding:4px;font-family:inherit">
+        <option value="easy">EASY</option>
+        <option value="normal" selected>NORMAL</option>
+        <option value="hard">HARD</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <label for="ce-music-file" style="padding:4px 12px;background:#2a3a70;color:#fff;border:1px solid #88a;border-radius:4px;font-size:12px;cursor:pointer">🎵 音楽選択</label>
+      <input type="file" id="ce-music-file" accept="audio/*,audio/mp3,audio/mpeg,audio/ogg,audio/wav,.mp3,.ogg,.wav,.m4a,.aac" style="display:none">
+      <span id="ce-music-info" style="color:#668;font-size:11px">未選択</span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button onclick="ceTogglePlay()" id="ce-play-btn" style="padding:4px 12px;background:#1a3a70;color:#adf;border:1px solid #48a;border-radius:4px;font-family:inherit;cursor:pointer">▶ 再生</button>
+      <span id="ce-time" style="color:#aac;font-size:12px;min-width:60px">0.00秒</span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <label style="color:#aac;font-size:12px">モード:</label>
+      <button id="ce-mode-record" onclick="ceSetMode('record')" style="padding:3px 10px;background:#3a2a70;color:#daf;border:1px solid #88a;border-radius:4px;font-family:inherit;cursor:pointer;font-size:11px">🔴 録音</button>
+      <button id="ce-mode-grid" onclick="ceSetMode('grid')" style="padding:3px 10px;background:#111;color:#aac;border:1px solid #446;border-radius:4px;font-family:inherit;cursor:pointer;font-size:11px">📐 グリッド</button>
+    </div>
+  </div>
+
+  <!-- メインエリア -->
+  <div style="width:100%;max-width:560px;flex:1;position:relative;overflow:hidden;">
+    <canvas id="ce-canvas" style="width:100%;height:100%;display:block;touch-action:none;image-rendering:pixelated"></canvas>
+  </div>
+
+  <!-- 操作ボタン（5レーン） -->
+  <div id="ce-btns" style="width:100%;max-width:560px;display:flex;gap:4px;padding:6px 8px;"></div>
+
+  <!-- フッター情報 -->
+  <div style="width:100%;max-width:560px;display:flex;justify-content:space-between;padding:4px 16px 8px;font-size:11px;color:#668;">
+    <span id="ce-note-count">ノーツ: 0</span>
+    <span id="ce-mode-label" style="color:#daf">🔴 録音モード: 再生しながらレーンをタップ</span>
+    <button onclick="ceClear()" style="background:none;color:#f88;border:none;cursor:pointer;font-family:inherit;font-size:11px">🗑 全消去</button>
+  </div>
+</div>
+<div id="chart-list-overlay" style="display:none;position:fixed;inset:0;background:#080818;z-index:600;flex-direction:column;align-items:center;">
+  <div style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:#0a0a28;border-bottom:2px solid #334;">
+    <span style="color:#adf;font-size:15px">📋 みんなの譜面</span>
+    <button onclick="document.getElementById('chart-list-overlay').style.display='none'" style="padding:4px 14px;background:#442;color:#ffa;border:1px solid #884;border-radius:4px;font-family:inherit;cursor:pointer">✕ 閉じる</button>
+  </div>
+  <div style="width:100%;max-width:560px;padding:8px 16px;overflow-y:auto;flex:1;">
+    <div id="chart-list-items" style="display:flex;flex-direction:column;gap:8px;">
+      <div style="color:#668;font-size:13px;text-align:center;padding:32px">読み込み中...</div>
+    </div>
   </div>
 </div>
 <script>
@@ -4297,6 +4391,321 @@ document.getElementById('rhythm-difficulty').addEventListener('change',e=>{
 
 window.addEventListener('resize',()=>{
   if(rhCanvas&&rhActive)rhResizeCanvas();
+});
+
+// ================================================================
+//  CHART EDITOR
+// ================================================================
+let ceMode='record';
+let ceNotes=[];
+let ceAudioCtx=null, ceAudioSource=null, ceAudioBuffer=null;
+let cePlaying=false, ceStartTime=0, ceAudioOffset=0;
+let ceCanvas=null, ceCtx=null, ceRaf=null;
+let ceBpm=138, ceBeat=60000/138;
+let ceScrollBeat=0;
+
+function openChartEditor(){
+  document.getElementById('chart-editor-overlay').style.display='flex';
+  ceCanvas=document.getElementById('ce-canvas');
+  ceCtx=ceCanvas.getContext('2d');
+  ceNotes=[];
+  ceAudioOffset=0;
+  ceScrollBeat=0;
+  cePlaying=false;
+  document.getElementById('ce-play-btn').textContent='▶ 再生';
+  document.getElementById('ce-time').textContent='0.00秒';
+  updateCeNoteCount();
+  ceBuildBtns();
+  ceResizeCanvas();
+  ceSetMode('record');
+  ceCanvas.addEventListener('pointerdown', ceTapGrid);
+  ceRender();
+}
+
+function ceClose(){
+  document.getElementById('chart-editor-overlay').style.display='none';
+  ceStopAudio();
+  if(ceRaf){cancelAnimationFrame(ceRaf);ceRaf=null;}
+  if(ceCanvas)ceCanvas.removeEventListener('pointerdown',ceTapGrid);
+}
+
+function ceResizeCanvas(){
+  const r=ceCanvas.getBoundingClientRect();
+  ceCanvas.width=r.width; ceCanvas.height=r.height;
+}
+
+function ceSetMode(mode){
+  ceMode=mode;
+  document.getElementById('ce-mode-record').style.background=mode==='record'?'#3a2a70':'#111';
+  document.getElementById('ce-mode-grid').style.background=mode==='grid'?'#1a3a60':'#111';
+  document.getElementById('ce-mode-label').textContent=
+    mode==='record'?'🔴 録音モード: 再生しながらレーンをタップ':'📐 グリッドモード: ビートをタップして配置';
+}
+
+function ceBuildBtns(){
+  const wrap=document.getElementById('ce-btns');
+  wrap.innerHTML='';
+  RH_COLORS.forEach((c,i)=>{
+    const btn=document.createElement('div');
+    btn.style.cssText=`flex:1;height:40px;background:${c};border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:inherit;font-size:13px;color:rgba(0,0,0,0.7);cursor:pointer;font-weight:500;`;
+    btn.textContent=RH_LABELS[i];
+    btn.addEventListener('pointerdown',()=>ceHit(i));
+    wrap.appendChild(btn);
+  });
+}
+
+function ceHit(lane){
+  if(ceMode==='record'&&cePlaying){
+    const elapsed=(Date.now()-ceStartTime)/1000+ceAudioOffset;
+    const beat=elapsed/(ceBeat/1000);
+    const snapped=Math.round(beat*4)/4;
+    ceNotes.push({lane, beat:snapped});
+    ceNotes.sort((a,b)=>a.beat-b.beat);
+    updateCeNoteCount();
+  }
+}
+
+function ceTapGrid(e){
+  if(ceMode!=='grid')return;
+  const r=ceCanvas.getBoundingClientRect();
+  const x=(e.clientX-r.left)*(ceCanvas.width/r.width);
+  const y=(e.clientY-r.top)*(ceCanvas.height/r.height);
+  const W=ceCanvas.width, H=ceCanvas.height;
+  const lw=W/5;
+  const lane=Math.floor(x/lw);
+  if(lane<0||lane>=5)return;
+  const visibleBeats=16;
+  const beatH=H/visibleBeats;
+  const beat=ceScrollBeat+y/beatH;
+  const snapped=Math.round(beat*4)/4;
+  const existing=ceNotes.findIndex(n=>n.lane===lane&&Math.abs(n.beat-snapped)<0.15);
+  if(existing>=0){ceNotes.splice(existing,1);}
+  else{ceNotes.push({lane,beat:Math.max(0,snapped)});ceNotes.sort((a,b)=>a.beat-b.beat);}
+  updateCeNoteCount();
+}
+
+function updateCeNoteCount(){
+  document.getElementById('ce-note-count').textContent=`ノーツ: ${ceNotes.length}`;
+}
+
+function ceClear(){
+  if(!confirm('全ノーツを削除しますか？'))return;
+  ceNotes=[];
+  updateCeNoteCount();
+}
+
+document.getElementById('ce-music-file').addEventListener('change', async e=>{
+  const file=e.target.files[0];if(!file)return;
+  document.getElementById('ce-music-info').textContent='読み込み中...';
+  try{
+    const buf=await file.arrayBuffer();
+    ceAudioCtx=ceAudioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    ceAudioBuffer=await ceAudioCtx.decodeAudioData(buf);
+    document.getElementById('ce-music-info').textContent=`${file.name.slice(0,20)} (${ceAudioBuffer.duration.toFixed(1)}秒)`;
+  }catch(err){
+    document.getElementById('ce-music-info').textContent=`読み込み失敗: ${err.message||err}`;
+    ceAudioBuffer=null;
+  }
+});
+
+function ceTogglePlay(){
+  if(cePlaying){ceStopAudio();}else{cePlayAudio();}
+}
+
+function cePlayAudio(){
+  if(!ceAudioBuffer){alert('音楽ファイルを選択してください');return;}
+  ceAudioCtx=ceAudioCtx||new (window.AudioContext||window.webkitAudioContext)();
+  ceBpm=parseInt(document.getElementById('ce-bpm').value)||138;
+  ceBeat=60000/ceBpm;
+  ceAudioSource=ceAudioCtx.createBufferSource();
+  ceAudioSource.buffer=ceAudioBuffer;
+  ceAudioSource.connect(ceAudioCtx.destination);
+  ceAudioSource.start(0, ceAudioOffset);
+  cePlaying=true;
+  ceStartTime=Date.now();
+  document.getElementById('ce-play-btn').textContent='⏹ 停止';
+  ceUpdateTime();
+}
+
+function ceStopAudio(){
+  if(ceAudioSource){try{ceAudioSource.stop();}catch(e){}ceAudioSource=null;}
+  if(cePlaying){
+    ceAudioOffset+=(Date.now()-ceStartTime)/1000;
+  }
+  cePlaying=false;
+  const btn=document.getElementById('ce-play-btn');
+  if(btn)btn.textContent='▶ 再生';
+}
+
+function ceUpdateTime(){
+  if(!cePlaying)return;
+  const elapsed=(Date.now()-ceStartTime)/1000+ceAudioOffset;
+  document.getElementById('ce-time').textContent=`${elapsed.toFixed(2)}秒`;
+  if(ceMode==='grid'){
+    ceScrollBeat=Math.max(0,elapsed/(ceBeat/1000)-4);
+  }
+  requestAnimationFrame(ceUpdateTime);
+}
+
+function ceRender(){
+  ceRaf=requestAnimationFrame(ceRender);
+  if(!ceCtx)return;
+  const W=ceCanvas.width, H=ceCanvas.height;
+  const ctx=ceCtx;
+  const lw=W/5;
+  const bpmNow=parseInt(document.getElementById('ce-bpm').value)||138;
+  ceBeat=60000/bpmNow;
+  const now=(cePlaying?(Date.now()-ceStartTime)/1000:0)+ceAudioOffset;
+  const nowBeat=now/(ceBeat/1000);
+  const visibleBeats=16;
+  const beatH=H/visibleBeats;
+  const scrollBeat=ceMode==='grid'?ceScrollBeat:Math.max(0,nowBeat-4);
+
+  ctx.fillStyle='#080818';ctx.fillRect(0,0,W,H);
+
+  for(let b=Math.floor(scrollBeat);b<scrollBeat+visibleBeats+1;b++){
+    const y=(b-scrollBeat)*beatH;
+    const isBar=b%4===0;
+    ctx.strokeStyle=isBar?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.06)';
+    ctx.lineWidth=isBar?1.5:0.5;
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+    if(isBar){
+      ctx.font='10px monospace';ctx.fillStyle='#446';ctx.textAlign='left';
+      ctx.fillText(`${b}`,2,y+11);
+    }
+    const yHalf=(b+0.5-scrollBeat)*beatH;
+    ctx.strokeStyle='rgba(255,255,255,0.03)';ctx.lineWidth=0.5;
+    ctx.beginPath();ctx.moveTo(0,yHalf);ctx.lineTo(W,yHalf);ctx.stroke();
+  }
+
+  for(let i=1;i<5;i++){
+    ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(i*lw,0);ctx.lineTo(i*lw,H);ctx.stroke();
+  }
+
+  RH_COLORS.forEach((c,i)=>{
+    const grad=ctx.createLinearGradient(i*lw,0,(i+1)*lw,0);
+    grad.addColorStop(0,'transparent');
+    grad.addColorStop(0.5,c+'08');
+    grad.addColorStop(1,'transparent');
+    ctx.fillStyle=grad;ctx.fillRect(i*lw,0,lw,H);
+  });
+
+  ceNotes.forEach(n=>{
+    const y=(n.beat-scrollBeat)*beatH;
+    if(y<-20||y>H+20)return;
+    const x=n.lane*lw+4;
+    const nw=lw-8;
+    ctx.fillStyle=RH_COLORS[n.lane];
+    ctx.shadowColor=RH_COLORS[n.lane];ctx.shadowBlur=6;
+    ctx.beginPath();ctx.roundRect(x,y-8,nw,16,3);ctx.fill();
+    ctx.shadowBlur=0;
+  });
+
+  if(ceMode==='record'){
+    const py=(nowBeat-scrollBeat)*beatH;
+    ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(0,py);ctx.lineTo(W,py);ctx.stroke();
+    ctx.font='11px monospace';ctx.fillStyle='#fff';ctx.textAlign='right';
+    ctx.fillText(`beat ${nowBeat.toFixed(2)}`,W-4,Math.max(14,py-4));
+  }
+}
+
+async function ceSave(){
+  const title=document.getElementById('ce-title').value.trim();
+  if(!title){alert('曲名を入力してください');return;}
+  if(ceNotes.length<4){alert('ノーツが少なすぎます（最低4つ必要）');return;}
+  ceBpm=parseInt(document.getElementById('ce-bpm').value)||138;
+  const diff=document.getElementById('ce-difficulty').value;
+  const id='chart_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6);
+  const author=authOwnerName||'匿名';
+  const{error}=await _sb.from('rhythm_charts').insert({
+    id, title, author, bpm:ceBpm,
+    notes:ceNotes, difficulty:diff, play_count:0
+  });
+  if(error){alert('保存失敗: '+error.message);return;}
+  alert(`「${title}」を保存しました！`);
+  ceClose();
+}
+
+async function openChartList(){
+  document.getElementById('chart-list-overlay').style.display='flex';
+  const wrap=document.getElementById('chart-list-items');
+  wrap.innerHTML='<div style="color:#668;font-size:13px;text-align:center;padding:32px">読み込み中...</div>';
+  const{data,error}=await _sb.from('rhythm_charts')
+    .select('*').order('created_at',{ascending:false}).limit(50);
+  if(error||!data||data.length===0){
+    wrap.innerHTML='<div style="color:#668;font-size:13px;text-align:center;padding:32px">譜面がまだありません</div>';
+    return;
+  }
+  const diffColor={easy:'#44ff88',normal:'#44aaff',hard:'#ff4444'};
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  wrap.innerHTML=data.map((c,idx)=>`
+    <div style="background:linear-gradient(180deg,#14142a,#101028);border:1px solid #334;border-radius:8px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <div>
+        <div style="color:#fff;font-size:14px">${esc(c.title)}</div>
+        <div style="color:#668;font-size:11px;margin-top:2px">
+          by ${esc(c.author)} ／ BPM:${c.bpm} ／
+          <span style="color:${diffColor[c.difficulty]||'#fff'}">${esc((c.difficulty||'normal').toUpperCase())}</span>
+          ／ ${c.notes?.length||0}ノーツ ／ ${c.play_count||0}回プレイ
+        </div>
+      </div>
+      <button data-chart-idx="${idx}"
+        style="padding:6px 14px;background:linear-gradient(180deg,#2a6a30,#1a5a20);color:#cfc;border:2px solid #6a8;border-radius:6px;font-family:inherit;font-size:12px;cursor:pointer;white-space:nowrap">
+        ▶ プレイ
+      </button>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('button[data-chart-idx]').forEach(btn=>{
+    btn.addEventListener('click',()=>ceLoadChart(data[parseInt(btn.dataset.chartIdx)]));
+  });
+}
+
+async function ceLoadChart(chart){
+  document.getElementById('chart-list-overlay').style.display='none';
+  await _sb.from('rhythm_charts').update({play_count:(chart.play_count||0)+1}).eq('id',chart.id);
+
+  if(rhCanvas==null){
+    document.getElementById('rhythm-overlay').style.display='flex';
+    rhCanvas=document.getElementById('rhythm-canvas');
+    rhCtx=rhCanvas.getContext('2d');
+    rhResizeCanvas();
+    rhBuildBtns();
+  }
+
+  rhNotes=chart.notes.map(n=>({...n,hit:false,miss:false}));
+  document.getElementById('rhythm-bpm').value=chart.bpm;
+  rhBpm=chart.bpm; rhBeat=60000/chart.bpm;
+  document.getElementById('rhythm-difficulty').value=chart.difficulty||'normal';
+
+  const startBtn=document.getElementById('rh-start-btn');
+  if(startBtn)startBtn.remove();
+  rhScore=0;rhCombo=0;rhMaxCombo=0;rhPerfect=0;rhGood=0;rhMiss=0;rhParticles=[];rhJudgeAlpha=0;
+  document.getElementById('rh-score').textContent='0';
+  document.getElementById('rh-combo').textContent='0';
+  document.getElementById('rh-perfect').textContent='0';
+
+  rhDancers=(typeof npcs!=='undefined'?npcs:[])
+    .filter(n=>n&&(n.spriteImg||n.spriteCanvas||n.color))
+    .slice(0,5)
+    .map((n,i)=>({npc:n,x:0,bouncePhase:i*(Math.PI*2/5),scale:1,flashColor:null}));
+
+  rhPlayMusic();
+  rhStartTime=Date.now();
+  rhActive=true;
+  rhRaf=requestAnimationFrame(rhLoop);
+}
+
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('chart-editor-overlay').style.display==='flex'){
+    if(e.key===' '){e.preventDefault();ceTogglePlay();}
+    if(e.key==='ArrowUp')ceScrollBeat=Math.max(0,ceScrollBeat-1);
+    if(e.key==='ArrowDown')ceScrollBeat+=1;
+  }
+});
+
+window.addEventListener('resize',()=>{
+  if(ceCanvas&&document.getElementById('chart-editor-overlay').style.display==='flex')ceResizeCanvas();
 });
 
 </script>
