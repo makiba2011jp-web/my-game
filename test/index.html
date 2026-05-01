@@ -631,7 +631,7 @@
     <div style="display:flex;gap:6px;align-items:center">
       <label style="color:#aac;font-size:12px">モード:</label>
       <button id="ce-mode-record" onclick="ceSetMode('record')" style="padding:3px 10px;background:#3a2a70;color:#daf;border:1px solid #88a;border-radius:4px;font-family:inherit;cursor:pointer;font-size:11px">🔴 録音</button>
-      <button id="ce-mode-grid" onclick="ceSetMode('grid')" style="padding:3px 10px;background:#111;color:#aac;border:1px solid #446;border-radius:4px;font-family:inherit;cursor:pointer;font-size:11px">📐 グリッド</button>
+      <button id="ce-mode-grid" onclick="ceSetMode('grid')" style="padding:3px 10px;background:#111;color:#aac;border:1px solid #446;border-radius:4px;font-family:inherit;cursor:pointer;font-size:11px">🗑 削除</button>
     </div>
   </div>
 
@@ -4492,7 +4492,7 @@ function ceSetMode(mode){
   document.getElementById('ce-mode-record').style.background=mode==='record'?'#3a2a70':'#111';
   document.getElementById('ce-mode-grid').style.background=mode==='grid'?'#1a3a60':'#111';
   document.getElementById('ce-mode-label').textContent=
-    mode==='record'?'🔴 録音モード: 再生しながらレーンをタップ':'📐 グリッドモード: ビートをタップして配置';
+    mode==='record'?'🔴 録音モード: 再生しながらレーンをタップ':'🗑 削除モード: レーンをタップして近くのノーツを削除';
 }
 
 function ceBuildBtns(){
