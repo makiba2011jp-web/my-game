@@ -513,54 +513,61 @@
     <button onclick="closeRhythmGame()" style="background:#442;color:#ffa;border:1px solid #884;border-radius:4px;padding:4px 12px;font-family:inherit;cursor:pointer">✕ 閉じる</button>
   </div>
 
-  <!-- 音楽ファイル読み込み -->
-  <div id="rhythm-music-area" style="width:100%;max-width:480px;padding:12px 16px;display:flex;flex-direction:column;gap:8px;">
-    <label style="color:#aac;font-size:12px">🎵 音楽ファイルを選択（MP3・OGG・WAV）</label>
-    <label for="rhythm-music-file" style="display:inline-block;padding:8px 16px;background:linear-gradient(180deg,#2a3a70,#1a2a60);color:#fff;border:2px solid #88a;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;">
-      🎵 音楽ファイルを選択
-    </label>
-    <input type="file" id="rhythm-music-file"
-      accept="audio/*,audio/mp3,audio/mpeg,audio/ogg,audio/wav,.mp3,.ogg,.wav,.m4a,.aac"
-      style="display:none">
-    <div id="rhythm-music-info" style="color:#668;font-size:11px">ファイルを選択してください</div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <label style="color:#aac;font-size:12px">BPM:</label>
-      <input type="number" id="rhythm-bpm" value="138" min="60" max="240" style="width:70px;background:#111;color:#fff;border:1px solid #446;border-radius:4px;padding:4px;font-family:inherit">
-      <label style="color:#aac;font-size:12px">難易度:</label>
-      <select id="rhythm-difficulty" style="background:#111;color:#fff;border:1px solid #446;border-radius:4px;padding:4px;font-family:inherit">
-        <option value="easy">EASY</option>
-        <option value="normal" selected>NORMAL</option>
-        <option value="hard">HARD</option>
-      </select>
-    </div>
-    <div id="rh-diff-info" style="color:#668;font-size:11px">標準的な難しさ</div>
-    <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
-      <label style="color:#aac;font-size:12px">オフセット(秒):</label>
-      <input type="number" id="rhythm-offset" value="0" min="-5" max="10" step="0.1"
-        style="width:70px;background:#111;color:#fff;border:1px solid #446;border-radius:4px;padding:4px;font-family:inherit">
-      <span style="color:#668;font-size:11px">ズレを感じたら調整</span>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;margin-top:4px;flex-wrap:wrap">
-      <button onclick="openChartEditor()" style="padding:8px 16px;background:linear-gradient(180deg,#5a2a70,#4a1a60);color:#daf;border:2px solid #a8c;border-radius:6px;font-family:inherit;font-size:13px;cursor:pointer;">
-        🎼 譜面を作る
-      </button>
-      <button onclick="openChartList()" style="padding:8px 16px;background:linear-gradient(180deg,#1a4a6a,#0a3a5a);color:#adf;border:2px solid #48a;border-radius:6px;font-family:inherit;font-size:13px;cursor:pointer;">
-        📋 みんなの譜面
-      </button>
-    </div>
+  <!-- トップ画面（譜面を作る／みんなの譜面） -->
+  <div id="rhythm-top-screen" style="display:flex;flex-direction:column;gap:16px;align-items:center;justify-content:center;flex:1;padding:32px">
+    <h2 style="color:#ffcc66;font-size:20px;margin:0">⚔ 不滅騎士 リズム</h2>
+    <button onclick="openChartEditor()" style="width:240px;padding:16px;background:linear-gradient(180deg,#5a2a70,#4a1a60);color:#daf;border:2px solid #a8c;border-radius:8px;font-family:inherit;font-size:16px;cursor:pointer;">
+      🎼 譜面を作る
+    </button>
+    <button onclick="openChartList()" style="width:240px;padding:16px;background:linear-gradient(180deg,#1a4a6a,#0a3a5a);color:#adf;border:2px solid #48a;border-radius:8px;font-family:inherit;font-size:16px;cursor:pointer;">
+      📋 みんなの譜面
+    </button>
   </div>
 
-  <!-- ゲームキャンバス -->
-  <canvas id="rhythm-canvas" style="width:100%;max-width:480px;flex:1;display:block;image-rendering:pixelated;touch-action:none"></canvas>
+  <!-- プレイ画面（譜面選択後に表示） -->
+  <div id="rhythm-play-area" style="display:none;width:100%;max-width:480px;flex:1;flex-direction:column;align-items:center;min-height:0">
 
-  <!-- 操作ボタン（5レーン） -->
-  <div id="rhythm-btns" style="width:100%;max-width:480px;display:flex;gap:4px;padding:8px;"></div>
+    <!-- 音楽ファイル＆BPM/難易度/オフセット -->
+    <div id="rhythm-music-area" style="width:100%;padding:12px 16px;display:flex;flex-direction:column;gap:8px;">
+      <label style="color:#aac;font-size:12px">🎵 音楽ファイルを選択（MP3・OGG・WAV）</label>
+      <label for="rhythm-music-file" style="display:inline-block;padding:8px 16px;background:linear-gradient(180deg,#2a3a70,#1a2a60);color:#fff;border:2px solid #88a;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;">
+        🎵 音楽ファイルを選択
+      </label>
+      <input type="file" id="rhythm-music-file"
+        accept="audio/*,audio/mp3,audio/mpeg,audio/ogg,audio/wav,.mp3,.ogg,.wav,.m4a,.aac"
+        style="display:none">
+      <div id="rhythm-music-info" style="color:#668;font-size:11px">ファイルを選択してください</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="color:#aac;font-size:12px">BPM:</label>
+        <input type="number" id="rhythm-bpm" value="138" min="60" max="240" style="width:70px;background:#111;color:#fff;border:1px solid #446;border-radius:4px;padding:4px;font-family:inherit">
+        <label style="color:#aac;font-size:12px">難易度:</label>
+        <select id="rhythm-difficulty" style="background:#111;color:#fff;border:1px solid #446;border-radius:4px;padding:4px;font-family:inherit">
+          <option value="easy">EASY</option>
+          <option value="normal" selected>NORMAL</option>
+          <option value="hard">HARD</option>
+        </select>
+      </div>
+      <div id="rh-diff-info" style="color:#668;font-size:11px">標準的な難しさ</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+        <label style="color:#aac;font-size:12px">オフセット(秒):</label>
+        <input type="number" id="rhythm-offset" value="0" min="-5" max="10" step="0.1"
+          style="width:70px;background:#111;color:#fff;border:1px solid #446;border-radius:4px;padding:4px;font-family:inherit">
+        <span style="color:#668;font-size:11px">ズレを感じたら調整</span>
+      </div>
+    </div>
 
-  <!-- ステータスバー -->
-  <div style="width:100%;max-width:480px;display:flex;justify-content:space-between;padding:4px 16px 8px;font-size:12px;color:#aac;">
-    <span>SCORE: <span id="rh-score" style="color:#ffcc66">0</span></span>
-    <span>COMBO: <span id="rh-combo" style="color:#44ff88">0</span></span>
-    <span>PERFECT: <span id="rh-perfect" style="color:#44aaff">0</span></span>
+    <!-- ゲームキャンバス -->
+    <canvas id="rhythm-canvas" style="width:100%;flex:1;display:block;image-rendering:pixelated;touch-action:none"></canvas>
+
+    <!-- 操作ボタン（6レーン） -->
+    <div id="rhythm-btns" style="width:100%;display:flex;gap:4px;padding:8px;"></div>
+
+    <!-- ステータスバー -->
+    <div style="width:100%;display:flex;justify-content:space-between;padding:4px 16px 8px;font-size:12px;color:#aac;">
+      <span>SCORE: <span id="rh-score" style="color:#ffcc66">0</span></span>
+      <span>COMBO: <span id="rh-combo" style="color:#44ff88">0</span></span>
+      <span>PERFECT: <span id="rh-perfect" style="color:#44aaff">0</span></span>
+    </div>
   </div>
 </div>
 <div id="chart-editor-overlay" style="display:none;position:fixed;inset:0;background:#080818;z-index:600;flex-direction:column;align-items:center;">
@@ -3982,7 +3989,7 @@ const RH_HIT_Y=0.85;
 const RH_NOTE_SPEED=240;
 
 let rhActive=false, rhScore=0, rhCombo=0, rhMaxCombo=0, rhPerfect=0, rhGood=0, rhMiss=0;
-let rhNotes=[], rhParticles=[], rhStartTime=0, rhRaf=null;
+let rhNotes=[], rhPreloadedNotes=null, rhParticles=[], rhStartTime=0, rhRaf=null;
 let rhAudio=null, rhBpm=138, rhBeat=60000/138;
 let rhAudioCtx=null, rhAudioSource=null, rhAudioBuffer=null;
 let rhCanvas=null, rhCtx=null;
@@ -4215,11 +4222,10 @@ function rhLoop(){
 
 function openRhythmGame(){
   document.getElementById('rhythm-overlay').style.display='flex';
+  document.getElementById('rhythm-top-screen').style.display='flex';
+  document.getElementById('rhythm-play-area').style.display='none';
   rhCanvas=document.getElementById('rhythm-canvas');
   rhCtx=rhCanvas.getContext('2d');
-  rhResizeCanvas();
-  rhBuildBtns();
-  rhShowStartScreen();
 }
 
 function closeRhythmGame(){
@@ -4229,6 +4235,7 @@ function closeRhythmGame(){
   if(rhAudio){rhAudio.pause();rhAudio=null;}
   const startBtn=document.getElementById('rh-start-btn');
   if(startBtn)startBtn.remove();
+  rhPreloadedNotes=null;
   document.getElementById('rhythm-overlay').style.display='none';
 }
 
@@ -4274,7 +4281,7 @@ function rhShowStartScreen(){
   ctx.font='14px "DotGothic16",monospace';
   ctx.fillStyle='#aac';
   ctx.fillText('音楽ファイルを選んでスタート',W/2,H/2);
-  ctx.fillText('PC: D F Space J K',W/2,H/2+30);
+  ctx.fillText('PC: D F G H J K',W/2,H/2+30);
   ctx.fillText('スマホ: レーンをタップ',W/2,H/2+55);
 
   const existing=document.getElementById('rh-start-btn');
@@ -4297,7 +4304,11 @@ function rhStart(){
   document.getElementById('rh-score').textContent='0';
   document.getElementById('rh-combo').textContent='0';
   document.getElementById('rh-perfect').textContent='0';
-  rhGenChart(rhBpm,diff);
+  if(rhPreloadedNotes){
+    rhNotes=rhPreloadedNotes.map(n=>({...n,hit:false,miss:false}));
+  }else{
+    rhGenChart(rhBpm,diff);
+  }
 
   rhDancers=(typeof npcs!=='undefined'?npcs:[])
     .filter(n=>n&&(n.spriteImg||n.spriteCanvas||n.color))
@@ -4665,35 +4676,29 @@ async function ceLoadChart(chart){
   document.getElementById('chart-list-overlay').style.display='none';
   await _sb.from('rhythm_charts').update({play_count:(chart.play_count||0)+1}).eq('id',chart.id);
 
-  if(rhCanvas==null){
-    document.getElementById('rhythm-overlay').style.display='flex';
-    rhCanvas=document.getElementById('rhythm-canvas');
-    rhCtx=rhCanvas.getContext('2d');
-    rhResizeCanvas();
-    rhBuildBtns();
-  }
+  document.getElementById('rhythm-overlay').style.display='flex';
+  document.getElementById('rhythm-top-screen').style.display='none';
+  document.getElementById('rhythm-play-area').style.display='flex';
 
-  rhNotes=chart.notes.map(n=>({...n,hit:false,miss:false}));
+  rhCanvas=document.getElementById('rhythm-canvas');
+  rhCtx=rhCanvas.getContext('2d');
+  rhResizeCanvas();
+  rhBuildBtns();
+
   document.getElementById('rhythm-bpm').value=chart.bpm;
-  rhBpm=chart.bpm; rhBeat=60000/chart.bpm;
   document.getElementById('rhythm-difficulty').value=chart.difficulty||'normal';
+  document.getElementById('rh-diff-info').textContent=
+    RH_DIFFICULTY_INFO[chart.difficulty||'normal']||'';
+  rhBpm=chart.bpm; rhBeat=60000/chart.bpm;
 
-  const startBtn=document.getElementById('rh-start-btn');
-  if(startBtn)startBtn.remove();
+  rhPreloadedNotes=chart.notes;
+
   rhScore=0;rhCombo=0;rhMaxCombo=0;rhPerfect=0;rhGood=0;rhMiss=0;rhParticles=[];rhJudgeAlpha=0;
   document.getElementById('rh-score').textContent='0';
   document.getElementById('rh-combo').textContent='0';
   document.getElementById('rh-perfect').textContent='0';
 
-  rhDancers=(typeof npcs!=='undefined'?npcs:[])
-    .filter(n=>n&&(n.spriteImg||n.spriteCanvas||n.color))
-    .slice(0,5)
-    .map((n,i)=>({npc:n,x:0,bouncePhase:i*(Math.PI*2/5),scale:1,flashColor:null}));
-
-  rhPlayMusic();
-  rhStartTime=Date.now();
-  rhActive=true;
-  rhRaf=requestAnimationFrame(rhLoop);
+  rhShowStartScreen();
 }
 
 document.addEventListener('keydown',e=>{
