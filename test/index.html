@@ -4515,6 +4515,18 @@ function ceHit(lane){
     ceNotes.push({lane, beat:snapped});
     ceNotes.sort((a,b)=>a.beat-b.beat);
     updateCeNoteCount();
+  } else if(ceMode==='record'&&!cePlaying){
+    const currentBeat=ceAudioOffset/(ceBeat/1000);
+    let closest=null, minDiff=Infinity;
+    ceNotes.forEach((n,i)=>{
+      if(n.lane!==lane)return;
+      const diff=Math.abs(n.beat-currentBeat);
+      if(diff<minDiff){minDiff=diff;closest=i;}
+    });
+    if(closest!==null&&minDiff<2){
+      ceNotes.splice(closest,1);
+      updateCeNoteCount();
+    }
   }
 }
 
