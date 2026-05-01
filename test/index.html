@@ -3974,10 +3974,10 @@ loadState();
 // ================================================================
 //  RHYTHM GAME
 // ================================================================
-const RH_LANES=5;
-const RH_COLORS=['#ff6644','#ffcc44','#44ff88','#44aaff','#cc44ff'];
-const RH_KEYS=['d','f',' ','j','k'];
-const RH_LABELS=['D','F','SP','J','K'];
+const RH_LANES=6;
+const RH_COLORS=['#ff6644','#ffcc44','#44ff88','#44aaff','#cc44ff','#ff44aa'];
+const RH_KEYS=['d','f','g','h','j','k'];
+const RH_LABELS=['D','F','G','H','J','K'];
 const RH_HIT_Y=0.85;
 const RH_NOTE_SPEED=240;
 
@@ -4005,9 +4005,9 @@ function rhGenChart(bpm, difficulty){
   };
   const p=params[difficulty]||params.normal;
 
-  const singles=[[0],[1],[2],[3],[4]];
-  const doubles=[[0,2],[1,3],[2,4],[0,4],[1,2],[3,4]];
-  const triples=[[0,2,4],[1,3],[0,1,2],[2,3,4]];
+  const singles=[[0],[1],[2],[3],[4],[5]];
+  const doubles=[[0,2],[1,3],[2,4],[3,5],[0,3],[1,4],[2,5],[0,5]];
+  const triples=[[0,2,4],[1,3,5],[0,2,5],[1,3,4],[0,3,5]];
 
   for(let b=4;b<p.beats;b++){
     if(Math.random()>p.density)continue;
@@ -4471,9 +4471,9 @@ function ceTapGrid(e){
   const x=(e.clientX-r.left)*(ceCanvas.width/r.width);
   const y=(e.clientY-r.top)*(ceCanvas.height/r.height);
   const W=ceCanvas.width, H=ceCanvas.height;
-  const lw=W/5;
+  const lw=W/RH_LANES;
   const lane=Math.floor(x/lw);
-  if(lane<0||lane>=5)return;
+  if(lane<0||lane>=RH_LANES)return;
   const visibleBeats=16;
   const beatH=H/visibleBeats;
   const beat=ceScrollBeat+y/beatH;
@@ -4552,7 +4552,7 @@ function ceRender(){
   if(!ceCtx)return;
   const W=ceCanvas.width, H=ceCanvas.height;
   const ctx=ceCtx;
-  const lw=W/5;
+  const lw=W/RH_LANES;
   const bpmNow=parseInt(document.getElementById('ce-bpm').value)||138;
   ceBeat=60000/bpmNow;
   const now=(cePlaying?(Date.now()-ceStartTime)/1000:0)+ceAudioOffset;
@@ -4578,7 +4578,7 @@ function ceRender(){
     ctx.beginPath();ctx.moveTo(0,yHalf);ctx.lineTo(W,yHalf);ctx.stroke();
   }
 
-  for(let i=1;i<5;i++){
+  for(let i=1;i<RH_LANES;i++){
     ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1;
     ctx.beginPath();ctx.moveTo(i*lw,0);ctx.lineTo(i*lw,H);ctx.stroke();
   }
