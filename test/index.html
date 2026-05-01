@@ -4543,10 +4543,11 @@ function ceTapGrid(e){
   const beatH=H/visibleBeats;
   const beat=ceScrollBeat+y/beatH;
   const snapped=Math.round(beat*4)/4;
-  const existing=ceNotes.findIndex(n=>n.lane===lane&&Math.abs(n.beat-snapped)<0.15);
-  if(existing>=0){ceNotes.splice(existing,1);}
-  else{ceNotes.push({lane,beat:Math.max(0,snapped)});ceNotes.sort((a,b)=>a.beat-b.beat);}
-  updateCeNoteCount();
+  const existing=ceNotes.findIndex(n=>n.lane===lane&&Math.abs(n.beat-snapped)<0.3);
+  if(existing>=0){
+    ceNotes.splice(existing,1);
+    updateCeNoteCount();
+  }
 }
 
 function updateCeNoteCount(){
