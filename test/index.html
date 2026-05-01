@@ -22,6 +22,17 @@
     ALTER TABLE rhythm_charts ENABLE ROW LEVEL SECURITY;
     CREATE POLICY "public read"  ON rhythm_charts FOR SELECT USING (true);
     CREATE POLICY "public write" ON rhythm_charts FOR ALL    USING (true);
+
+  Rhythm dancer pick list (singleton row, managed from admin.html):
+    CREATE TABLE IF NOT EXISTS rhythm_dancers (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      npc_ids JSONB NOT NULL DEFAULT '[]',
+      updated_at TIMESTAMPTZ DEFAULT now()
+    );
+    INSERT INTO rhythm_dancers(id, npc_ids) VALUES(1, '[]') ON CONFLICT DO NOTHING;
+    ALTER TABLE rhythm_dancers ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "public read"  ON rhythm_dancers FOR SELECT USING (true);
+    CREATE POLICY "public write" ON rhythm_dancers FOR ALL    USING (true);
 -->
 <html lang="ja">
 <head>
@@ -4294,7 +4305,7 @@ function rhShowStartScreen(){
   startBtn.addEventListener('click',rhStart);
 }
 
-function rhStart(){
+async function rhStart(){
   const startBtn=document.getElementById('rh-start-btn');
   if(startBtn)startBtn.remove();
   rhBpm=parseInt(document.getElementById('rhythm-bpm').value)||138;
@@ -4310,16 +4321,38 @@ function rhStart(){
     rhGenChart(rhBpm,diff);
   }
 
-  rhDancers=(typeof npcs!=='undefined'?npcs:[])
-    .filter(n=>n&&(n.spriteImg||n.spriteCanvas||n.color))
-    .slice(0,5)
-    .map((n,i)=>({
-      npc:n,
-      x:0,
-      bouncePhase:i*(Math.PI*2/5),
-      scale:1,
-      flashColor:null
-    }));
+  let dancerIds=[];
+  try{
+    const{data:dancerData}=await _sb.from('rhythm_dancers')
+      .select('*').eq('id',1).maybeSingle();
+    dancerIds=dancerData?.npc_ids||[];
+  }catch(e){console.warn('rhythm_dancers fetch failed',e);}
+
+  const localNpcs=(typeof npcs!=='undefined'?npcs:[]);
+  if(dancerIds.length>0){
+    rhDancers=dancerIds.map(id=>{
+      const n=localNpcs.find(n=>n.id===id);
+      if(!n)return null;
+      return {
+        npc:n,
+        x:0,
+        bouncePhase:Math.random()*Math.PI*2,
+        scale:1,
+        flashColor:null
+      };
+    }).filter(Boolean).slice(0,6);
+  }else{
+    rhDancers=localNpcs
+      .filter(n=>n&&(n.spriteImg||n.spriteCanvas||n.color))
+      .slice(0,6)
+      .map((n,i)=>({
+        npc:n,
+        x:0,
+        bouncePhase:i*(Math.PI*2/6),
+        scale:1,
+        flashColor:null
+      }));
+  }
 
   rhPlayMusic();
   rhStartTime=Date.now();
