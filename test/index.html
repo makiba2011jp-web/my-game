@@ -4523,7 +4523,7 @@ function ceHit(lane){
       const diff=Math.abs(n.beat-currentBeat);
       if(diff<minDiff){minDiff=diff;closest=i;}
     });
-    if(closest!==null&&minDiff<2){
+    if(closest!==null){
       ceNotes.splice(closest,1);
       updateCeNoteCount();
     }
