@@ -615,8 +615,17 @@
       <input type="file" id="ce-music-file" accept="audio/*,audio/mp3,audio/mpeg,audio/ogg,audio/wav,.mp3,.ogg,.wav,.m4a,.aac" style="display:none">
       <span id="ce-music-info" style="color:#668;font-size:11px">未選択</span>
     </div>
-    <div style="display:flex;gap:6px;align-items:center">
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <button onclick="ceTogglePlay()" id="ce-play-btn" style="padding:4px 12px;background:#1a3a70;color:#adf;border:1px solid #48a;border-radius:4px;font-family:inherit;cursor:pointer">▶ 再生</button>
+      <button onclick="ceSeek(-10)" style="padding:4px 10px;background:#1a2a50;color:#adf;border:1px solid #446;border-radius:4px;font-family:inherit;cursor:pointer;font-size:12px">
+        ⏪ 10秒
+      </button>
+      <button onclick="ceSeek(-30)" style="padding:4px 10px;background:#1a2a50;color:#adf;border:1px solid #446;border-radius:4px;font-family:inherit;cursor:pointer;font-size:12px">
+        ⏪ 30秒
+      </button>
+      <button onclick="ceSeekToStart()" style="padding:4px 10px;background:#1a2a50;color:#adf;border:1px solid #446;border-radius:4px;font-family:inherit;cursor:pointer;font-size:12px">
+        ⏮ 最初
+      </button>
       <span id="ce-time" style="color:#aac;font-size:12px;min-width:60px">0.00秒</span>
     </div>
     <div style="display:flex;gap:6px;align-items:center">
@@ -4579,6 +4588,22 @@ function ceStopAudio(){
   cePlaying=false;
   const btn=document.getElementById('ce-play-btn');
   if(btn)btn.textContent='▶ 再生';
+}
+
+function ceSeek(seconds){
+  const wasPlaying=cePlaying;
+  ceStopAudio();
+  ceAudioOffset=Math.max(0, ceAudioOffset+seconds);
+  if(wasPlaying)cePlayAudio();
+  document.getElementById('ce-time').textContent=`${ceAudioOffset.toFixed(2)}秒`;
+}
+
+function ceSeekToStart(){
+  const wasPlaying=cePlaying;
+  ceStopAudio();
+  ceAudioOffset=0;
+  if(wasPlaying)cePlayAudio();
+  document.getElementById('ce-time').textContent='0.00秒';
 }
 
 function ceUpdateTime(){
