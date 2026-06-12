@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>英単語クエスト</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-wrap">
+    <!-- APIキー入力バー(常時表示) -->
+    <div id="apikey-bar">
+      <div class="key-line">
+        <label for="apikey-field">Anthropic APIキー</label>
+        <input id="apikey-field" type="password" placeholder="sk-ant-... を貼り付け" autocomplete="off" spellcheck="false" />
+        <button id="apikey-clear" title="消去">✕</button>
+      </div>
+      <span id="apikey-status"></span>
+    </div>
+
+    <canvas id="game" width="480" height="480"></canvas>
+    <!-- モバイル用十字キー -->
+    <div id="dpad">
+      <button class="dbtn" data-dir="up">▲</button>
+      <div class="dpad-mid">
+        <button class="dbtn" data-dir="left">◀</button>
+        <button class="dbtn" data-dir="down">▼</button>
+        <button class="dbtn" data-dir="right">▶</button>
+      </div>
+    </div>
+
+    <!-- NPCとのAI英会話オーバーレイ -->
+    <div id="chat-overlay">
+      <div id="chat-window">
+        <div id="chat-header">
+          <span id="chat-npc-name">NPC</span>
+          <div class="chat-head-btns">
+            <button id="chat-key" title="APIキー設定">⚙</button>
+            <button id="chat-close">× とじる</button>
+          </div>
+        </div>
+        <div id="chat-apikey">
+          <div class="key-title">Anthropic APIキーを入力</div>
+          <p class="key-desc">開発・テスト用です。キーはこのブラウザ（localStorage）にだけ保存され、Anthropicへの直接リクエストにのみ使われます。</p>
+          <input id="apikey-input" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" />
+          <div class="key-row">
+            <button id="apikey-save">保存して続ける</button>
+            <button id="apikey-cancel">キャンセル</button>
+          </div>
+          <p class="key-note">キーは <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a> で取得できます。</p>
+        </div>
+        <div id="chat-log"></div>
+        <div id="chat-inputbar">
+          <input id="chat-input" type="text" placeholder="英語で話す… (Enterで送信)" autocomplete="off" />
+          <button id="chat-send">話す</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="words.js"></script>
+  <script src="chat.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
