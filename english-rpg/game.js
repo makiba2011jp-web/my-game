@@ -8,7 +8,7 @@ const TILE = 32, MAP_N = 15;
 ctx.imageSmoothingEnabled = false;
 
 // ===== ゲーム状態 =====
-const STATE = { TITLE: "title", FIELD: "field", TOWN: "town", BATTLE: "battle", MESSAGE: "message", GAMEOVER: "gameover", CLEAR: "clear" };
+const STATE = { TITLE: "title", FIELD: "field", TOWN: "town", BATTLE: "battle", MESSAGE: "message", QUIZ: "quiz", GAMEOVER: "gameover", CLEAR: "clear" };
 let state = STATE.TITLE;
 
 // プレイヤー
@@ -92,6 +92,11 @@ let messageAfter = null;   // メッセージ確定後に呼ぶ関数
 let battle = null;         // 現在の戦闘オブジェクト
 let menuSel = 0;           // 選択カーソル
 let flash = 0;             // ダメージ点滅用
+let messageSpeaker = null; // メッセージの話者名(カットシーン用)
+let cutsceneDraw = null;   // カットシーン中の背景描画関数
+let cutsceneSteps = null, cutsceneIndex = 0, cutsceneOnDone = null;
+let quiz = null;           // チュートリアル等の選択クイズ
+let gameTime = 0;          // 経過時間(コトハの浮遊などの演出用)
 
 // ===== 敵テンプレート =====
 const ENEMIES = [
@@ -159,6 +164,13 @@ function onInput(k) {
     if (k === "confirm" || k === "cancel") advanceMessage();
     return;
   }
+  if (state === STATE.QUIZ && quiz) {
+    if (k === "up") quiz.sel = (quiz.sel + 3) % 4;
+    else if (k === "down") quiz.sel = (quiz.sel + 1) % 4;
+    else if (k === "left" || k === "right") quiz.sel = (quiz.sel + 2) % 4;
+    else if (k === "confirm") answerQuiz(quiz.sel);
+    return;
+  }
   if (state === STATE.BATTLE && battle.phase === "select") {
     if (k === "up") menuSel = (menuSel + 3) % 4;
     else if (k === "down") menuSel = (menuSel + 1) % 4;
@@ -190,6 +202,14 @@ function onTap(x, y) {
     return;
   }
   if (state === STATE.MESSAGE) { advanceMessage(); return; }
+  if (state === STATE.QUIZ && quiz) {
+    for (let i = 0; i < 4; i++) {
+      const col = i % 2, row = (i / 2) | 0;
+      const bx = 16 + col * 232, by = 312 + row * 76;
+      if (x >= bx && x <= bx + 216 && y >= by && y <= by + 64) { answerQuiz(i); return; }
+    }
+    return;
+  }
   if (state === STATE.BATTLE && battle.phase === "select") {
     // 4択ボタン領域(下半分2x2)
     for (let i = 0; i < 4; i++) {
@@ -210,7 +230,7 @@ function startGame(level) {
   player.level = 1; player.maxhp = 20; player.hp = 20; player.atk = 6;
   player.exp = 0; player.nextExp = 10; player.wins = 0;
   resetEncounter();
-  showMessage(["勇者よ、魔王をたおすのだ。", "草むらに ひそむ 魔物を", "英単語の力で うちはらえ！"], () => { state = STATE.FIELD; });
+  startOpening();
 }
 
 function resetEncounter() { stepsToEncounter = 4 + Math.floor(rnd() * 6); }
@@ -384,10 +404,11 @@ function queueResolve(lines, after) { showMessage(lines, after); }
 
 // ===== メッセージ表示 =====
 let msgQueue = [];
-function showMessage(lines, after) {
+function showMessage(lines, after, speaker) {
   msgQueue = lines.slice();
   messageLines = [msgQueue.shift()];
   messageAfter = after;
+  messageSpeaker = speaker || null;
   state = STATE.MESSAGE;
 }
 function advanceMessage() {
@@ -418,6 +439,8 @@ function loop(t) {
   requestAnimationFrame(loop);
 }
 function update(dt) {
+  gameTime += dt;
+  if (quiz && quiz.wrong > 0) quiz.wrong -= dt * 0.05;
   if (state === STATE.FIELD || state === STATE.TOWN || (player.moving)) {
     if (player.moving) {
       const speed = 0.18 * dt;
@@ -453,8 +476,12 @@ function render() {
     case STATE.FIELD: drawField(); break;
     case STATE.TOWN: drawTown(); break;
     case STATE.MESSAGE:
-      if (battle) drawBattleScene(); else drawField();
+      if (cutsceneDraw) cutsceneDraw(); else if (battle) drawBattleScene(); else drawField();
       drawMessageWindow();
+      break;
+    case STATE.QUIZ:
+      if (cutsceneDraw) cutsceneDraw(); else drawField();
+      drawQuizUI();
       break;
     case STATE.BATTLE: drawBattleScene(); drawBattleUI(); break;
     case STATE.GAMEOVER: drawEnd("ゲームオーバー", "#c0392b"); break;
@@ -675,6 +702,14 @@ function drawEnemy(cx, cy, color, isBoss, flash) {
 }
 
 function drawMessageWindow() {
+  if (messageSpeaker) {
+    ctx.font = "14px 'MS Gothic', monospace";
+    const w = ctx.measureText(messageSpeaker).width + 28;
+    drawWindow(16, 330, w, 28, false);
+    ctx.fillStyle = "#ffe082"; ctx.textAlign = "left";
+    ctx.fillText(messageSpeaker, 30, 349);
+    ctx.textAlign = "center";
+  }
   drawWindow(16, 360, 448, 104, false);
   ctx.fillStyle = "#fff"; ctx.textAlign = "left";
   ctx.font = "16px 'MS Gothic', monospace";
@@ -686,6 +721,110 @@ function drawMessageWindow() {
   ctx.font = "14px 'MS Gothic', monospace";
   ctx.fillText("▼ (Enter/タップ)", 452, 456);
   ctx.textAlign = "center";
+}
+
+// ===== カットシーン(会話劇) =====
+function playCutscene(steps, onDone) {
+  cutsceneSteps = steps; cutsceneIndex = 0; cutsceneOnDone = onDone || null;
+  advanceCutscene();
+}
+function advanceCutscene() {
+  if (!cutsceneSteps || cutsceneIndex >= cutsceneSteps.length) {
+    cutsceneSteps = null;
+    const d = cutsceneOnDone; cutsceneOnDone = null;
+    if (d) d();
+    return;
+  }
+  const step = cutsceneSteps[cutsceneIndex++];
+  if (step.action) step.action();
+  if (step.quiz) {
+    askQuiz(step.quiz, advanceCutscene);
+  } else {
+    showMessage(step.lines, advanceCutscene, step.who);
+  }
+}
+
+// ===== クイズ(チュートリアル等の選択) =====
+function askQuiz(q, onCorrect) {
+  quiz = { en: q.en, question: q.q, choices: q.choices, answer: q.answer, sel: 0, wrong: 0, onCorrect };
+  state = STATE.QUIZ;
+}
+function answerQuiz(idx) {
+  if (!quiz) return;
+  if (idx === quiz.answer) {
+    const cb = quiz.onCorrect; quiz = null;
+    if (cb) cb();
+  } else {
+    quiz.sel = idx; quiz.wrong = 14; // 不正解: フラッシュして再挑戦(チュートリアルなので減点なし)
+  }
+}
+function drawQuizUI() {
+  drawWindow(16, 250, 448, 54, false);
+  ctx.fillStyle = "#fff"; ctx.textAlign = "center";
+  ctx.font = "13px 'MS Gothic', monospace";
+  ctx.fillText(quiz.question, W / 2, 270);
+  ctx.font = "bold 26px 'MS Gothic', monospace"; ctx.fillStyle = "#ffe082";
+  ctx.fillText(quiz.en, W / 2, 297);
+  ctx.font = "15px 'MS Gothic', monospace";
+  for (let i = 0; i < 4; i++) {
+    const col = i % 2, row = (i / 2) | 0;
+    const bx = 16 + col * 232, by = 312 + row * 76;
+    drawWindow(bx, by, 216, 64, quiz.sel === i);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(quiz.choices[i], bx + 108, by + 39);
+  }
+  if (quiz.wrong > 0) {
+    ctx.fillStyle = "#ff9a9a"; ctx.font = "13px 'MS Gothic', monospace";
+    ctx.fillText("コトハ「ちがうみたい。もう一度！」", W / 2, 466);
+  }
+}
+
+// ===== オープニング(転生→コトハ→チュートリアル) =====
+function startOpening() {
+  cutsceneDraw = drawIntroScene;
+  playCutscene([
+    { who: null, lines: ["……ん？ ここ、どこ？", "さっきまで家にいたはずなのに…？"] },
+    { who: "村人？", lines: ["Help! My dog is lost!"] },
+    { who: null, lines: ["(ぜんぜん分からない…！ 何語…？)"] },
+    { who: "コトハ", lines: ["やっと起きた！ キミ、転生しちゃったみたいだね。", "私はコトハ、言葉の精霊！", "安心して、私が通訳するから！"] },
+    { who: "コトハ", lines: ["この世界の人は英語しか話さないの。", "でも大丈夫、いっしょに少しずつ覚えよう。", "まずは大事な単語をひとつ！"] },
+    { quiz: { en: "lost", q: "コトハ「\"lost\" ってどういう意味だと思う？」", choices: ["なくした・いなくなった", "見つけた", "食べた", "ねむった"], answer: 0 } },
+    { who: "コトハ", lines: ["正解！ \"lost\" は『なくした・いなくなった』。", "じゃあ、さっきの村人の言葉をもう一度…"] },
+    { who: "コトハ", lines: ["『助けて！ 犬がいなくなったの！』だって。", "ね？ 言葉が分かると世界が広がるでしょ？"] },
+    { who: "コトハ", lines: ["元の世界に帰る手がかりも、きっと人との会話の中にある。", "さ、冒険のはじまり！ 行こう、相棒！"] },
+  ], () => { cutsceneDraw = null; messageSpeaker = null; state = STATE.FIELD; });
+}
+
+function drawActor(x, y, fn) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(2, 2); fn(); ctx.restore();
+}
+function drawPerson(body, hair) {
+  ctx.fillStyle = body; ctx.fillRect(8, 14, 16, 14);
+  ctx.fillStyle = "#f5c98a"; ctx.fillRect(10, 6, 12, 10);
+  ctx.fillStyle = hair || "#5d4037"; ctx.fillRect(9, 4, 14, 4);
+  ctx.fillStyle = "#000"; ctx.fillRect(12, 11, 2, 2); ctx.fillRect(18, 11, 2, 2);
+  ctx.fillStyle = "#3e2723"; ctx.fillRect(10, 28, 5, 4); ctx.fillRect(17, 28, 5, 4);
+}
+function drawKotoha(cx, cy) {
+  const y = cy + Math.sin(gameTime / 300) * 5;
+  ctx.fillStyle = "rgba(123,224,210,0.28)"; ctx.beginPath(); ctx.arc(cx, y, 27, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#7be0d2"; ctx.beginPath(); ctx.arc(cx, y, 16, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#bff5ec"; ctx.beginPath(); ctx.arc(cx - 5, y - 5, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#1a4a44"; ctx.fillRect(cx - 7, y - 2, 3, 4); ctx.fillRect(cx + 4, y - 2, 3, 4);
+  ctx.fillStyle = "rgba(255,140,140,0.55)"; ctx.fillRect(cx - 11, y + 3, 4, 3); ctx.fillRect(cx + 7, y + 3, 4, 3);
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(cx + 19, y - 15, 2, 2); ctx.fillRect(cx - 22, y + 9, 2, 2); ctx.fillRect(cx + 12, y + 18, 2, 2);
+}
+function drawIntroScene() {
+  for (let y = 0; y < MAP_N; y++) {
+    for (let x = 0; x < MAP_N; x++) {
+      drawTile(y === 0 || y === MAP_N - 1 ? "T" : "G", x * TILE, y * TILE);
+    }
+  }
+  // 主人公(右向き)・村人(右)・コトハ(主人公の右上に浮遊)
+  drawActor(150, 150, () => drawHero(0, 0, "right", gameTime));
+  drawActor(296, 150, () => drawPerson("#8d6e63", "#4a342a"));
+  drawKotoha(252, 138);
 }
 
 function drawEnd(text, color) {

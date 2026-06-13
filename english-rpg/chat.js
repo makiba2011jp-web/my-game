@@ -151,11 +151,11 @@ const Chat = (() => {
     bubble.appendChild(el("span", "bubble-text", reply));
     const ja = el("div", "ja-text", replyJa);
     ja.style.display = "none";
-    const trBtn = el("button", "tr-btn", "🔍 訳");
+    const trBtn = el("button", "tr-btn", "🔍 コトハに訳を聞く");
     trBtn.addEventListener("click", () => {
       const show = ja.style.display === "none";
       ja.style.display = show ? "block" : "none";
-      trBtn.textContent = show ? "🔼 訳をかくす" : "🔍 訳";
+      trBtn.textContent = show ? "🔼 訳をかくす" : "🔍 コトハに訳を聞く";
     });
     bubble.appendChild(trBtn);
     row.appendChild(bubble);
@@ -173,12 +173,12 @@ const Chat = (() => {
     if (!c) return;
     if (c.natural) {
       const box = el("div", "correction ok");
-      box.appendChild(el("div", "corr-title", "✓ 自然な英語！"));
+      box.appendChild(el("div", "corr-title", "✓ コトハ：自然な英語！"));
       if (c.note_ja) box.appendChild(el("div", "corr-note", c.note_ja));
       logEl.appendChild(box);
     } else {
       const box = el("div", "correction fix");
-      box.appendChild(el("div", "corr-title", "✏️ 添削"));
+      box.appendChild(el("div", "corr-title", "✏️ コトハの添削"));
       if (c.corrected) {
         const line = el("div", "corr-fixed");
         line.appendChild(el("span", "corr-label", "→ "));
@@ -267,7 +267,7 @@ const Chat = (() => {
   }
 
   function startGreeting() {
-    addInfo("英語で話しかけてみよう！（不自然な英語はその場で添削されます）");
+    addInfo("コトハ「英語で話しかけてみて！ 変なところは私が直すから！」");
     history.push({ role: "user", content: "(The traveler walks up and greets you.)" });
     turn(true);
   }
