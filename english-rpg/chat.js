@@ -9,8 +9,8 @@
 // =====================================================================
 // 使えるモデルと料金($/1M tokens)
 const MODELS = {
-  opus:  { id: "claude-opus-4-8", label: "Opus 4.8", in: 5 / 1e6, out: 25 / 1e6 },
-  haiku: { id: "claude-haiku-4-5", label: "Haiku 4.5", in: 1 / 1e6, out: 5 / 1e6 },
+  opus:  { id: "claude-opus-4-8", label: "Opus 4.8", in: 5 / 1e6, out: 25 / 1e6, effort: true },
+  haiku: { id: "claude-haiku-4-5", label: "Haiku 4.5", in: 1 / 1e6, out: 5 / 1e6, effort: false }, // Haikuはeffort非対応
 };
 const AI_CONFIG = {
   mode: "browser",            // "browser" | "proxy"
@@ -21,6 +21,13 @@ const AI_CONFIG = {
   maxTokens: 600,
 };
 function curModel() { return MODELS[AI_CONFIG.modelKey] || MODELS.opus; }
+// effort はモデルにより未対応(Haiku 4.5は400)。対応モデルのみ付ける。
+function outputConfig(withFormat) {
+  const oc = {};
+  if (curModel().effort) oc.effort = "low";
+  if (withFormat) oc.format = { type: "json_schema", schema: SCHEMA };
+  return Object.keys(oc).length ? oc : undefined;
+}
 function setModel(key) {
   AI_CONFIG.modelKey = MODELS[key] ? key : "opus";
   localStorage.setItem("ai_model", AI_CONFIG.modelKey);
@@ -169,13 +176,14 @@ async function postClaude(body) {
 
 // 町人との英会話(構造化出力: reply/添削/和訳/quest_flag)
 async function callClaude(npc, level, messages) {
-  const data = await postClaude({
+  const body = {
     model: AI_CONFIG.model,
     max_tokens: AI_CONFIG.maxTokens,
-    output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
     system: buildSystem(npc, level, questHook && questHook.note),
     messages,
-  });
+  };
+  const oc = outputConfig(true); if (oc) body.output_config = oc;
+  const data = await postClaude(body);
   if (data.stop_reason === "refusal") {
     return { reply: "...", reply_ja: "（うまく答えられないようだ）", correction: { natural: true, corrected: "", note_ja: "" }, quest_flag: false };
   }
@@ -201,13 +209,14 @@ function buildKotohaSystem(level, context) {
 ${context ? `\n参考: 主人公のいまの目的は「${context}」。これに沿ってヒントを出してね。` : ""}`;
 }
 async function callKotoha(level, context, messages) {
-  const data = await postClaude({
+  const body = {
     model: AI_CONFIG.model,
     max_tokens: AI_CONFIG.maxTokens,
-    output_config: { effort: "low" },
     system: buildKotohaSystem(level, context),
     messages,
-  });
+  };
+  const oc = outputConfig(false); if (oc) body.output_config = oc;
+  const data = await postClaude(body);
   if (data.stop_reason === "refusal") return "（…うまく答えられないみたい。ごめんね）";
   const block = (data.content || []).find((b) => b.type === "text");
   return block ? block.text : "（うまく聞こえなかったみたい）";
