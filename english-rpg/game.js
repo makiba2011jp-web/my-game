@@ -115,6 +115,7 @@ for (const [id, def] of Object.entries(HOUSE_DEFS)) {
     doors: [{ tx: 5, ty: 6, to: "town", spawn: def.townReturn }],
   };
 }
+AREAS.inn.bed = { tx: 8, ty: 2 }; // 宿屋のベッド(泊まる→HP回復)
 let curArea = AREAS.town;               // 現在のエリア(町 or 家の中)
 let savedOverworld = { tx: 2, ty: 12 }; // 街に入る前のフィールド座標
 
@@ -134,6 +135,7 @@ function areaWalkable(tx, ty) {
   const t = tileAtArea(tx, ty);
   if (t === "#" || t === "T") return false;
   if (curArea.toilet && tx === curArea.toilet.tx && ty === curArea.toilet.ty) return false;
+  if (curArea.bed && tx === curArea.bed.tx && ty === curArea.bed.ty) return false;
   return !npcAt(tx, ty);
 }
 function doorAt(tx, ty) {
@@ -158,10 +160,11 @@ let camX = 0, camY = 0;     // カメラ(ビューポート左上のワールド
 // プレイヤーを中心にカメラを合わせる(マップ端でクランプ)
 function updateCamera(cols, rows) {
   const mapW = cols * TILE, mapH = rows * TILE;
-  camX = Math.round(player.px + TILE / 2 - W / 2);
-  camY = Math.round(player.py + TILE / 2 - H / 2);
-  camX = Math.max(0, Math.min(camX, Math.max(0, mapW - W)));
-  camY = Math.max(0, Math.min(camY, Math.max(0, mapH - H)));
+  // 画面より小さいマップ(家の中など)は中央寄せ、大きければプレイヤー追従
+  if (mapW <= W) camX = -Math.round((W - mapW) / 2);
+  else camX = Math.max(0, Math.min(Math.round(player.px + TILE / 2 - W / 2), mapW - W));
+  if (mapH <= H) camY = -Math.round((H - mapH) / 2);
+  else camY = Math.max(0, Math.min(Math.round(player.py + TILE / 2 - H / 2), mapH - H));
 }
 
 // ===== 素材の売値 / ショップの品ぞろえ =====
@@ -218,9 +221,12 @@ function shopSelect(row) {
   if (row.kind === "sell") {
     const v = materialsValue();
     player.gold += v; materials = {};
-    shop.msg = `素材を売って ${v}G 手に入れた！`; shop.msgT = 220;
-    if (quest && quest.stage === 3) quest.stage = 4; // 最初の目的を達成
-
+    if (quest && quest.stage === 3) {
+      quest.stage = 4; // 素材を売った→次は宿屋に泊まる
+      shop.msg = `素材を売って ${v}G！ コトハ「次は宿屋に泊まって休もう」`; shop.msgT = 300;
+    } else {
+      shop.msg = `素材を売って ${v}G 手に入れた！`; shop.msgT = 220;
+    }
   } else if (row.kind === "buy") {
     const it = SHOP_ITEMS[row.idx];
     player.gold -= it.price; boughtItems.add(row.idx);
@@ -260,11 +266,12 @@ function setupFirstQuest() { quest = { stage: 0, kills: 0, goal: 5, shopRevealed
 function addMaterial(name) { materials[name] = (materials[name] || 0) + 1; }
 function questLines() {
   if (!quest) return null;
-  if (quest.stage === 0) return ["モンスターを5匹たおす", `素材あつめ ${quest.kills}/${quest.goal}`];
-  if (quest.stage === 1) return ["町(赤い屋根)へ向かう", "素材あつめ 達成！"];
-  if (quest.stage === 2) return ["町の人に素材屋の場所を聞く", '"Where is the material shop?"'];
-  if (quest.stage === 3) return ["素材屋で素材を売ろう"];
-  return ["町を探索しよう"];
+  if (quest.stage === 0) return ["① モンスターを5匹たおす", `素材あつめ ${quest.kills}/${quest.goal}`];
+  if (quest.stage === 1) return ["② 町(赤い屋根)へ向かう", "素材あつめ 達成！"];
+  if (quest.stage === 2) return ["③ 素材屋の場所を町の人に聞く", '"Where is the material shop?"'];
+  if (quest.stage === 3) return ["④ 素材屋で素材を売る"];
+  if (quest.stage === 4) return ["⑤ 宿屋に泊まる"];
+  return ["⑥ つづく（次の目的は準備中）"];
 }
 
 // ===== 敵テンプレート =====
@@ -308,6 +315,11 @@ document.querySelectorAll(".dbtn").forEach((b) => {
 // 「コトハにきく」コマンド(ボタン)
 const kotohaBtn = document.getElementById("kotoha-btn");
 if (kotohaBtn) kotohaBtn.addEventListener("click", (e) => { e.preventDefault(); openKotohaChat(); });
+
+// 開発用: 目的ジャンプボタン
+document.querySelectorAll("#dev-bar button").forEach((b) => {
+  b.addEventListener("click", (e) => { e.preventDefault(); devJump(parseInt(b.dataset.stage, 10)); });
+});
 
 // コトハに相談(日本語で何でも教えてくれる)。探索中のみ。
 function openKotohaChat() {
@@ -442,6 +454,35 @@ function startGame(level) {
 
 function resetEncounter() { stepsToEncounter = 4 + Math.floor(rnd() * 6); }
 
+// ===== 開発用: 指定の目的(ステージ)から開始 =====
+// stage 0=①最初 1=②町へ 2=③聞込 3=④売る 4=⑤宿 5=⑥後
+function devJump(stage) {
+  if (!toeicLevel) toeicLevel = 500;
+  if (window.Chat && Chat.isOpen()) Chat.close();
+  battle = null; shop = null; quiz = null; cutsceneDraw = null; cutsceneSteps = null; messageSpeaker = null;
+  // 目的③以降を試せる程度のステータス
+  player.level = 3; player.maxhp = 32; player.hp = 32; player.atk = 10; player.def = 0;
+  player.exp = 0; player.nextExp = 26; player.wins = 5;
+  boughtItems = new Set();
+  quest = { stage, kills: stage === 0 ? 0 : 5, goal: 5, shopRevealed: stage >= 3 };
+  materials = (stage === 2 || stage === 3) ? { "スライムのゼリー": 3, "こうもりの羽": 1, "れいきのかけら": 1 } : {};
+  player.gold = stage >= 4 ? 80 : 0;
+  resetEncounter();
+  if (stage <= 1) {
+    curArea = AREAS.town;
+    player.tx = 2; player.ty = 12; player.px = player.tx * TILE; player.py = player.ty * TILE;
+    player.dir = "down"; player.moving = false;
+    state = STATE.FIELD;
+  } else {
+    curArea = AREAS.town;
+    player.tx = TOWN_START.tx; player.ty = TOWN_START.ty;
+    player.px = player.tx * TILE; player.py = player.ty * TILE;
+    player.dir = "up"; player.moving = false;
+    state = STATE.TOWN;
+  }
+}
+window.dev = devJump; // コンソールから dev(4) などでも呼べる
+
 // ===== フィールド移動 =====
 function tryMove(dir) {
   if (player.moving) return;
@@ -464,16 +505,57 @@ function tryTalk() {
   if (n) interactNPC(n);
 }
 
-// NPCに話しかけたときの分岐(店/方向を尋ねるイベント/通常会話)
+// 宿屋に泊まる(HP全回復＋クエスト進行)
+function restAtInn() {
+  player.hp = player.maxhp;
+  for (const k in keys) keys[k] = false;
+  const advanced = quest && quest.stage === 4;
+  if (advanced) quest.stage = 5;
+  playTownCutscene([{
+    who: "コトハ",
+    lines: advanced
+      ? ["ぐっすり眠った…。HPが全回復したよ！", "ここまでよくがんばったね、相棒！"]
+      : ["ぐっすり眠った…。HPが全回復したよ！"],
+  }]);
+}
+
+// NPCに話しかけたときの分岐
 function interactNPC(n) {
-  if (n.shop) { openShop(n.shop); return; }
-  if (quest && quest.stage === 2) {
-    // AI会話の中で「素材屋の場所」を聞けたらフラグ。AIが使えない時はスクリプト版。
+  if (n.id === "innkeeper") { talkInn(n); return; }      // 宿屋: 泊まりたいと伝える→泊まる
+  if (n.shop) { talkShop(n); return; }                   // 店: 売りたい/買いたいと伝える→メニュー
+  if (quest && quest.stage === 2) {                      // 素材屋の場所を尋ねるイベント
     if (Chat.aiReady()) talkAskDirections(n);
     else askDirections(n);
     return;
   }
   talkToNPC(n);
+}
+
+// 宿屋: AI会話で「泊まりたい」と伝えると泊まれる(AI無しなら直接泊まる)
+function talkInn(n) {
+  for (const k in keys) keys[k] = false;
+  if (!Chat.aiReady()) { restAtInn(); return; }
+  Chat.setQuest({
+    note: "the traveler asks to stay the night, sleep, rest, or rent a room at the inn (e.g. \"I want to stay the night\", \"Can I rent a room?\", \"I'd like to rest here\"). When they do, warmly welcome them and tell them to sleep well.",
+    flagMessage: "コトハ「泊めてくれるって！ × でとじてやすもう」",
+    onClose: () => restAtInn(),
+  });
+  Chat.open(n, toeicLevel, () => {});
+}
+
+// 店: AI会話で「売りたい/買いたい」と伝えるとメニューが開く(AI無しなら直接メニュー)
+function talkShop(n) {
+  for (const k in keys) keys[k] = false;
+  if (!Chat.aiReady()) { openShop(n.shop); return; }
+  const isMat = n.shop === "material";
+  Chat.setQuest({
+    note: isMat
+      ? "the traveler says they want to sell their materials or items (e.g. \"I want to sell some materials\", \"Can I sell these?\", \"I'd like to sell my stuff\"). When they do, happily agree to take a look at their goods."
+      : "the traveler says they want to buy a weapon, armor, or equipment (e.g. \"I want to buy a sword\", \"Show me your weapons\", \"I'd like to buy some armor\"). When they do, happily agree to show your wares.",
+    flagMessage: isMat ? "コトハ「売れるよ！ × でとじて売却画面へ」" : "コトハ「買えるよ！ × でとじて購入画面へ」",
+    onClose: () => openShop(n.shop),
+  });
+  Chat.open(n, toeicLevel, () => {});
 }
 
 function talkToNPC(npc) {
@@ -487,6 +569,7 @@ function talkAskDirections(npc) {
   for (const k in keys) keys[k] = false;
   Chat.setQuest({
     note: "the traveler asks where the material shop (素材屋) is, or how to find/reach it. In that situation your reply must tell them, in character and in English, that the material shop's owner is in the toilet right now.",
+    flagMessage: "コトハ「やった！ 素材屋さんがトイレから出てきたよ。素材屋の家に入ってみよう！」",
     onFlag: () => revealMaterialShop(),
   });
   Chat.open(npc, toeicLevel, () => { /* 会話終了後は街に留まる */ });
@@ -928,6 +1011,7 @@ function drawArea() {
     }
   }
   if (a.toilet) drawToilet(a.toilet.tx * TILE - camX, a.toilet.ty * TILE - camY);
+  if (a.bed) drawBed(a.bed.tx * TILE - camX, a.bed.ty * TILE - camY);
   // 扉ラベル(でぐち／家の名前)
   ctx.textAlign = "center"; ctx.font = "11px 'MS Gothic', monospace";
   for (const d of a.doors) {
@@ -943,10 +1027,6 @@ function drawArea() {
   drawKotoha(player.px - camX + 30, player.py - camY + 8, 0.6);
 
   drawHud();
-  drawWindow(60, 430, 360, 42, false);
-  ctx.fillStyle = "#fff"; ctx.textAlign = "center";
-  ctx.font = "12px 'MS Gothic', monospace";
-  ctx.fillText(a.indoor ? "人に近づいて Z で話す／でぐちで外へ" : "扉に入ると建物の中へ／人をタップで会話", W / 2, 456);
 }
 
 function drawInteriorTile(t, px, py) {
@@ -987,6 +1067,15 @@ function drawTownTile(t, px, py) {
     ctx.fillStyle = "#7a4a22"; ctx.fillRect(px + 9, py + 2, 14, 22);
     ctx.fillStyle = "#ffd24a"; ctx.fillRect(px + 19, py + 13, 3, 3);
   }
+}
+
+function drawBed(x, y) {
+  ctx.fillStyle = "#6a4a2a"; ctx.fillRect(x + 3, y + 1, 26, 30);   // フレーム
+  ctx.fillStyle = "#efe7d6"; ctx.fillRect(x + 5, y + 3, 22, 26);   // シーツ
+  ctx.fillStyle = "#fff"; ctx.fillRect(x + 6, y + 4, 20, 7);       // 枕
+  ctx.fillStyle = "#c0506a"; ctx.fillRect(x + 5, y + 14, 22, 15);  // 掛け布団
+  ctx.fillStyle = "#a83a54"; ctx.fillRect(x + 5, y + 25, 22, 4);
+  ctx.fillStyle = "#5a3a1e"; ctx.fillRect(x + 3, y + 28, 4, 4); ctx.fillRect(x + 25, y + 28, 4, 4); // 脚
 }
 
 function drawToilet(x, y) {

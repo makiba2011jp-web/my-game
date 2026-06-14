@@ -19,8 +19,9 @@ const getApiKey = () => localStorage.getItem(API_KEY_STORE) || "";
 const setApiKey = (k) => localStorage.setItem(API_KEY_STORE, k);
 
 // クエスト連動: 会話中に特定の条件を満たすと quest_flag が立つ
-// { note: 英語の条件文, onFlag: 立ったとき呼ぶ関数 }
+// { note: 英語の条件文, flagMessage?: 表示文, onFlag?: 即時実行, onClose?: 閉じたとき実行 }
 let questHook = null;
+let pendingClose = null; // フラグ発火後、会話を閉じたときに実行する動作
 function aiReady() {
   return AI_CONFIG.mode === "proxy" ? !!AI_CONFIG.proxyUrl : !!getApiKey();
 }
@@ -30,6 +31,8 @@ const NPC_PERSONA = {
   innkeeper: "You are Marian, the warm and chatty innkeeper of a small fantasy town. You enjoy talking about food, cozy rooms, and the stories of travelers who pass through.",
   smith: "You are Borin, a gruff but kind-hearted blacksmith. You talk about weapons, armor, and slaying monsters. You respect brave adventurers.",
   bard: "You are Lyra, a cheerful traveling bard. You love rumors, songs, and tales about the distant Demon King the hero must defeat.",
+  matshop: "You are Gil, the owner of the material shop (素材屋). You buy raw materials that adventurers gather from monsters — slime jelly, bat wings, ghost shards and the like. You are a practical, friendly trader who loves a good deal. You do NOT run an inn and do not offer rooms or food.",
+  weaponshop: "You are Dunn, the owner of the weapon shop (武器屋). You sell swords, shields, and armor to adventurers and are proud of your craft. You do NOT run an inn and do not offer rooms or food.",
 };
 const LEVEL_GUIDE = {
   500: "Use very simple words and short sentences (around CEFR A2 / TOEIC 500). Avoid difficult vocabulary and complex grammar.",
@@ -431,8 +434,9 @@ const Chat = (() => {
         // クエストフラグ判定(会話の中で条件を満たしたら発火)
         if (questHook && data.quest_flag === true) {
           const h = questHook; questHook = null;
-          addInfo("コトハ「やった！ 素材屋さんがトイレから出てきたよ。話しかけて売ろう！」");
-          if (h.onFlag) h.onFlag();
+          if (h.flagMessage) addInfo(h.flagMessage);
+          if (h.onFlag) h.onFlag();              // 即時(会話は続ける)
+          if (h.onClose) pendingClose = h.onClose; // 会話を閉じたら実行
         }
       }
     } catch (err) {
@@ -491,6 +495,7 @@ const Chat = (() => {
 
   function beginSession(title) {
     suspended = null;
+    pendingClose = null;
     history = [];
     logEl.innerHTML = "";
     nameEl.textContent = title;
@@ -513,8 +518,10 @@ const Chat = (() => {
     pendingStart = false;
     questHook = null;
     suspended = null;
+    const after = pendingClose; pendingClose = null;
     const cb = onCloseCb; onCloseCb = null;
     if (cb) cb();
+    if (after) after(); // 「売りたい/泊まりたい」など、閉じた後の動作
   }
 
   return { open, openKotoha, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; } };
