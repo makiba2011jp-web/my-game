@@ -17,6 +17,7 @@ const player = {
   dir: "down", moving: false, anim: 0,
   level: 1, hp: 20, maxhp: 20, atk: 6, def: 0, exp: 0, nextExp: 10,
   gold: 0, wins: 0,
+  guildLevel: 0, guildPoints: 0, // 0=未登録、1〜=ギルドランク
 };
 
 let toeicLevel = 500;     // 選択された難易度
@@ -331,7 +332,8 @@ function questLines() {
   if (quest.stage === 2) return ["③ 素材屋の場所を町の人に聞く", '"Where is the material shop?"'];
   if (quest.stage === 3) return ["④ 素材屋で素材を売る"];
   if (quest.stage === 4) return ["⑤ 宿屋に泊まる"];
-  return ["⑥ つづく（次の目的は準備中）"];
+  if (quest.stage === 5) return ["⑥ ギルドに登録する", "町中央のギルドの受付へ"];
+  return ["⑦ つづく（次の目的は準備中）"];
 }
 
 // ===== 敵テンプレート =====
@@ -507,6 +509,7 @@ function startGame(level) {
   player.dir = "down"; player.moving = false;
   player.level = 1; player.maxhp = 20; player.hp = 20; player.atk = 6; player.def = 0;
   player.exp = 0; player.nextExp = 10; player.wins = 0; player.gold = 0;
+  player.guildLevel = 0; player.guildPoints = 0;
   materials = {}; quest = null; boughtItems = new Set();
   resetEncounter();
   startOpening();
@@ -515,7 +518,7 @@ function startGame(level) {
 function resetEncounter() { stepsToEncounter = 4 + Math.floor(rnd() * 6); }
 
 // ===== 開発用: 指定の目的(ステージ)から開始 =====
-// stage 0=①最初 1=②町へ 2=③聞込 3=④売る 4=⑤宿 5=⑥後
+// stage 0=①最初 1=②町へ 2=③聞込 3=④売る 4=⑤宿 5=⑥ギルド登録 6=⑦後
 function devJump(stage) {
   if (!toeicLevel) toeicLevel = 500;
   if (window.Chat && Chat.isOpen()) Chat.close();
@@ -523,6 +526,7 @@ function devJump(stage) {
   // 目的③以降を試せる程度のステータス
   player.level = 3; player.maxhp = 32; player.hp = 32; player.atk = 10; player.def = 0;
   player.exp = 0; player.nextExp = 26; player.wins = 5;
+  player.guildLevel = stage >= 6 ? 1 : 0; player.guildPoints = 0;
   boughtItems = new Set();
   quest = { stage, kills: stage === 0 ? 0 : 5, goal: 5, shopRevealed: stage >= 3 };
   materials = (stage === 2 || stage === 3) ? { "スライムのゼリー": 3, "こうもりの羽": 1, "れいきのかけら": 1 } : {};
@@ -565,7 +569,7 @@ function tryTalk() {
   if (n) interactNPC(n);
 }
 
-// 宿屋に泊まる(HP全回復＋クエスト進行)
+// 宿屋に泊まる(HP全回復＋クエスト進行)。泊まったらコトハがギルド登録を提案。
 function restAtInn() {
   player.hp = player.maxhp;
   for (const k in keys) keys[k] = false;
@@ -574,21 +578,62 @@ function restAtInn() {
   playTownCutscene([{
     who: "コトハ",
     lines: advanced
-      ? ["ぐっすり眠った…。HPが全回復したよ！", "ここまでよくがんばったね、相棒！"]
+      ? ["ぐっすり眠った…。HPが全回復したよ！", "ねぇ相棒、もっとお金を稼ぐなら『ギルド』に登録しよう！", "町の中央の大きい建物がギルド。受付で登録できるよ。"]
       : ["ぐっすり眠った…。HPが全回復したよ！"],
   }]);
 }
 
+// ギルドに登録する
+function registerGuild() {
+  if (player.guildLevel > 0) return;
+  player.guildLevel = 1; player.guildPoints = 0;
+  if (quest && quest.stage === 5) quest.stage = 6; // 目的⑥達成
+  playTownCutscene([{
+    who: "コトハ",
+    lines: ["ギルドに登録できたね！ これでギルドランク1の冒険者だよ。", "依頼をこなすとギルドポイントとお金がもらえるの。", "ポイントが貯まるとランクが上がって、行ける場所も増えるよ！"],
+  }]);
+}
+// 依頼などでギルドポイントを加算(貯まるとランクアップ)。返り値=上がったランク数
+function addGuildPoints(gp) {
+  if (player.guildLevel < 1) return 0;
+  player.guildPoints += gp;
+  let ups = 0;
+  while (player.guildPoints >= player.guildLevel * 100) {
+    player.guildPoints -= player.guildLevel * 100;
+    player.guildLevel++; ups++;
+  }
+  return ups;
+}
+window.gp = addGuildPoints; // 開発用: コンソールから gp(120) などでポイント加算テスト
+
 // NPCに話しかけたときの分岐
 function interactNPC(n) {
-  if (n.id === "innkeeper") { talkInn(n); return; }      // 宿屋: 泊まりたいと伝える→泊まる
-  if (n.shop) { talkShop(n); return; }                   // 店: 売りたい/買いたいと伝える→メニュー
-  if (quest && quest.stage === 2) {                      // 素材屋の場所を尋ねるイベント
+  if (n.id === "innkeeper") { talkInn(n); return; }            // 宿屋: 泊まりたい→泊まる
+  if (n.id === "guild_receptionist") { talkGuild(n); return; } // ギルド受付: 登録したい→登録
+  if (n.shop) { talkShop(n); return; }                         // 店: 売りたい/買いたい→メニュー
+  if (quest && quest.stage === 2) {                            // 素材屋の場所を尋ねるイベント
     if (Chat.aiReady()) talkAskDirections(n);
     else askDirections(n);
     return;
   }
   talkToNPC(n);
+}
+
+// ギルド受付: 未登録ならAI会話で「登録したい」と伝えると登録(AI無しは直接登録)
+function talkGuild(n) {
+  for (const k in keys) keys[k] = false;
+  if (player.guildLevel > 0) {                          // 登録済み
+    if (quest && quest.stage === 5) quest.stage = 6;    // 既に登録済みなら目的⑥達成扱い
+    talkToNPC(n);                                       // (将来: 依頼メニュー)
+    return;
+  }
+  if (!Chat.aiReady()) { registerGuild(); return; }
+  Chat.setQuest({
+    note: "the traveler asks to register, join, or sign up as an adventurer at the guild (e.g. \"I want to register\", \"I'd like to join the guild\", \"Can I sign up as an adventurer?\"). When they do, warmly welcome them as a new guild member.",
+    flagMessage: "コトハ「登録できるって！ × でとじて登録しよう」",
+    onClose: () => registerGuild(),
+  });
+  Chat.open(n, toeicLevel, () => {});
 }
 
 // 宿屋: AI会話で「泊まりたい」と伝えると泊まれる(AI無しなら直接泊まる)
@@ -1018,12 +1063,17 @@ function drawHero(px, py, dir, anim) {
 }
 
 function drawHud() {
-  drawWindow(8, 8, 188, 76, false);
+  const reg = player.guildLevel > 0;
+  drawWindow(8, 8, 196, reg ? 96 : 76, false);
   ctx.fillStyle = "#fff"; ctx.textAlign = "left";
   ctx.font = "13px 'MS Gothic', monospace";
   ctx.fillText(`Lv ${player.level}   ${player.gold}G`, 20, 28);
   ctx.fillText(`HP ${player.hp}/${player.maxhp}`, 20, 48);
   ctx.fillText(`こうげき${player.atk}  ぼうぎょ${player.def}`, 20, 68);
+  if (reg) {
+    ctx.fillStyle = "#ffd24a";
+    ctx.fillText(`ギルドLv${player.guildLevel}  GP${player.guildPoints}/${player.guildLevel * 100}`, 20, 88);
+  }
   ctx.textAlign = "center";
   drawRightPanel();
 }

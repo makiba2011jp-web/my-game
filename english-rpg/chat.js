@@ -387,9 +387,15 @@ const Chat = (() => {
   // ---- 「コトハにきく」⇄「会話にもどる」(NPC会話を保持したまま切替) ----
   function updateHelpBtn() {
     if (!helpBtn) return;
-    if (suspended) { helpBtn.style.display = ""; helpBtn.textContent = "← もどる"; }
-    else if (convMode === "npc") { helpBtn.style.display = ""; helpBtn.textContent = "🧚 コトハ"; }
-    else { helpBtn.style.display = "none"; }
+    if (suspended) {
+      // コトハのサブ会話中: 「とじる」を隠し、「もどる」でNPC会話へ戻す
+      helpBtn.style.display = ""; helpBtn.textContent = "← もどる";
+      if (closeBtn) closeBtn.style.display = "none";
+    } else {
+      if (closeBtn) closeBtn.style.display = "";
+      if (convMode === "npc") { helpBtn.style.display = ""; helpBtn.textContent = "🧚 コトハ"; }
+      else { helpBtn.style.display = "none"; }
+    }
   }
   function suspendAndOpenKotoha() {
     // 今のNPC会話のログDOMを退避(添削や和訳ボタンごと保持)
