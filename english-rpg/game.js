@@ -51,33 +51,7 @@ function walkable(tx, ty) {
 }
 
 // ===== エリア(町＆家の中) =====
-// 町: #=建物 .=地面 T=木 D=扉  /  家の中: #=壁 .=床 D=出口
-const TOWN_MAP = [
-  "########################",
-  "#......................#",
-  "#..###....TT...###.....#",
-  "#..#D#.........#D#.....#",
-  "#......................#",
-  "#..T..............T....#",
-  "#.......########.......#",
-  "#.......########.......#",
-  "#.......###D####.......#",
-  "#......................#",
-  "#..###.........###.....#",
-  "#..#D#....TT...#D#.....#",
-  "#......................#",
-  "#....T...........T.....#",
-  "#......................#",
-  "#......................#",
-  "#..........D...........#",
-  "########################",
-];
-const TOWN_COLS = TOWN_MAP[0].length; // 24
-const TOWN_ROWS = TOWN_MAP.length;    // 18
-const TOWN_START = { tx: 11, ty: 15 }; // 入場時の立ち位置(出口の上)
-const TOILET = { tx: 18, ty: 12 };     // 町のトイレ(素材屋がこもっている。素材屋の家のそば)
-
-// 家の中の共通レイアウト(11×8)。中央上に店主、下に出口D。
+// 家の中の共通レイアウト(11×8): 店主(5,2)、出口D(5,6)、入場(5,5)
 const INTERIOR_MAP = [
   "###########",
   "#.........#",
@@ -88,39 +62,7 @@ const INTERIOR_MAP = [
   "#....D....#",
   "###########",
 ];
-const HOUSE_DEFS = {
-  inn:      { name: "宿屋",   npc: { id: "innkeeper", name: "宿屋の女将 Marian", tx: 5, ty: 2, color: "#e0a060" }, townReturn: { tx: 4, ty: 4 } },
-  smith:    { name: "鍛冶屋", npc: { id: "smith", name: "鍛冶屋 Borin", tx: 5, ty: 2, color: "#9098b0" }, townReturn: { tx: 16, ty: 4 } },
-  weapon:   { name: "武器屋", npc: { id: "weaponshop", name: "武器屋", tx: 5, ty: 2, color: "#8fa0c0", shop: "weapon" }, townReturn: { tx: 4, ty: 12 } },
-  material: { name: "素材屋", npc: { id: "matshop", name: "素材屋", tx: 5, ty: 2, color: "#c08a3e", shop: "material" }, townReturn: { tx: 16, ty: 12 } },
-};
-
-// 家の中の内装(家具)。solid:false 以外は通行不可。中央(列4〜6)は会話/出入りの通路として空けておく。
-const HOUSE_DECOR = {
-  inn: [
-    { tx: 8, ty: 2, kind: "bed" }, { tx: 8, ty: 4, kind: "bed" },
-    { tx: 2, ty: 2, kind: "table" }, { tx: 2, ty: 4, kind: "plant" },
-    { tx: 1, ty: 1, kind: "lamp" }, { tx: 9, ty: 1, kind: "lamp" },
-    { tx: 5, ty: 4, kind: "rug", solid: false },
-  ],
-  smith: [
-    { tx: 1, ty: 1, kind: "forge" }, { tx: 2, ty: 3, kind: "anvil" },
-    { tx: 2, ty: 5, kind: "barrel" },
-    { tx: 8, ty: 2, kind: "weaponrack" }, { tx: 8, ty: 4, kind: "weaponrack" },
-  ],
-  weapon: [
-    { tx: 1, ty: 2, kind: "weaponrack" }, { tx: 1, ty: 4, kind: "weaponrack" },
-    { tx: 9, ty: 2, kind: "weaponrack" }, { tx: 9, ty: 4, kind: "weaponrack" },
-    { tx: 2, ty: 5, kind: "armorstand" }, { tx: 8, ty: 5, kind: "armorstand" },
-  ],
-  material: [
-    { tx: 1, ty: 1, kind: "shelf" }, { tx: 9, ty: 1, kind: "shelf" },
-    { tx: 2, ty: 3, kind: "crate" }, { tx: 8, ty: 3, kind: "crate" },
-    { tx: 2, ty: 5, kind: "barrel" }, { tx: 8, ty: 5, kind: "barrel" },
-  ],
-};
-
-// ギルド(他より大きい建物)の内部 13×9
+// ギルド(大きい建物)の内部 13×9
 const GUILD_MAP = [
   "#############",
   "#...........#",
@@ -140,39 +82,103 @@ const GUILD_NPCS = [
 ];
 const GUILD_DECOR = [
   { tx: 4, ty: 3, kind: "counter" }, { tx: 5, ty: 3, kind: "counter" },
-  { tx: 7, ty: 3, kind: "counter" }, { tx: 8, ty: 3, kind: "counter" }, // 受付カウンター(中央6は会話用に空ける)
-  { tx: 1, ty: 1, kind: "board" },   // クエスト掲示板
+  { tx: 7, ty: 3, kind: "counter" }, { tx: 8, ty: 3, kind: "counter" },
+  { tx: 1, ty: 1, kind: "board" },
   { tx: 2, ty: 6, kind: "table" }, { tx: 10, ty: 6, kind: "table" },
   { tx: 11, ty: 1, kind: "barrel" },
 ];
 
+// 各建物の店主NPCと内装テンプレ名(ギルドは別定義)
+const BUILDING_DEFS = {
+  inn:        { name: "宿屋",   npc: { id: "innkeeper",  name: "宿屋の女将 Marian", color: "#e0a060" }, decor: "inn" },
+  restaurant: { name: "飲食店", npc: { id: "restaurant", name: "料理人 Tom",        color: "#c08a3e" }, decor: "restaurant" },
+  bar:        { name: "バー",   npc: { id: "bar",        name: "バーの主人 Sal",    color: "#9a5a3a" }, decor: "bar" },
+  bank:       { name: "銀行",   npc: { id: "bank",       name: "銀行員 Greta",      color: "#5a7a8a" }, decor: "bank" },
+  school:     { name: "学校",   npc: { id: "school",     name: "先生 Edwin",        color: "#7a8a5a" }, decor: "school" },
+  hospital:   { name: "病院",   npc: { id: "hospital",   name: "医者 Hale",         color: "#cfd8dc" }, decor: "hospital" },
+  church:     { name: "教会",   npc: { id: "church",     name: "シスター Clara",    color: "#d0d0e8" }, decor: "church" },
+  weapon:     { name: "武器屋", npc: { id: "weaponshop", name: "武器屋",            color: "#8fa0c0", shop: "weapon" }, decor: "weapon" },
+  material:   { name: "素材屋", npc: { id: "matshop",    name: "素材屋",            color: "#c08a3e", shop: "material" }, decor: "material" },
+  smith:      { name: "鍛冶屋", npc: { id: "smith",      name: "鍛冶屋 Borin",      color: "#9098b0" }, decor: "smith" },
+  salon:      { name: "美容院", npc: { id: "salon",      name: "美容師 Coco",       color: "#d07ab0" }, decor: "salon" },
+  police:     { name: "警察署", npc: { id: "police",     name: "警官 Bruno",        color: "#3a5a8a" }, decor: "police" },
+};
+// 内装(家具)テンプレ。中央列(列5の通路と店主(5,2))は空ける。
+const DECOR_TEMPLATES = {
+  inn:        [{ tx: 8, ty: 2, kind: "bed" }, { tx: 8, ty: 4, kind: "bed" }, { tx: 2, ty: 2, kind: "table" }, { tx: 2, ty: 4, kind: "plant" }, { tx: 1, ty: 1, kind: "lamp" }, { tx: 9, ty: 1, kind: "lamp" }, { tx: 5, ty: 4, kind: "rug", solid: false }],
+  smith:      [{ tx: 1, ty: 1, kind: "forge" }, { tx: 2, ty: 3, kind: "anvil" }, { tx: 2, ty: 5, kind: "barrel" }, { tx: 8, ty: 2, kind: "weaponrack" }, { tx: 8, ty: 4, kind: "weaponrack" }],
+  weapon:     [{ tx: 1, ty: 2, kind: "weaponrack" }, { tx: 1, ty: 4, kind: "weaponrack" }, { tx: 9, ty: 2, kind: "weaponrack" }, { tx: 9, ty: 4, kind: "weaponrack" }, { tx: 2, ty: 5, kind: "armorstand" }, { tx: 8, ty: 5, kind: "armorstand" }],
+  material:   [{ tx: 1, ty: 1, kind: "shelf" }, { tx: 9, ty: 1, kind: "shelf" }, { tx: 2, ty: 3, kind: "crate" }, { tx: 8, ty: 3, kind: "crate" }, { tx: 2, ty: 5, kind: "barrel" }, { tx: 8, ty: 5, kind: "barrel" }],
+  restaurant: [{ tx: 2, ty: 2, kind: "table" }, { tx: 8, ty: 2, kind: "table" }, { tx: 2, ty: 5, kind: "table" }, { tx: 8, ty: 5, kind: "counter" }, { tx: 1, ty: 1, kind: "plant" }],
+  bar:        [{ tx: 1, ty: 3, kind: "counter" }, { tx: 2, ty: 3, kind: "counter" }, { tx: 8, ty: 2, kind: "shelf" }, { tx: 8, ty: 5, kind: "barrel" }, { tx: 2, ty: 5, kind: "barrel" }, { tx: 9, ty: 1, kind: "lamp" }],
+  bank:       [{ tx: 3, ty: 3, kind: "counter" }, { tx: 4, ty: 3, kind: "counter" }, { tx: 7, ty: 3, kind: "counter" }, { tx: 8, ty: 3, kind: "counter" }, { tx: 1, ty: 1, kind: "barrel" }, { tx: 9, ty: 1, kind: "barrel" }, { tx: 9, ty: 5, kind: "crate" }],
+  school:     [{ tx: 1, ty: 1, kind: "board" }, { tx: 2, ty: 4, kind: "table" }, { tx: 8, ty: 4, kind: "table" }, { tx: 2, ty: 6, kind: "table" }, { tx: 8, ty: 6, kind: "table" }, { tx: 9, ty: 1, kind: "plant" }],
+  hospital:   [{ tx: 1, ty: 2, kind: "bed" }, { tx: 9, ty: 2, kind: "bed" }, { tx: 1, ty: 5, kind: "bed" }, { tx: 9, ty: 5, kind: "shelf" }, { tx: 5, ty: 4, kind: "rug", solid: false }],
+  church:     [{ tx: 1, ty: 1, kind: "lamp" }, { tx: 9, ty: 1, kind: "lamp" }, { tx: 2, ty: 4, kind: "table" }, { tx: 8, ty: 4, kind: "table" }, { tx: 5, ty: 4, kind: "rug", solid: false }],
+  salon:      [{ tx: 1, ty: 2, kind: "plant" }, { tx: 9, ty: 2, kind: "plant" }, { tx: 2, ty: 4, kind: "table" }, { tx: 8, ty: 4, kind: "table" }, { tx: 9, ty: 5, kind: "lamp" }],
+  police:     [{ tx: 1, ty: 1, kind: "shelf" }, { tx: 9, ty: 1, kind: "shelf" }, { tx: 2, ty: 4, kind: "table" }, { tx: 8, ty: 5, kind: "barrel" }, { tx: 2, ty: 6, kind: "crate" }],
+};
+
+// 町の建物配置(col,row は建物ブロックの左上。w/h省略時は3×2。ギルドのみ5×3)
+const TOWN_BUILDINGS = [
+  { id: "inn", col: 2, row: 2 }, { id: "restaurant", col: 6, row: 2 }, { id: "bar", col: 10, row: 2 },
+  { id: "bank", col: 14, row: 2 }, { id: "school", col: 18, row: 2 }, { id: "hospital", col: 22, row: 2 }, { id: "church", col: 26, row: 2 },
+  { id: "weapon", col: 2, row: 6 }, { id: "material", col: 6, row: 6 }, { id: "smith", col: 10, row: 6 },
+  { id: "guild", col: 14, row: 6, w: 5, h: 3 }, { id: "salon", col: 20, row: 6 }, { id: "police", col: 24, row: 6 },
+];
+const TOWN_COLS = 30, TOWN_ROWS = 18;
+const TOWN_TREES = [[4, 11], [10, 12], [16, 11], [22, 12], [27, 10], [3, 14]];
+
+// 町マップ＆扉を建物リストから自動生成
+const _town = (function buildTown() {
+  const g = [];
+  for (let y = 0; y < TOWN_ROWS; y++) {
+    const row = [];
+    for (let x = 0; x < TOWN_COLS; x++) row.push((y === 0 || y === TOWN_ROWS - 1 || x === 0 || x === TOWN_COLS - 1) ? "#" : ".");
+    g.push(row);
+  }
+  const doors = [];
+  for (const b of TOWN_BUILDINGS) {
+    const w = b.w || 3, h = b.h || 2;
+    for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) g[b.row + dy][b.col + dx] = "#";
+    const doorX = b.col + (w >> 1), doorY = b.row + h - 1;
+    g[doorY][doorX] = "D";
+    const spawn = b.id === "guild" ? { tx: 6, ty: 6 } : { tx: 5, ty: 5 };
+    doors.push({ tx: doorX, ty: doorY, to: b.id, spawn, ret: { tx: doorX, ty: doorY + 1 } });
+  }
+  const exX = TOWN_COLS >> 1, exY = TOWN_ROWS - 2;
+  g[exY][exX] = "D";
+  doors.push({ tx: exX, ty: exY, to: "field" });
+  for (const [tx, ty] of TOWN_TREES) if (g[ty][tx] === ".") g[ty][tx] = "T";
+  return { map: g.map((r) => r.join("")), doors, start: { tx: exX, ty: exY - 1 } };
+})();
+const TOWN_MAP = _town.map;
+const TOWN_START = _town.start;
+const TOILET = { tx: 9, ty: 9 }; // 素材屋の家のそば(飾り)
+function townReturnOf(id) {
+  const d = _town.doors.find((x) => x.to === id);
+  return d && d.ret ? d.ret : { tx: TOWN_START.tx, ty: TOWN_START.ty };
+}
+
 const AREAS = {
   town: {
     id: "town", indoor: false, map: TOWN_MAP, cols: TOWN_COLS, rows: TOWN_ROWS,
-    npcs: [{ id: "bard", name: "吟遊詩人 Lyra", tx: 13, ty: 9, color: "#6ab0e0" }],
+    npcs: [{ id: "bard", name: "吟遊詩人 Lyra", tx: 15, ty: 11, color: "#6ab0e0" }],
     decor: [{ tx: TOILET.tx, ty: TOILET.ty, kind: "toilet" }],
-    doors: [
-      { tx: 4, ty: 3, to: "inn", spawn: { tx: 5, ty: 5 } },
-      { tx: 16, ty: 3, to: "smith", spawn: { tx: 5, ty: 5 } },
-      { tx: 4, ty: 11, to: "weapon", spawn: { tx: 5, ty: 5 } },
-      { tx: 16, ty: 11, to: "material", spawn: { tx: 5, ty: 5 } },
-      { tx: 11, ty: 8, to: "guild", spawn: { tx: 6, ty: 6 } }, // ギルド(中央の大きい建物)
-      { tx: 11, ty: 16, to: "field" }, // 町の外(フィールド)へ
-    ],
+    doors: _town.doors.map((d) => ({ tx: d.tx, ty: d.ty, to: d.to, spawn: d.spawn })),
   },
   guild: {
     id: "guild", indoor: true, name: "ギルド", map: GUILD_MAP, cols: 13, rows: 9,
-    npcs: GUILD_NPCS,
-    decor: GUILD_DECOR,
-    doors: [{ tx: 6, ty: 7, to: "town", spawn: { tx: 11, ty: 9 } }],
+    npcs: GUILD_NPCS, decor: GUILD_DECOR,
+    doors: [{ tx: 6, ty: 7, to: "town", spawn: townReturnOf("guild") }],
   },
 };
-for (const [id, def] of Object.entries(HOUSE_DEFS)) {
+for (const [id, def] of Object.entries(BUILDING_DEFS)) {
   AREAS[id] = {
     id, indoor: true, name: def.name, map: INTERIOR_MAP, cols: 11, rows: 8,
-    npcs: [def.npc],
-    decor: HOUSE_DECOR[id] || [],
-    doors: [{ tx: 5, ty: 6, to: "town", spawn: def.townReturn }],
+    npcs: [{ ...def.npc, tx: 5, ty: 2 }],
+    decor: DECOR_TEMPLATES[def.decor] || [],
+    doors: [{ tx: 5, ty: 6, to: "town", spawn: townReturnOf(id) }],
   };
 }
 let curArea = AREAS.town;               // 現在のエリア(町 or 家の中)
