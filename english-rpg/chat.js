@@ -7,13 +7,32 @@
 //   mode "proxy"  : 本公開用。Cloudflare Worker などのプロキシ経由（キーはサーバー側）。
 //                   proxyUrl に Worker のURLを入れて mode を "proxy" にするだけ。
 // =====================================================================
+// 使えるモデルと料金($/1M tokens)
+const MODELS = {
+  opus:  { id: "claude-opus-4-8", label: "Opus 4.8", in: 5 / 1e6, out: 25 / 1e6 },
+  haiku: { id: "claude-haiku-4-5", label: "Haiku 4.5", in: 1 / 1e6, out: 5 / 1e6 },
+};
 const AI_CONFIG = {
   mode: "browser",            // "browser" | "proxy"
   proxyUrl: "",               // 例: "https://english-rpg.xxxx.workers.dev"
-  model: "claude-opus-4-8",
+  modelKey: localStorage.getItem("ai_model") === "haiku" ? "haiku" : "opus",
+  get model() { return MODELS[this.modelKey].id; }, // 実際に送るモデルID
   apiVersion: "2023-06-01",
   maxTokens: 600,
 };
+function curModel() { return MODELS[AI_CONFIG.modelKey] || MODELS.opus; }
+function setModel(key) {
+  AI_CONFIG.modelKey = MODELS[key] ? key : "opus";
+  localStorage.setItem("ai_model", AI_CONFIG.modelKey);
+  renderModelBtn();
+  renderTokenUsage();
+}
+function toggleModel() { setModel(AI_CONFIG.modelKey === "opus" ? "haiku" : "opus"); }
+function renderModelBtn() {
+  const b = document.getElementById("dev-model");
+  if (b) b.textContent = "モデル:" + curModel().label;
+}
+window.toggleModel = toggleModel; window.setModel = setModel;
 const API_KEY_STORE = "anthropic_api_key";
 const getApiKey = () => localStorage.getItem(API_KEY_STORE) || "";
 const setApiKey = (k) => localStorage.setItem(API_KEY_STORE, k);
@@ -33,6 +52,10 @@ const NPC_PERSONA = {
   bard: "You are Lyra, a cheerful traveling bard. You love rumors, songs, and tales about the distant Demon King the hero must defeat.",
   matshop: "You are Gil, the owner of the material shop (素材屋). You buy raw materials that adventurers gather from monsters — slime jelly, bat wings, ghost shards and the like. You are a practical, friendly trader who loves a good deal. You do NOT run an inn and do not offer rooms or food.",
   weaponshop: "You are Dunn, the owner of the weapon shop (武器屋). You sell swords, shields, and armor to adventurers and are proud of your craft. You do NOT run an inn and do not offer rooms or food.",
+  guild_receptionist: "You are Fia, the cheerful and polite receptionist at the Adventurers' Guild. You register adventurers, post quests on the board, and explain how the guild works. You are warm and encouraging, especially to newcomers.",
+  adv_rex: "You are Rex, a boastful veteran warrior relaxing in the Adventurers' Guild. You love bragging about the monsters you've slain and giving big-talking advice to rookies. You're loud but good-natured.",
+  adv_mina: "You are Mina, a calm and clever mage at the Adventurers' Guild. You speak thoughtfully, love books and magic, and give level-headed, useful advice.",
+  adv_pip: "You are Pip, a nervous rookie adventurer at the Adventurers' Guild. You're excited but easily scared, still learning the ropes, and you look up to stronger adventurers.",
 };
 const LEVEL_GUIDE = {
   500: "Use very simple words and short sentences (around CEFR A2 / TOEIC 500). Avoid difficult vocabulary and complex grammar.",
@@ -90,16 +113,16 @@ Always write "reply_ja" and "note_ja" in Japanese.`;
 
 // ===== Claude 呼び出し（mode により接続先を切り替え）=====
 // ===== トークン使用量の集計（このセッション=ページ読み込みから） =====
-const tokenTotals = { input: 0, output: 0 }; // セッション累計
-const lastCall = { input: 0, output: 0 };    // 直近1回
-// 料金目安(claude-opus-4-8: $5 / $25 per 1M tokens)
-const TOKEN_PRICE = { in: 5 / 1e6, out: 25 / 1e6 };
+const tokenTotals = { input: 0, output: 0, cost: 0 }; // セッション累計
+const lastCall = { input: 0, output: 0, cost: 0 };    // 直近1回
 function addTokens(u) {
   if (!u) return;
   const inp = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
   const out = (u.output_tokens || 0);
-  lastCall.input = inp; lastCall.output = out;
-  tokenTotals.input += inp; tokenTotals.output += out;
+  const m = curModel();
+  const cost = inp * m.in + out * m.out; // その時のモデル料金で計算
+  lastCall.input = inp; lastCall.output = out; lastCall.cost = cost;
+  tokenTotals.input += inp; tokenTotals.output += out; tokenTotals.cost += cost;
   renderTokenUsage();
 }
 function renderTokenUsage() {
@@ -109,9 +132,8 @@ function renderTokenUsage() {
     const e2 = document.getElementById("chat-tokens"); if (e2) e2.textContent = "";
     return;
   }
-  const line = (lab, a, b) =>
-    `${lab} 入力 ${a.toLocaleString()}・出力 ${b.toLocaleString()}（約 $${(a * TOKEN_PRICE.in + b * TOKEN_PRICE.out).toFixed(4)}）`;
-  const txt = `${line("今回", lastCall.input, lastCall.output)} ／ ${line("累計", i, o)}`;
+  const line = (lab, a, b, c) => `${lab} 入力 ${a.toLocaleString()}・出力 ${b.toLocaleString()}（約 $${c.toFixed(4)}）`;
+  const txt = `${line("今回", lastCall.input, lastCall.output, lastCall.cost)} ／ ${line("累計", i, o, tokenTotals.cost)}`;
   const a = document.getElementById("token-usage"); if (a) a.textContent = txt;
   const b = document.getElementById("chat-tokens"); if (b) b.textContent = txt;
 }
@@ -548,6 +570,10 @@ window.Chat = Chat;
       status.className = "key-off";
     }
   }
+
+  // 開発用: モデル切替ボタン
+  const modelBtn = document.getElementById("dev-model");
+  if (modelBtn) { modelBtn.addEventListener("click", toggleModel); renderModelBtn(); }
 
   field.value = getApiKey();
   field.addEventListener("input", () => { setApiKey(field.value.trim()); refresh(); });

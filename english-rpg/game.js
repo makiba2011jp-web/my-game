@@ -58,9 +58,9 @@ const TOWN_MAP = [
   "#..#D#.........#D#.....#",
   "#......................#",
   "#..T..............T....#",
-  "#......................#",
-  "#........######........#",
-  "#........######........#",
+  "#.......########.......#",
+  "#.......########.......#",
+  "#.......###D####.......#",
   "#......................#",
   "#..###.........###.....#",
   "#..#D#....TT...#D#.....#",
@@ -94,28 +94,86 @@ const HOUSE_DEFS = {
   material: { name: "素材屋", npc: { id: "matshop", name: "素材屋", tx: 5, ty: 2, color: "#c08a3e", shop: "material" }, townReturn: { tx: 16, ty: 12 } },
 };
 
+// 家の中の内装(家具)。solid:false 以外は通行不可。中央(列4〜6)は会話/出入りの通路として空けておく。
+const HOUSE_DECOR = {
+  inn: [
+    { tx: 8, ty: 2, kind: "bed" }, { tx: 8, ty: 4, kind: "bed" },
+    { tx: 2, ty: 2, kind: "table" }, { tx: 2, ty: 4, kind: "plant" },
+    { tx: 1, ty: 1, kind: "lamp" }, { tx: 9, ty: 1, kind: "lamp" },
+    { tx: 5, ty: 4, kind: "rug", solid: false },
+  ],
+  smith: [
+    { tx: 1, ty: 1, kind: "forge" }, { tx: 2, ty: 3, kind: "anvil" },
+    { tx: 2, ty: 5, kind: "barrel" },
+    { tx: 8, ty: 2, kind: "weaponrack" }, { tx: 8, ty: 4, kind: "weaponrack" },
+  ],
+  weapon: [
+    { tx: 1, ty: 2, kind: "weaponrack" }, { tx: 1, ty: 4, kind: "weaponrack" },
+    { tx: 9, ty: 2, kind: "weaponrack" }, { tx: 9, ty: 4, kind: "weaponrack" },
+    { tx: 2, ty: 5, kind: "armorstand" }, { tx: 8, ty: 5, kind: "armorstand" },
+  ],
+  material: [
+    { tx: 1, ty: 1, kind: "shelf" }, { tx: 9, ty: 1, kind: "shelf" },
+    { tx: 2, ty: 3, kind: "crate" }, { tx: 8, ty: 3, kind: "crate" },
+    { tx: 2, ty: 5, kind: "barrel" }, { tx: 8, ty: 5, kind: "barrel" },
+  ],
+};
+
+// ギルド(他より大きい建物)の内部 13×9
+const GUILD_MAP = [
+  "#############",
+  "#...........#",
+  "#...........#",
+  "#...........#",
+  "#...........#",
+  "#...........#",
+  "#...........#",
+  "#.....D.....#",
+  "#############",
+];
+const GUILD_NPCS = [
+  { id: "guild_receptionist", name: "受付嬢 Fia", tx: 6, ty: 2, color: "#e07ab0" },
+  { id: "adv_rex", name: "冒険者 Rex", tx: 2, ty: 5, color: "#b05a3a" },
+  { id: "adv_mina", name: "冒険者 Mina", tx: 10, ty: 5, color: "#5a6ab0" },
+  { id: "adv_pip", name: "冒険者 Pip", tx: 8, ty: 6, color: "#5aa060" },
+];
+const GUILD_DECOR = [
+  { tx: 4, ty: 3, kind: "counter" }, { tx: 5, ty: 3, kind: "counter" },
+  { tx: 7, ty: 3, kind: "counter" }, { tx: 8, ty: 3, kind: "counter" }, // 受付カウンター(中央6は会話用に空ける)
+  { tx: 1, ty: 1, kind: "board" },   // クエスト掲示板
+  { tx: 2, ty: 6, kind: "table" }, { tx: 10, ty: 6, kind: "table" },
+  { tx: 11, ty: 1, kind: "barrel" },
+];
+
 const AREAS = {
   town: {
     id: "town", indoor: false, map: TOWN_MAP, cols: TOWN_COLS, rows: TOWN_ROWS,
-    npcs: [{ id: "bard", name: "吟遊詩人 Lyra", tx: 11, ty: 9, color: "#6ab0e0" }],
-    toilet: TOILET,
+    npcs: [{ id: "bard", name: "吟遊詩人 Lyra", tx: 13, ty: 9, color: "#6ab0e0" }],
+    decor: [{ tx: TOILET.tx, ty: TOILET.ty, kind: "toilet" }],
     doors: [
       { tx: 4, ty: 3, to: "inn", spawn: { tx: 5, ty: 5 } },
       { tx: 16, ty: 3, to: "smith", spawn: { tx: 5, ty: 5 } },
       { tx: 4, ty: 11, to: "weapon", spawn: { tx: 5, ty: 5 } },
       { tx: 16, ty: 11, to: "material", spawn: { tx: 5, ty: 5 } },
+      { tx: 11, ty: 8, to: "guild", spawn: { tx: 6, ty: 6 } }, // ギルド(中央の大きい建物)
       { tx: 11, ty: 16, to: "field" }, // 町の外(フィールド)へ
     ],
+  },
+  guild: {
+    id: "guild", indoor: true, name: "ギルド", map: GUILD_MAP, cols: 13, rows: 9,
+    npcs: GUILD_NPCS,
+    decor: GUILD_DECOR,
+    doors: [{ tx: 6, ty: 7, to: "town", spawn: { tx: 11, ty: 9 } }],
   },
 };
 for (const [id, def] of Object.entries(HOUSE_DEFS)) {
   AREAS[id] = {
     id, indoor: true, name: def.name, map: INTERIOR_MAP, cols: 11, rows: 8,
     npcs: [def.npc],
+    decor: HOUSE_DECOR[id] || [],
     doors: [{ tx: 5, ty: 6, to: "town", spawn: def.townReturn }],
   };
 }
-AREAS.inn.bed = { tx: 8, ty: 2 }; // 宿屋のベッド(泊まる→HP回復)
 let curArea = AREAS.town;               // 現在のエリア(町 or 家の中)
 let savedOverworld = { tx: 2, ty: 12 }; // 街に入る前のフィールド座標
 
@@ -131,11 +189,13 @@ function npcVisible(n) {
 function npcAt(tx, ty) {
   return curArea.npcs.find((n) => n.tx === tx && n.ty === ty && npcVisible(n)) || null;
 }
+function decorSolidAt(tx, ty) {
+  return (curArea.decor || []).some((d) => d.tx === tx && d.ty === ty && d.solid !== false);
+}
 function areaWalkable(tx, ty) {
   const t = tileAtArea(tx, ty);
   if (t === "#" || t === "T") return false;
-  if (curArea.toilet && tx === curArea.toilet.tx && ty === curArea.toilet.ty) return false;
-  if (curArea.bed && tx === curArea.bed.tx && ty === curArea.bed.ty) return false;
+  if (decorSolidAt(tx, ty)) return false;
   return !npcAt(tx, ty);
 }
 function doorAt(tx, ty) {
@@ -316,8 +376,8 @@ document.querySelectorAll(".dbtn").forEach((b) => {
 const kotohaBtn = document.getElementById("kotoha-btn");
 if (kotohaBtn) kotohaBtn.addEventListener("click", (e) => { e.preventDefault(); openKotohaChat(); });
 
-// 開発用: 目的ジャンプボタン
-document.querySelectorAll("#dev-bar button").forEach((b) => {
+// 開発用: 目的ジャンプボタン(data-stage 付きのみ。モデル切替ボタンは chat.js 側で処理)
+document.querySelectorAll("#dev-bar button[data-stage]").forEach((b) => {
   b.addEventListener("click", (e) => { e.preventDefault(); devJump(parseInt(b.dataset.stage, 10)); });
 });
 
@@ -1010,8 +1070,7 @@ function drawArea() {
       else drawTownTile(a.map[y][x], px, py);
     }
   }
-  if (a.toilet) drawToilet(a.toilet.tx * TILE - camX, a.toilet.ty * TILE - camY);
-  if (a.bed) drawBed(a.bed.tx * TILE - camX, a.bed.ty * TILE - camY);
+  if (a.decor) for (const d of a.decor) drawDecor(d.kind, d.tx * TILE - camX, d.ty * TILE - camY);
   // 扉ラベル(でぐち／家の名前)
   ctx.textAlign = "center"; ctx.font = "11px 'MS Gothic', monospace";
   for (const d of a.doors) {
@@ -1069,22 +1128,127 @@ function drawTownTile(t, px, py) {
   }
 }
 
-function drawBed(x, y) {
-  ctx.fillStyle = "#6a4a2a"; ctx.fillRect(x + 3, y + 1, 26, 30);   // フレーム
-  ctx.fillStyle = "#efe7d6"; ctx.fillRect(x + 5, y + 3, 22, 26);   // シーツ
-  ctx.fillStyle = "#fff"; ctx.fillRect(x + 6, y + 4, 20, 7);       // 枕
-  ctx.fillStyle = "#c0506a"; ctx.fillRect(x + 5, y + 14, 22, 15);  // 掛け布団
-  ctx.fillStyle = "#a83a54"; ctx.fillRect(x + 5, y + 25, 22, 4);
-  ctx.fillStyle = "#5a3a1e"; ctx.fillRect(x + 3, y + 28, 4, 4); ctx.fillRect(x + 25, y + 28, 4, 4); // 脚
+// ===== 内装(家具)の描画 =====
+function drawDecor(kind, x, y) {
+  switch (kind) {
+    case "toilet": drawToilet(x, y); break;
+    case "bed": drawBed(x, y); break;
+    case "table": drawTable(x, y); break;
+    case "plant": drawPlant(x, y); break;
+    case "lamp": drawLamp(x, y); break;
+    case "rug": drawRug(x, y); break;
+    case "shelf": drawShelf(x, y); break;
+    case "barrel": drawBarrel(x, y); break;
+    case "crate": drawCrate(x, y); break;
+    case "weaponrack": drawWeaponRack(x, y); break;
+    case "armorstand": drawArmorStand(x, y); break;
+    case "anvil": drawAnvil(x, y); break;
+    case "forge": drawForge(x, y); break;
+    case "counter": drawCounter(x, y); break;
+    case "board": drawBoard(x, y); break;
+  }
 }
 
+function drawBed(x, y) {
+  ctx.fillStyle = "#6a4a2a"; ctx.fillRect(x + 3, y + 1, 26, 30);
+  ctx.fillStyle = "#efe7d6"; ctx.fillRect(x + 5, y + 3, 22, 26);
+  ctx.fillStyle = "#fff"; ctx.fillRect(x + 6, y + 4, 20, 7);
+  ctx.fillStyle = "#c0506a"; ctx.fillRect(x + 5, y + 14, 22, 15);
+  ctx.fillStyle = "#a83a54"; ctx.fillRect(x + 5, y + 25, 22, 4);
+  ctx.fillStyle = "#5a3a1e"; ctx.fillRect(x + 3, y + 28, 4, 4); ctx.fillRect(x + 25, y + 28, 4, 4);
+}
 function drawToilet(x, y) {
-  ctx.fillStyle = "#cfd8dc"; ctx.fillRect(x + 3, y + 6, 26, 24); // 建物
-  ctx.fillStyle = "#455a64"; ctx.fillRect(x + 2, y + 2, 28, 6);  // 屋根
-  ctx.fillStyle = "#5d4037"; ctx.fillRect(x + 11, y + 14, 10, 16); // ドア
+  ctx.fillStyle = "#cfd8dc"; ctx.fillRect(x + 3, y + 6, 26, 24);
+  ctx.fillStyle = "#455a64"; ctx.fillRect(x + 2, y + 2, 28, 6);
+  ctx.fillStyle = "#5d4037"; ctx.fillRect(x + 11, y + 14, 10, 16);
   ctx.fillStyle = "#1565c0"; ctx.font = "8px 'MS Gothic', monospace"; ctx.textAlign = "center";
   ctx.fillText("WC", x + 16, y + 13);
   ctx.textAlign = "center";
+}
+function drawTable(x, y) {
+  ctx.fillStyle = "#8a5a2e"; ctx.fillRect(x + 4, y + 12, 24, 6);   // 天板
+  ctx.fillStyle = "#6a4422"; ctx.fillRect(x + 6, y + 18, 4, 12); ctx.fillRect(x + 22, y + 18, 4, 12); // 脚
+  ctx.fillStyle = "#caa46a"; ctx.fillRect(x + 8, y + 7, 6, 6);     // パン
+  ctx.fillStyle = "#c0506a"; ctx.beginPath(); ctx.arc(x + 21, y + 9, 4, 0, Math.PI * 2); ctx.fill(); // りんご
+}
+function drawPlant(x, y) {
+  ctx.fillStyle = "#7a4a28"; ctx.fillRect(x + 9, y + 20, 14, 10);  // 鉢
+  ctx.fillStyle = "#5a3418"; ctx.fillRect(x + 9, y + 20, 14, 3);
+  ctx.fillStyle = "#2e8a30"; ctx.beginPath(); ctx.arc(x + 16, y + 12, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#3aa83a"; ctx.beginPath(); ctx.arc(x + 12, y + 9, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 20, y + 10, 5, 0, Math.PI * 2); ctx.fill();
+}
+function drawLamp(x, y) {
+  ctx.fillStyle = "#5a4028"; ctx.fillRect(x + 14, y + 12, 4, 18);  // 柱
+  ctx.fillStyle = "#caa050"; ctx.beginPath(); ctx.moveTo(x + 9, y + 12); ctx.lineTo(x + 23, y + 12); ctx.lineTo(x + 19, y + 4); ctx.lineTo(x + 13, y + 4); ctx.fill();
+  ctx.fillStyle = "rgba(255,220,120,0.5)"; ctx.beginPath(); ctx.arc(x + 16, y + 10, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#fff6c8"; ctx.beginPath(); ctx.arc(x + 16, y + 9, 3, 0, Math.PI * 2); ctx.fill();
+}
+function drawRug(x, y) {
+  ctx.fillStyle = "#7a3a3a"; ctx.fillRect(x + 2, y + 4, TILE - 4, TILE - 8);
+  ctx.strokeStyle = "#caa050"; ctx.lineWidth = 2; ctx.strokeRect(x + 5, y + 7, TILE - 10, TILE - 14);
+  ctx.fillStyle = "#caa050"; ctx.fillRect(x + 14, y + 13, 4, 6);
+}
+function drawShelf(x, y) {
+  ctx.fillStyle = "#6a4a28"; ctx.fillRect(x + 2, y + 2, 28, 28);
+  ctx.fillStyle = "#4a3018"; ctx.fillRect(x + 2, y + 11, 28, 3); ctx.fillRect(x + 2, y + 20, 28, 3);
+  ctx.fillStyle = "#c0506a"; ctx.fillRect(x + 5, y + 5, 5, 5);    // 小瓶など
+  ctx.fillStyle = "#5588ff"; ctx.fillRect(x + 13, y + 5, 5, 5);
+  ctx.fillStyle = "#5aa84a"; ctx.fillRect(x + 21, y + 5, 5, 5);
+  ctx.fillStyle = "#caa46a"; ctx.fillRect(x + 6, y + 15, 7, 4); ctx.fillRect(x + 18, y + 15, 7, 4);
+  ctx.fillStyle = "#9a7a4a"; ctx.fillRect(x + 6, y + 24, 18, 4);
+}
+function drawBarrel(x, y) {
+  ctx.fillStyle = "#8a5a2e"; ctx.fillRect(x + 7, y + 6, 18, 24);
+  ctx.fillStyle = "#6a4422"; ctx.fillRect(x + 5, y + 10, 22, 3); ctx.fillRect(x + 5, y + 22, 22, 3);
+  ctx.fillStyle = "#a87844"; ctx.fillRect(x + 7, y + 6, 18, 3);
+  ctx.fillStyle = "#5a3a1e"; ctx.beginPath(); ctx.ellipse(x + 16, y + 7, 9, 3, 0, 0, Math.PI * 2); ctx.fill();
+}
+function drawCrate(x, y) {
+  ctx.fillStyle = "#9a6a36"; ctx.fillRect(x + 5, y + 8, 22, 22);
+  ctx.strokeStyle = "#6a4422"; ctx.lineWidth = 2; ctx.strokeRect(x + 5, y + 8, 22, 22);
+  ctx.beginPath(); ctx.moveTo(x + 5, y + 8); ctx.lineTo(x + 27, y + 30); ctx.moveTo(x + 27, y + 8); ctx.lineTo(x + 5, y + 30); ctx.stroke();
+}
+function drawWeaponRack(x, y) {
+  ctx.fillStyle = "#5a4028"; ctx.fillRect(x + 3, y + 4, 26, 4); ctx.fillRect(x + 3, y + 26, 26, 4); // 棚
+  // 剣
+  ctx.strokeStyle = "#cfd8e0"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x + 9, y + 6); ctx.lineTo(x + 9, y + 26); ctx.stroke();
+  ctx.fillStyle = "#caa050"; ctx.fillRect(x + 6, y + 22, 6, 3);
+  // 盾
+  ctx.fillStyle = "#3a6aa0"; ctx.beginPath(); ctx.arc(x + 21, y + 16, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#cfd8e0"; ctx.beginPath(); ctx.arc(x + 21, y + 16, 3, 0, Math.PI * 2); ctx.fill();
+}
+function drawArmorStand(x, y) {
+  ctx.fillStyle = "#5a4028"; ctx.fillRect(x + 14, y + 20, 4, 10);
+  ctx.fillStyle = "#9098b0"; ctx.fillRect(x + 8, y + 8, 16, 14);  // 胴
+  ctx.fillStyle = "#b0b8d0"; ctx.fillRect(x + 8, y + 8, 16, 4);
+  ctx.fillStyle = "#7a82a0"; ctx.fillRect(x + 14, y + 12, 4, 8);  // 中央線
+}
+function drawAnvil(x, y) {
+  ctx.fillStyle = "#3a3a42"; ctx.fillRect(x + 8, y + 22, 16, 8);   // 台
+  ctx.fillStyle = "#55555f"; ctx.fillRect(x + 6, y + 14, 20, 6);   // 上面
+  ctx.fillStyle = "#55555f"; ctx.beginPath(); ctx.moveTo(x + 26, y + 14); ctx.lineTo(x + 30, y + 16); ctx.lineTo(x + 26, y + 20); ctx.fill(); // 角
+  ctx.fillStyle = "#6a6a74"; ctx.fillRect(x + 6, y + 14, 20, 2);
+}
+function drawCounter(x, y) {
+  ctx.fillStyle = "#7a5226"; ctx.fillRect(x + 1, y + 12, 30, 18);  // 本体
+  ctx.fillStyle = "#9a6a36"; ctx.fillRect(x, y + 9, 32, 5);        // 天板
+  ctx.fillStyle = "#5a3a1a"; ctx.fillRect(x + 1, y + 26, 30, 3);
+}
+function drawBoard(x, y) {
+  ctx.fillStyle = "#5a3a1a"; ctx.fillRect(x + 5, y + 24, 4, 6); ctx.fillRect(x + 23, y + 24, 4, 6); // 脚
+  ctx.fillStyle = "#8a6038"; ctx.fillRect(x + 2, y + 3, 28, 22);   // 板
+  ctx.strokeStyle = "#5a3a1a"; ctx.lineWidth = 2; ctx.strokeRect(x + 2, y + 3, 28, 22);
+  ctx.fillStyle = "#efe7d0"; ctx.fillRect(x + 6, y + 7, 7, 8); ctx.fillRect(x + 17, y + 6, 8, 7); ctx.fillRect(x + 9, y + 16, 9, 6); // 貼り紙
+  ctx.fillStyle = "#b03030"; ctx.beginPath(); ctx.arc(x + 9, y + 8, 1.5, 0, Math.PI * 2); ctx.fill(); // 画びょう
+}
+function drawForge(x, y) {
+  ctx.fillStyle = "#4a4036"; ctx.fillRect(x + 4, y + 6, 24, 24);   // 炉
+  ctx.fillStyle = "#2a2420"; ctx.fillRect(x + 9, y + 12, 14, 14);  // 焚き口
+  const f = 1 + Math.sin(gameTime / 120) * 0.3;
+  ctx.fillStyle = "#ff7a1a"; ctx.beginPath(); ctx.arc(x + 16, y + 22, 6 * f, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#ffd24a"; ctx.beginPath(); ctx.arc(x + 16, y + 23, 3 * f, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#6a5a4a"; ctx.fillRect(x + 4, y + 4, 24, 3);
 }
 
 function drawNPC(n) {
