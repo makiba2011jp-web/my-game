@@ -86,6 +86,33 @@ Always write "reply_ja" and "note_ja" in Japanese.`;
 }
 
 // ===== Claude 呼び出し（mode により接続先を切り替え）=====
+// ===== トークン使用量の集計（このセッション=ページ読み込みから） =====
+const tokenTotals = { input: 0, output: 0 }; // セッション累計
+const lastCall = { input: 0, output: 0 };    // 直近1回
+// 料金目安(claude-opus-4-8: $5 / $25 per 1M tokens)
+const TOKEN_PRICE = { in: 5 / 1e6, out: 25 / 1e6 };
+function addTokens(u) {
+  if (!u) return;
+  const inp = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+  const out = (u.output_tokens || 0);
+  lastCall.input = inp; lastCall.output = out;
+  tokenTotals.input += inp; tokenTotals.output += out;
+  renderTokenUsage();
+}
+function renderTokenUsage() {
+  const i = tokenTotals.input, o = tokenTotals.output;
+  if (!i && !o) {
+    const e1 = document.getElementById("token-usage"); if (e1) e1.textContent = "";
+    const e2 = document.getElementById("chat-tokens"); if (e2) e2.textContent = "";
+    return;
+  }
+  const line = (lab, a, b) =>
+    `${lab} 入力 ${a.toLocaleString()}・出力 ${b.toLocaleString()}（約 $${(a * TOKEN_PRICE.in + b * TOKEN_PRICE.out).toFixed(4)}）`;
+  const txt = `${line("今回", lastCall.input, lastCall.output)} ／ ${line("累計", i, o)}`;
+  const a = document.getElementById("token-usage"); if (a) a.textContent = txt;
+  const b = document.getElementById("chat-tokens"); if (b) b.textContent = txt;
+}
+
 // 低レベル: 接続先を切り替えて Anthropic にPOSTし、生レスポンスを返す
 async function postClaude(body) {
   let url, headers;
@@ -110,7 +137,9 @@ async function postClaude(body) {
     try { detail = await r.text(); } catch {}
     throw { code: "http_" + r.status, status: r.status, detail };
   }
-  return r.json();
+  const data = await r.json();
+  if (data && data.usage) addTokens(data.usage);
+  return data;
 }
 
 // 町人との英会話(構造化出力: reply/添削/和訳/quest_flag)

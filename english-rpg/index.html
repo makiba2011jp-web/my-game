@@ -16,6 +16,7 @@
         <button id="apikey-clear" title="消去">✕</button>
       </div>
       <span id="apikey-status"></span>
+      <span id="token-usage"></span>
     </div>
 
     <canvas id="game" width="480" height="480"></canvas>
@@ -55,6 +56,7 @@
           <p class="key-note">キーは <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a> で取得できます。</p>
         </div>
         <div id="chat-log"></div>
+        <div id="chat-tokens"></div>
         <div id="chat-inputbar">
           <input id="chat-input" type="text" placeholder="英語で話す… (Enterで送信)" autocomplete="off" />
           <button id="chat-send">話す</button>

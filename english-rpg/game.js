@@ -49,38 +49,78 @@ function walkable(tx, ty) {
   return t !== "T" && t !== "W";
 }
 
-// ===== 街(タウン)内部 =====
-// #=壁 .=床 D=出口の扉
+// ===== エリア(町＆家の中) =====
+// 町: #=建物 .=地面 T=木 D=扉  /  家の中: #=壁 .=床 D=出口
 const TOWN_MAP = [
-  "###############",
-  "#.............#",
-  "#.............#",
-  "#.............#",
-  "#.............#",
-  "#.............#",
-  "#.....###.....#",
-  "#.....#.#.....#",
-  "#.............#",
-  "#.............#",
-  "#.............#",
-  "#.............#",
-  "#.............#",
-  "#......D......#",
-  "###############",
+  "########################",
+  "#......................#",
+  "#..###....TT...###.....#",
+  "#..#D#.........#D#.....#",
+  "#......................#",
+  "#..T..............T....#",
+  "#......................#",
+  "#........######........#",
+  "#........######........#",
+  "#......................#",
+  "#..###.........###.....#",
+  "#..#D#....TT...#D#.....#",
+  "#......................#",
+  "#....T...........T.....#",
+  "#......................#",
+  "#......................#",
+  "#..........D...........#",
+  "########################",
 ];
-// 街のNPC(位置とAI会話用のID)
-const TOWN_NPCS = [
-  { id: "innkeeper", name: "宿屋の女将 Marian", tx: 3, ty: 3, color: "#e0a060" },
-  { id: "smith", name: "鍛冶屋 Borin", tx: 11, ty: 3, color: "#9098b0" },
-  { id: "bard", name: "吟遊詩人 Lyra", tx: 7, ty: 5, color: "#6ab0e0" },
-  { id: "matshop", name: "素材屋", tx: 11, ty: 10, color: "#c08a3e", shop: "material" }, // 素材を換金(トイレの上に出てくる)
-  { id: "weaponshop", name: "武器屋", tx: 3, ty: 9, color: "#8fa0c0", shop: "weapon" },  // 装備を購入
+const TOWN_COLS = TOWN_MAP[0].length; // 24
+const TOWN_ROWS = TOWN_MAP.length;    // 18
+const TOWN_START = { tx: 11, ty: 15 }; // 入場時の立ち位置(出口の上)
+const TOILET = { tx: 18, ty: 12 };     // 町のトイレ(素材屋がこもっている。素材屋の家のそば)
+
+// 家の中の共通レイアウト(11×8)。中央上に店主、下に出口D。
+const INTERIOR_MAP = [
+  "###########",
+  "#.........#",
+  "#.........#",
+  "#.........#",
+  "#.........#",
+  "#.........#",
+  "#....D....#",
+  "###########",
 ];
+const HOUSE_DEFS = {
+  inn:      { name: "宿屋",   npc: { id: "innkeeper", name: "宿屋の女将 Marian", tx: 5, ty: 2, color: "#e0a060" }, townReturn: { tx: 4, ty: 4 } },
+  smith:    { name: "鍛冶屋", npc: { id: "smith", name: "鍛冶屋 Borin", tx: 5, ty: 2, color: "#9098b0" }, townReturn: { tx: 16, ty: 4 } },
+  weapon:   { name: "武器屋", npc: { id: "weaponshop", name: "武器屋", tx: 5, ty: 2, color: "#8fa0c0", shop: "weapon" }, townReturn: { tx: 4, ty: 12 } },
+  material: { name: "素材屋", npc: { id: "matshop", name: "素材屋", tx: 5, ty: 2, color: "#c08a3e", shop: "material" }, townReturn: { tx: 16, ty: 12 } },
+};
+
+const AREAS = {
+  town: {
+    id: "town", indoor: false, map: TOWN_MAP, cols: TOWN_COLS, rows: TOWN_ROWS,
+    npcs: [{ id: "bard", name: "吟遊詩人 Lyra", tx: 11, ty: 9, color: "#6ab0e0" }],
+    toilet: TOILET,
+    doors: [
+      { tx: 4, ty: 3, to: "inn", spawn: { tx: 5, ty: 5 } },
+      { tx: 16, ty: 3, to: "smith", spawn: { tx: 5, ty: 5 } },
+      { tx: 4, ty: 11, to: "weapon", spawn: { tx: 5, ty: 5 } },
+      { tx: 16, ty: 11, to: "material", spawn: { tx: 5, ty: 5 } },
+      { tx: 11, ty: 16, to: "field" }, // 町の外(フィールド)へ
+    ],
+  },
+};
+for (const [id, def] of Object.entries(HOUSE_DEFS)) {
+  AREAS[id] = {
+    id, indoor: true, name: def.name, map: INTERIOR_MAP, cols: 11, rows: 8,
+    npcs: [def.npc],
+    doors: [{ tx: 5, ty: 6, to: "town", spawn: def.townReturn }],
+  };
+}
+let curArea = AREAS.town;               // 現在のエリア(町 or 家の中)
 let savedOverworld = { tx: 2, ty: 12 }; // 街に入る前のフィールド座標
-const TOILET = { tx: 11, ty: 11 };      // 町のトイレ(素材屋がこもっている)
-function tileAtTown(tx, ty) {
-  if (tx < 0 || ty < 0 || tx >= MAP_N || ty >= MAP_N) return "#";
-  return TOWN_MAP[ty][tx];
+
+function tileAtArea(tx, ty) {
+  if (tx < 0 || ty < 0 || tx >= curArea.cols || ty >= curArea.rows) return "#";
+  return curArea.map[ty][tx];
 }
 // 素材屋は「トイレから出てくる」まで非表示(quest.shopRevealed)
 function npcVisible(n) {
@@ -88,12 +128,16 @@ function npcVisible(n) {
   return true;
 }
 function npcAt(tx, ty) {
-  return TOWN_NPCS.find((n) => n.tx === tx && n.ty === ty && npcVisible(n)) || null;
+  return curArea.npcs.find((n) => n.tx === tx && n.ty === ty && npcVisible(n)) || null;
 }
-function townWalkable(tx, ty) {
-  if (tileAtTown(tx, ty) === "#") return false;
-  if (tx === TOILET.tx && ty === TOILET.ty) return false;
+function areaWalkable(tx, ty) {
+  const t = tileAtArea(tx, ty);
+  if (t === "#" || t === "T") return false;
+  if (curArea.toilet && tx === curArea.toilet.tx && ty === curArea.toilet.ty) return false;
   return !npcAt(tx, ty);
+}
+function doorAt(tx, ty) {
+  return curArea.doors.find((d) => d.tx === tx && d.ty === ty) || null;
 }
 
 // ===== メッセージ / バトル状態 =====
@@ -109,6 +153,16 @@ let quiz = null;           // チュートリアル等の選択クイズ
 let gameTime = 0;          // 経過時間(コトハの浮遊などの演出用)
 let quest = null;          // 現在の目的 { stage, kills, goal }
 let materials = {};         // 集めた素材 名前->個数
+let camX = 0, camY = 0;     // カメラ(ビューポート左上のワールド座標)
+
+// プレイヤーを中心にカメラを合わせる(マップ端でクランプ)
+function updateCamera(cols, rows) {
+  const mapW = cols * TILE, mapH = rows * TILE;
+  camX = Math.round(player.px + TILE / 2 - W / 2);
+  camY = Math.round(player.py + TILE / 2 - H / 2);
+  camX = Math.max(0, Math.min(camX, Math.max(0, mapW - W)));
+  camY = Math.max(0, Math.min(camY, Math.max(0, mapH - H)));
+}
 
 // ===== 素材の売値 / ショップの品ぞろえ =====
 const MATERIAL_PRICE = {
@@ -332,7 +386,7 @@ function onInput(k) {
 function onTap(x, y) {
   if (Chat.isOpen()) return;
   if (state === STATE.TOWN) {
-    const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
+    const tx = Math.floor((x + camX) / TILE), ty = Math.floor((y + camY) / TILE);
     const n = npcAt(tx, ty);
     if (n) interactNPC(n);
     return;
@@ -395,7 +449,7 @@ function tryMove(dir) {
   let nx = player.tx, ny = player.ty;
   if (dir === "up") ny--; else if (dir === "down") ny++;
   else if (dir === "left") nx--; else if (dir === "right") nx++;
-  const ok = state === STATE.TOWN ? townWalkable(nx, ny) : walkable(nx, ny);
+  const ok = state === STATE.TOWN ? areaWalkable(nx, ny) : walkable(nx, ny);
   if (!ok) return;
   player.moving = true;
   player.targetX = nx; player.targetY = ny;
@@ -455,19 +509,39 @@ function askDirections(npc) {
   ], () => { quest.stage = 3; });
 }
 
-// 町を背景にしたカットシーン
+// 町/家の中を背景にしたカットシーン
 function playTownCutscene(steps, onDone) {
   for (const k in keys) keys[k] = false;
-  cutsceneDraw = drawTown;
+  cutsceneDraw = drawArea;
   playCutscene(steps, () => {
     cutsceneDraw = null; messageSpeaker = null; state = STATE.TOWN;
     if (onDone) onDone();
   });
 }
 
+// 扉を通る(家の中へ／町へ／フィールドへ)
+function goThroughDoor(d) {
+  if (d.to === "field") { leaveTown(); return; }
+  enterArea(d.to, d.spawn);
+}
+function enterArea(id, spawn) {
+  curArea = AREAS[id];
+  player.tx = spawn.tx; player.ty = spawn.ty;
+  player.px = player.tx * TILE; player.py = player.ty * TILE;
+  player.dir = curArea.indoor ? "up" : "down";
+  player.moving = false;
+  for (const k in keys) keys[k] = false;
+  // 素材屋がまだいない(リビール前)演出
+  if (id === "material" && !(quest && quest.shopRevealed)) {
+    playTownCutscene([{ who: "コトハ", lines: ["あれ？ 素材屋さん、お店にいないね…。", "どこに行ったんだろ？ 町の人に聞いてみよう。"] }]);
+  }
+}
+
 function enterTown() {
   savedOverworld = { tx: player.tx, ty: player.ty };
-  player.tx = 7; player.ty = 12; player.px = 7 * TILE; player.py = 12 * TILE;
+  curArea = AREAS.town;
+  player.tx = TOWN_START.tx; player.ty = TOWN_START.ty;
+  player.px = player.tx * TILE; player.py = player.ty * TILE;
   player.dir = "up"; player.moving = false;
   state = STATE.TOWN;
   // 素材を集めて初めて町に来たら、コトハが素材屋探しを提案
@@ -491,7 +565,8 @@ function leaveTown() {
 function onArrive() {
   player.tx = player.targetX; player.ty = player.targetY;
   if (state === STATE.TOWN) {
-    if (tileAtTown(player.tx, player.ty) === "D") leaveTown();
+    const d = doorAt(player.tx, player.ty);
+    if (d) goThroughDoor(d);
     return;
   }
   const t = tileAt(player.tx, player.ty);
@@ -701,7 +776,7 @@ function render() {
   switch (state) {
     case STATE.TITLE: drawTitle(); break;
     case STATE.FIELD: drawField(); break;
-    case STATE.TOWN: drawTown(); break;
+    case STATE.TOWN: drawArea(); break;
     case STATE.MESSAGE:
       if (cutsceneDraw) cutsceneDraw(); else if (battle) drawBattleScene(); else drawField();
       drawMessageWindow();
@@ -743,6 +818,7 @@ function drawTitle() {
 }
 
 function drawField() {
+  camX = 0; camY = 0; // フィールドは15×15で画面ぴったり(スクロールなし)
   // タイル
   for (let y = 0; y < MAP_N; y++) {
     for (let x = 0; x < MAP_N; x++) {
@@ -750,8 +826,8 @@ function drawField() {
     }
   }
   // プレイヤー
-  drawHero(player.px, player.py, player.dir, player.anim);
-  drawKotoha(player.px + 30, player.py + 8, 0.6); // 相棒コトハが隣を飛ぶ
+  drawHero(player.px - camX, player.py - camY, player.dir, player.anim);
+  drawKotoha(player.px - camX + 30, player.py - camY + 8, 0.6); // 相棒コトハが隣を飛ぶ
   // HUD
   drawHud();
 }
@@ -837,44 +913,80 @@ function drawRightPanel() {
   ctx.textAlign = "center";
 }
 
-// ===== 街の描画 =====
-function drawTown() {
-  for (let y = 0; y < MAP_N; y++) {
-    for (let x = 0; x < MAP_N; x++) {
-      const t = TOWN_MAP[y][x];
-      const px = x * TILE, py = y * TILE;
-      if (t === "#") {
-        ctx.fillStyle = "#5a4636"; ctx.fillRect(px, py, TILE, TILE);
-        ctx.fillStyle = "#6b5340"; ctx.fillRect(px + 2, py + 2, TILE - 4, 6);
-      } else if (t === "D") {
-        ctx.fillStyle = "#caa46a"; ctx.fillRect(px, py, TILE, TILE);
-        ctx.fillStyle = "#7a4a22"; ctx.fillRect(px + 8, py + 4, 16, 24);
-        ctx.fillStyle = "#ffd24a"; ctx.fillRect(px + 19, py + 16, 3, 3);
-      } else {
-        ctx.fillStyle = "#caa46a"; ctx.fillRect(px, py, TILE, TILE); // 床(木目)
-        ctx.fillStyle = "#bd965d"; ctx.fillRect(px, py + TILE - 4, TILE, 4);
-      }
+// ===== エリア描画 (町＆家の中・カメラ追従) =====
+function drawArea() {
+  const a = curArea;
+  updateCamera(a.cols, a.rows);
+  ctx.fillStyle = a.indoor ? "#140d05" : "#2e5a28"; ctx.fillRect(0, 0, W, H);
+  const c0 = Math.max(0, Math.floor(camX / TILE)), c1 = Math.min(a.cols - 1, Math.floor((camX + W) / TILE));
+  const r0 = Math.max(0, Math.floor(camY / TILE)), r1 = Math.min(a.rows - 1, Math.floor((camY + H) / TILE));
+  for (let y = r0; y <= r1; y++) {
+    for (let x = c0; x <= c1; x++) {
+      const px = x * TILE - camX, py = y * TILE - camY;
+      if (a.indoor) drawInteriorTile(a.map[y][x], px, py);
+      else drawTownTile(a.map[y][x], px, py);
     }
   }
-  // 出口の案内
-  ctx.fillStyle = "#7a4a22"; ctx.textAlign = "center";
-  ctx.font = "11px 'MS Gothic', monospace";
-  ctx.fillText("でぐち", 7 * TILE + TILE / 2, 13 * TILE - 2);
-
-  // トイレ
-  drawToilet(TOILET.tx * TILE, TOILET.ty * TILE);
-  // NPC(見えているものだけ)
-  for (const n of TOWN_NPCS) if (npcVisible(n)) drawNPC(n);
-  // プレイヤー
-  drawHero(player.px, player.py, player.dir, player.anim);
-  drawKotoha(player.px + 30, player.py + 8, 0.6); // 相棒コトハが隣を飛ぶ
+  if (a.toilet) drawToilet(a.toilet.tx * TILE - camX, a.toilet.ty * TILE - camY);
+  // 扉ラベル(でぐち／家の名前)
+  ctx.textAlign = "center"; ctx.font = "11px 'MS Gothic', monospace";
+  for (const d of a.doors) {
+    const label = (d.to === "field" || d.to === "town") ? "でぐち" : (AREAS[d.to] ? AREAS[d.to].name : "");
+    if (!label) continue;
+    const lx = d.tx * TILE + TILE / 2 - camX, ly = d.ty * TILE - 3 - camY;
+    const w = ctx.measureText(label).width + 8;
+    ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(lx - w / 2, ly - 11, w, 13);
+    ctx.fillStyle = "#ffe082"; ctx.fillText(label, lx, ly);
+  }
+  for (const n of a.npcs) if (npcVisible(n)) drawNPC(n);
+  drawHero(player.px - camX, player.py - camY, player.dir, player.anim);
+  drawKotoha(player.px - camX + 30, player.py - camY + 8, 0.6);
 
   drawHud();
-  // 操作ヒント
   drawWindow(60, 430, 360, 42, false);
   ctx.fillStyle = "#fff"; ctx.textAlign = "center";
   ctx.font = "12px 'MS Gothic', monospace";
-  ctx.fillText("人に近づいて Z / 人をタップ で英会話", W / 2, 456);
+  ctx.fillText(a.indoor ? "人に近づいて Z で話す／でぐちで外へ" : "扉に入ると建物の中へ／人をタップで会話", W / 2, 456);
+}
+
+function drawInteriorTile(t, px, py) {
+  if (t === "#") {
+    ctx.fillStyle = "#5a4636"; ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = "#6b5340"; ctx.fillRect(px + 2, py + 2, TILE - 4, 8);
+    ctx.fillStyle = "#4a382a"; ctx.fillRect(px, py + TILE - 5, TILE, 5);
+    return;
+  }
+  // 木の床
+  ctx.fillStyle = "#b58a52"; ctx.fillRect(px, py, TILE, TILE);
+  ctx.fillStyle = "#a87c46"; ctx.fillRect(px, py + TILE - 3, TILE, 3);
+  ctx.strokeStyle = "rgba(0,0,0,0.07)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(px, py + 0.5); ctx.lineTo(px + TILE, py + 0.5); ctx.stroke();
+  if (t === "D") { // 玄関マット(出口)
+    ctx.fillStyle = "#3a5a8a"; ctx.fillRect(px + 6, py + 6, TILE - 12, TILE - 12);
+    ctx.fillStyle = "#5a7aaa"; ctx.fillRect(px + 9, py + 9, TILE - 18, TILE - 18);
+  }
+}
+
+function drawTownTile(t, px, py) {
+  if (t === "#") {
+    ctx.fillStyle = "#7a5a3a"; ctx.fillRect(px, py, TILE, TILE);          // 建物
+    ctx.fillStyle = "#8a6a44"; ctx.fillRect(px + 2, py + 2, TILE - 4, 8);
+    ctx.fillStyle = "#5a4028"; ctx.fillRect(px, py + TILE - 5, TILE, 5);
+    ctx.strokeStyle = "rgba(0,0,0,0.18)"; ctx.lineWidth = 1; ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+    return;
+  }
+  // 地面(草)
+  ctx.fillStyle = "#3f7a34"; ctx.fillRect(px, py, TILE, TILE);
+  ctx.fillStyle = "#46863a"; ctx.fillRect(px + 5, py + 7, 3, 3); ctx.fillRect(px + 20, py + 16, 3, 3); ctx.fillRect(px + 12, py + 24, 3, 3);
+  if (t === "T") {
+    ctx.fillStyle = "#5d4037"; ctx.fillRect(px + 14, py + 18, 5, 10);
+    ctx.fillStyle = "#1f7a25"; ctx.beginPath(); ctx.arc(px + 16, py + 12, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#2e9a32"; ctx.beginPath(); ctx.arc(px + 13, py + 10, 6, 0, Math.PI * 2); ctx.fill();
+  } else if (t === "D") {
+    ctx.fillStyle = "#caa46a"; ctx.fillRect(px + 4, py, TILE - 8, TILE);
+    ctx.fillStyle = "#7a4a22"; ctx.fillRect(px + 9, py + 2, 14, 22);
+    ctx.fillStyle = "#ffd24a"; ctx.fillRect(px + 19, py + 13, 3, 3);
+  }
 }
 
 function drawToilet(x, y) {
@@ -887,7 +999,7 @@ function drawToilet(x, y) {
 }
 
 function drawNPC(n) {
-  const x = n.tx * TILE, y = n.ty * TILE;
+  const x = n.tx * TILE - camX, y = n.ty * TILE - camY;
   // 体
   ctx.fillStyle = n.color; ctx.fillRect(x + 8, y + 14, 16, 14);
   // 頭
