@@ -80,6 +80,21 @@ html, body {
 #apikey-status.key-on { color: #6ee06e; }
 #apikey-status.key-off { color: #e0a85a; }
 
+/* コトハにきく ボタン */
+#kotoha-btn {
+  width: 100%;
+  max-width: 480px;
+  font-size: 16px;
+  font-weight: bold;
+  color: #0a1a3f;
+  background: linear-gradient(#bff5ec, #7be0d2);
+  border: 2px solid #fff;
+  border-radius: 10px;
+  padding: 12px;
+  touch-action: manipulation;
+}
+#kotoha-btn:active { background: #7be0d2; }
+
 /* モバイル十字キー */
 #dpad {
   display: none;
@@ -137,8 +152,8 @@ html, body {
   font-size: 15px;
   font-weight: bold;
 }
-.chat-head-btns { display: flex; gap: 6px; }
-#chat-close, #chat-key {
+.chat-head-btns { display: flex; gap: 6px; align-items: center; }
+#chat-close, #chat-key, #chat-help {
   font-size: 13px;
   color: #fff;
   background: #2a3a6b;
@@ -147,7 +162,9 @@ html, body {
   padding: 4px 8px;
 }
 #chat-key { font-size: 16px; padding: 2px 8px; }
-#chat-close:active, #chat-key:active { background: #3a5aa0; }
+#chat-help { background: #1c5d54; }
+#chat-close:active, #chat-key:active, #chat-help:active { background: #3a5aa0; }
+#chat-help:active { background: #2a7d70; }
 
 /* APIキー入力パネル */
 #chat-apikey {
@@ -213,22 +230,34 @@ html, body {
 .me-bubble { background: #2e6b3a; border: 1px solid #4aa05a; border-bottom-right-radius: 3px; }
 .bubble-text { display: block; }
 
+.bubble-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .tr-btn {
-  margin-top: 6px;
   font-size: 11px;
   color: #ffe082;
   background: transparent;
   border: 1px solid #ffe082;
   border-radius: 6px;
-  padding: 2px 7px;
+  padding: 3px 8px;
 }
 .tr-btn:active { background: rgba(255, 224, 130, 0.2); }
+.exp-btn { color: #7be0d2; border-color: #7be0d2; }
+.exp-btn:active { background: rgba(123, 224, 210, 0.2); }
 .ja-text {
   margin-top: 4px;
   font-size: 13px;
   color: #cfe3ff;
   padding: 4px 8px;
   border-left: 3px solid #ffe082;
+}
+.exp-text {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #d8f5ee;
+  padding: 6px 9px;
+  border-left: 3px solid #7be0d2;
+  background: rgba(123, 224, 210, 0.08);
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
 
 .correction {

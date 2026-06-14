@@ -18,6 +18,13 @@ const API_KEY_STORE = "anthropic_api_key";
 const getApiKey = () => localStorage.getItem(API_KEY_STORE) || "";
 const setApiKey = (k) => localStorage.setItem(API_KEY_STORE, k);
 
+// クエスト連動: 会話中に特定の条件を満たすと quest_flag が立つ
+// { note: 英語の条件文, onFlag: 立ったとき呼ぶ関数 }
+let questHook = null;
+function aiReady() {
+  return AI_CONFIG.mode === "proxy" ? !!AI_CONFIG.proxyUrl : !!getApiKey();
+}
+
 // ===== NPCペルソナ / 難易度 / 出力スキーマ（プロンプトはブラウザ側で構築）=====
 const NPC_PERSONA = {
   innkeeper: "You are Marian, the warm and chatty innkeeper of a small fantasy town. You enjoy talking about food, cozy rooms, and the stories of travelers who pass through.",
@@ -44,14 +51,18 @@ const SCHEMA = {
       required: ["natural", "corrected", "note_ja"],
       additionalProperties: false,
     },
+    quest_flag: { type: "boolean" },
   },
-  required: ["reply", "reply_ja", "correction"],
+  required: ["reply", "reply_ja", "correction", "quest_flag"],
   additionalProperties: false,
 };
-function buildSystem(npc, level) {
+function buildSystem(npc, level, questNote) {
   const persona = NPC_PERSONA[npc.id] || NPC_PERSONA.innkeeper;
   const guide = LEVEL_GUIDE[level] || LEVEL_GUIDE[500];
   const shortName = npc.name.split(" ").pop();
+  const questLine = questNote
+    ? `Set "quest_flag" to true ONLY if ${questNote} In that case, your "reply" should follow that situation. In every other case, set "quest_flag" to false.`
+    : `Always set "quest_flag" to false.`;
   return `${persona}
 
 You are an NPC in a Dragon-Quest-style fantasy town. The person you are talking to is a Japanese learner practicing English conversation with you.
@@ -61,27 +72,22 @@ Behavior rules:
 - ${guide}
 - Keep every reply to 1-2 short sentences, and usually end by asking the traveler a question so the conversation keeps going.
 - If the traveler's message is a stage direction inside parentheses or asterisks (e.g. "(The traveler approaches you.)"), treat it as narration: just greet or react in character, and report the correction as natural with an empty note.
-- Otherwise, gently check the traveler's English for unnatural or incorrect parts and help them improve.
+- IMPORTANT: you ONLY understand English. If the traveler's message is NOT in English (for example, it is in Japanese), you genuinely cannot understand it. Your "reply" must, in character and in ENGLISH, politely show that you don't understand and ask them to say it in English — do NOT answer, follow, or translate the content of a non-English message.
+- If the message IS in English, gently check it for unnatural or incorrect parts and help them improve.
 
 You MUST answer using the required JSON structure:
 - "reply": your in-character response, in ENGLISH only.
 - "reply_ja": a natural Japanese translation of your "reply".
-- "correction.natural": true if the traveler's English was already natural and correct, otherwise false.
-- "correction.corrected": the most natural English way to say what the traveler meant. If it was already natural, repeat their sentence as-is.
-- "correction.note_ja": a short Japanese explanation of what to fix and why (in Japanese). If the English was already natural, give brief Japanese praise instead.
+- "correction.natural": true if the traveler wrote natural, correct English; false if their English was off OR if they did not write in English at all.
+- "correction.corrected": the most natural English way to say what the traveler meant (use this to show them the English even when they wrote in Japanese). If their English was already natural, repeat their sentence as-is.
+- "correction.note_ja": a short Japanese explanation (in Japanese). If they wrote in Japanese instead of English, explain that the people of this world only understand English and encourage them to try the English line in "corrected". If their English was just unnatural, explain what to fix. If it was already natural, give brief Japanese praise.
+- "quest_flag": ${questLine}
 Always write "reply_ja" and "note_ja" in Japanese.`;
 }
 
 // ===== Claude 呼び出し（mode により接続先を切り替え）=====
-async function callClaude(npc, level, messages) {
-  const body = {
-    model: AI_CONFIG.model,
-    max_tokens: AI_CONFIG.maxTokens,
-    output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-    system: buildSystem(npc, level),
-    messages,
-  };
-
+// 低レベル: 接続先を切り替えて Anthropic にPOSTし、生レスポンスを返す
+async function postClaude(body) {
   let url, headers;
   if (AI_CONFIG.mode === "proxy") {
     if (!AI_CONFIG.proxyUrl) throw { code: "no_proxy" };
@@ -98,20 +104,59 @@ async function callClaude(npc, level, messages) {
       "anthropic-dangerous-direct-browser-access": "true",
     };
   }
-
   const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
   if (!r.ok) {
     let detail = "";
     try { detail = await r.text(); } catch {}
     throw { code: "http_" + r.status, status: r.status, detail };
   }
-  const data = await r.json();
+  return r.json();
+}
+
+// 町人との英会話(構造化出力: reply/添削/和訳/quest_flag)
+async function callClaude(npc, level, messages) {
+  const data = await postClaude({
+    model: AI_CONFIG.model,
+    max_tokens: AI_CONFIG.maxTokens,
+    output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
+    system: buildSystem(npc, level, questHook && questHook.note),
+    messages,
+  });
   if (data.stop_reason === "refusal") {
-    return { reply: "...", reply_ja: "（うまく答えられないようだ）", correction: { natural: true, corrected: "", note_ja: "" } };
+    return { reply: "...", reply_ja: "（うまく答えられないようだ）", correction: { natural: true, corrected: "", note_ja: "" }, quest_flag: false };
   }
   const block = (data.content || []).find((b) => b.type === "text");
   if (!block) throw { code: "no_text" };
   return JSON.parse(block.text);
+}
+
+// 相棒コトハに相談(日本語で回答する素のテキスト)
+function buildKotohaSystem(level, context) {
+  const lv = level === 900 ? "上級" : level === 700 ? "中級" : "初級";
+  return `あなたは「コトハ」。幼い女の子の姿をした言葉の精霊で、主人公(日本語話者・英語学習中／レベルは${lv})の相棒です。
+この世界の住人は英語しか話さない異世界。主人公だけがあなたを見て、日本語で話せます。
+
+性格と話し方:
+- 明るく元気で面倒見がいい。幼いけれどちょっとお姉さんぶる。語学にとても詳しい。
+- 返事は必ず日本語。幼い女の子らしい親しみやすいタメ口で、簡潔に(2〜5文ほど)。相手を決して責めず励ます。
+
+あなたの役割(相談に答える):
+1. 「英語でどう言えばいい?」→ 自然な英語表現を教える。英語フレーズは "..." で囲み、意味や使い方を日本語で添える。
+2. 町の人の英語や単語の意味を、やさしく解説する。
+3. 冒険で困ったとき→ 世界観に沿ってヒントを出す(答えを全部は言わず、背中を押す)。
+${context ? `\n参考: 主人公のいまの目的は「${context}」。これに沿ってヒントを出してね。` : ""}`;
+}
+async function callKotoha(level, context, messages) {
+  const data = await postClaude({
+    model: AI_CONFIG.model,
+    max_tokens: AI_CONFIG.maxTokens,
+    output_config: { effort: "low" },
+    system: buildKotohaSystem(level, context),
+    messages,
+  });
+  if (data.stop_reason === "refusal") return "（…うまく答えられないみたい。ごめんね）";
+  const block = (data.content || []).find((b) => b.type === "text");
+  return block ? block.text : "（うまく聞こえなかったみたい）";
 }
 
 // =====================================================================
@@ -123,6 +168,10 @@ const Chat = (() => {
   let history = [];
   let busy = false;
   let pendingStart = false; // キー入力待ちで開始を保留中か
+  let convMode = "npc";     // "npc"(町人と英会話) | "kotoha"(コトハに相談)
+  let kotohaContext = null; // コトハに渡す現在の目的など
+  let sendLabel = "話す";
+  let suspended = null;     // NPC会話を退避してコトハに切替えた時の保存先
 
   const overlay = document.getElementById("chat-overlay");
   const logEl = document.getElementById("chat-log");
@@ -131,6 +180,7 @@ const Chat = (() => {
   const sendBtn = document.getElementById("chat-send");
   const closeBtn = document.getElementById("chat-close");
   const keyBtn = document.getElementById("chat-key");
+  const helpBtn = document.getElementById("chat-help");
   const inputBar = document.getElementById("chat-inputbar");
   const keyPanel = document.getElementById("chat-apikey");
   const keyInput = document.getElementById("apikey-input");
@@ -149,19 +199,58 @@ const Chat = (() => {
     const row = el("div", "chat-row npc");
     const bubble = el("div", "bubble npc-bubble");
     bubble.appendChild(el("span", "bubble-text", reply));
+
     const ja = el("div", "ja-text", replyJa);
     ja.style.display = "none";
+    const exp = el("div", "exp-text");
+    exp.style.display = "none";
+
+    const btns = el("div", "bubble-btns");
+    // 訳ボタン
     const trBtn = el("button", "tr-btn", "🔍 コトハに訳を聞く");
     trBtn.addEventListener("click", () => {
       const show = ja.style.display === "none";
       ja.style.display = show ? "block" : "none";
       trBtn.textContent = show ? "🔼 訳をかくす" : "🔍 コトハに訳を聞く";
     });
-    bubble.appendChild(trBtn);
+    // 解説ボタン(押すとコトハが詳しく解説)
+    let expLoaded = false, expLoading = false;
+    const exBtn = el("button", "tr-btn exp-btn", "📖 コトハに解説してもらう");
+    exBtn.addEventListener("click", async () => {
+      if (expLoading) return;
+      if (expLoaded) {
+        const show = exp.style.display === "none";
+        exp.style.display = show ? "block" : "none";
+        exBtn.textContent = show ? "🔼 解説をかくす" : "📖 コトハに解説してもらう";
+        return;
+      }
+      expLoading = true; exBtn.textContent = "📖 コトハが考え中…";
+      try {
+        exp.textContent = await callExplain(reply);
+        exp.style.display = "block";
+        expLoaded = true; exBtn.textContent = "🔼 解説をかくす";
+      } catch (err) {
+        exp.textContent = "⚠ " + errorMessage(err);
+        exp.style.display = "block";
+        exBtn.textContent = "📖 もう一度解説";
+      } finally { expLoading = false; scrollBottom(); }
+    });
+    btns.appendChild(trBtn); btns.appendChild(exBtn);
+    bubble.appendChild(btns);
+
     row.appendChild(bubble);
     row.appendChild(ja);
+    row.appendChild(exp);
     logEl.appendChild(row);
     scrollBottom();
+  }
+
+  // コトハに英文を詳しく解説してもらう(その文専用の単発リクエスト)
+  async function callExplain(en) {
+    return callKotoha(level, null, [{
+      role: "user",
+      content: `次の英文を、英語初心者の私にやさしく詳しく解説して。意味・使われている単語・文法のポイント・どんな場面で使うかも教えてね。読みやすく改行してOKだけど、** などの記号装飾は使わないでね：\n"${en}"`,
+    }]);
   }
   function addPlayerLine(text) {
     const row = el("div", "chat-row me");
@@ -192,11 +281,21 @@ const Chat = (() => {
   }
   function addInfo(text) { logEl.appendChild(el("div", "chat-info", text)); scrollBottom(); }
 
+  // コトハの返事(日本語の素テキスト。和訳ボタンなし)
+  function addKotohaLine(text) {
+    const row = el("div", "chat-row npc");
+    const bubble = el("div", "bubble npc-bubble");
+    bubble.appendChild(el("span", "bubble-text", text));
+    row.appendChild(bubble);
+    logEl.appendChild(row);
+    scrollBottom();
+  }
+
   function setBusy(b) {
     busy = b;
     inputEl.disabled = b;
     sendBtn.disabled = b;
-    sendBtn.textContent = b ? "..." : "話す";
+    sendBtn.textContent = b ? "..." : sendLabel;
   }
 
   // ---- APIキー入力パネル ----
@@ -231,6 +330,44 @@ const Chat = (() => {
   });
   keyBtn.addEventListener("click", showKeyPanel);
 
+  // ---- 「コトハにきく」⇄「会話にもどる」(NPC会話を保持したまま切替) ----
+  function updateHelpBtn() {
+    if (!helpBtn) return;
+    if (suspended) { helpBtn.style.display = ""; helpBtn.textContent = "← もどる"; }
+    else if (convMode === "npc") { helpBtn.style.display = ""; helpBtn.textContent = "🧚 コトハ"; }
+    else { helpBtn.style.display = "none"; }
+  }
+  function suspendAndOpenKotoha() {
+    // 今のNPC会話のログDOMを退避(添削や和訳ボタンごと保持)
+    const frag = document.createDocumentFragment();
+    while (logEl.firstChild) frag.appendChild(logEl.firstChild);
+    suspended = { convMode, npc, history, frag, placeholder: inputEl.placeholder, sendLabel, name: nameEl.textContent, questHook };
+    questHook = null;
+    // コトハのサブ会話を開始
+    convMode = "kotoha"; npc = { id: "kotoha", name: "コトハ" }; history = [];
+    kotohaContext = (window.getKotohaContext && window.getKotohaContext()) || null;
+    sendLabel = "きく";
+    inputEl.placeholder = "コトハにきく…（日本語でOK）";
+    nameEl.textContent = "コトハ"; inputEl.value = "";
+    startGreeting();
+    updateHelpBtn();
+    inputEl.focus();
+  }
+  function resumeSuspended() {
+    const s = suspended; suspended = null;
+    convMode = s.convMode; npc = s.npc; history = s.history; sendLabel = s.sendLabel;
+    questHook = s.questHook; kotohaContext = null;
+    inputEl.placeholder = s.placeholder; nameEl.textContent = s.name;
+    logEl.innerHTML = ""; logEl.appendChild(s.frag);
+    updateHelpBtn(); scrollBottom();
+    inputEl.value = ""; inputEl.focus();
+  }
+  if (helpBtn) helpBtn.addEventListener("click", () => {
+    if (busy) return;
+    if (suspended) resumeSuspended();
+    else if (convMode === "npc") suspendAndOpenKotoha();
+  });
+
   // ---- エラーを分かりやすい文言に ----
   function errorMessage(err) {
     const code = err && err.code;
@@ -249,12 +386,26 @@ const Chat = (() => {
     const typing = el("div", "chat-info", `${npc.name.split(" ").pop()} は考えている…`);
     logEl.appendChild(typing); scrollBottom();
     try {
-      const data = await callClaude(npc, level, history);
-      typing.remove();
-      if (!data || typeof data.reply !== "string" || data.reply.trim() === "") throw { code: "no_text" };
-      if (!isOpening) addCorrection(data.correction);
-      addNpcLine(data.reply, data.reply_ja || "");
-      history.push({ role: "assistant", content: data.reply });
+      if (convMode === "kotoha") {
+        const reply = await callKotoha(level, kotohaContext, history);
+        typing.remove();
+        if (!reply || reply.trim() === "") throw { code: "no_text" };
+        addKotohaLine(reply);
+        history.push({ role: "assistant", content: reply });
+      } else {
+        const data = await callClaude(npc, level, history);
+        typing.remove();
+        if (!data || typeof data.reply !== "string" || data.reply.trim() === "") throw { code: "no_text" };
+        if (!isOpening) addCorrection(data.correction);
+        addNpcLine(data.reply, data.reply_ja || "");
+        history.push({ role: "assistant", content: data.reply });
+        // クエストフラグ判定(会話の中で条件を満たしたら発火)
+        if (questHook && data.quest_flag === true) {
+          const h = questHook; questHook = null;
+          addInfo("コトハ「やった！ 素材屋さんがトイレから出てきたよ。話しかけて売ろう！」");
+          if (h.onFlag) h.onFlag();
+        }
+      }
     } catch (err) {
       typing.remove();
       addInfo("⚠ " + errorMessage(err));
@@ -267,6 +418,10 @@ const Chat = (() => {
   }
 
   function startGreeting() {
+    if (convMode === "kotoha") {
+      addKotohaLine("どうしたの、相棒？ 英語で何て言えばいいか、町の人の言葉の意味、冒険で困ったこと…なんでも聞いて！");
+      return;
+    }
     addInfo("コトハ「英語で話しかけてみて！ 変なところは私が直すから！」");
     history.push({ role: "user", content: "(The traveler walks up and greets you.)" });
     turn(true);
@@ -291,14 +446,30 @@ const Chat = (() => {
   closeBtn.addEventListener("click", close);
 
   function open(npcObj, toeicLevel, onClose) {
+    convMode = "npc"; kotohaContext = null; sendLabel = "話す";
     npc = npcObj; level = toeicLevel; onCloseCb = onClose || null;
+    inputEl.placeholder = "英語で話す… (Enterで送信)";
+    beginSession(npcObj.name);
+  }
+
+  // コトハに相談(日本語で答えてくれる)
+  function openKotoha(toeicLevel, context, onClose) {
+    convMode = "kotoha"; kotohaContext = context || null; sendLabel = "きく";
+    npc = { id: "kotoha", name: "コトハ" }; level = toeicLevel; onCloseCb = onClose || null;
+    inputEl.placeholder = "コトハにきく…（日本語でOK・Enterで送信）";
+    beginSession("コトハ");
+  }
+
+  function beginSession(title) {
+    suspended = null;
     history = [];
     logEl.innerHTML = "";
-    nameEl.textContent = npcObj.name;
+    nameEl.textContent = title;
     overlay.style.display = "flex";
     opened = true;
     inputEl.value = "";
     hideKeyPanel();
+    updateHelpBtn();
     if (AI_CONFIG.mode === "browser" && !getApiKey()) {
       pendingStart = true;
       showKeyPanel();
@@ -311,11 +482,13 @@ const Chat = (() => {
     overlay.style.display = "none";
     opened = false;
     pendingStart = false;
+    questHook = null;
+    suspended = null;
     const cb = onCloseCb; onCloseCb = null;
     if (cb) cb();
   }
 
-  return { open, close, isOpen: () => opened };
+  return { open, openKotoha, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; } };
 })();
 
 window.Chat = Chat;

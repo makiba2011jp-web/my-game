@@ -8,15 +8,15 @@ const TILE = 32, MAP_N = 15;
 ctx.imageSmoothingEnabled = false;
 
 // ===== ゲーム状態 =====
-const STATE = { TITLE: "title", FIELD: "field", TOWN: "town", BATTLE: "battle", MESSAGE: "message", QUIZ: "quiz", GAMEOVER: "gameover", CLEAR: "clear" };
+const STATE = { TITLE: "title", FIELD: "field", TOWN: "town", BATTLE: "battle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", GAMEOVER: "gameover", CLEAR: "clear" };
 let state = STATE.TITLE;
 
 // プレイヤー
 const player = {
   tx: 2, ty: 12, px: 2 * TILE, py: 12 * TILE,
   dir: "down", moving: false, anim: 0,
-  level: 1, hp: 20, maxhp: 20, atk: 6, exp: 0, nextExp: 10,
-  wins: 0,
+  level: 1, hp: 20, maxhp: 20, atk: 6, def: 0, exp: 0, nextExp: 10,
+  gold: 0, wins: 0,
 };
 
 let toeicLevel = 500;     // 選択された難易度
@@ -71,19 +71,29 @@ const TOWN_MAP = [
 // 街のNPC(位置とAI会話用のID)
 const TOWN_NPCS = [
   { id: "innkeeper", name: "宿屋の女将 Marian", tx: 3, ty: 3, color: "#e0a060" },
-  { id: "smith", name: "武器屋の店主 Borin", tx: 11, ty: 3, color: "#9098b0" },
+  { id: "smith", name: "鍛冶屋 Borin", tx: 11, ty: 3, color: "#9098b0" },
   { id: "bard", name: "吟遊詩人 Lyra", tx: 7, ty: 5, color: "#6ab0e0" },
+  { id: "matshop", name: "素材屋", tx: 11, ty: 10, color: "#c08a3e", shop: "material" }, // 素材を換金(トイレの上に出てくる)
+  { id: "weaponshop", name: "武器屋", tx: 3, ty: 9, color: "#8fa0c0", shop: "weapon" },  // 装備を購入
 ];
 let savedOverworld = { tx: 2, ty: 12 }; // 街に入る前のフィールド座標
+const TOILET = { tx: 11, ty: 11 };      // 町のトイレ(素材屋がこもっている)
 function tileAtTown(tx, ty) {
   if (tx < 0 || ty < 0 || tx >= MAP_N || ty >= MAP_N) return "#";
   return TOWN_MAP[ty][tx];
 }
+// 素材屋は「トイレから出てくる」まで非表示(quest.shopRevealed)
+function npcVisible(n) {
+  if (n.id === "matshop") return !!(quest && quest.shopRevealed);
+  return true;
+}
 function npcAt(tx, ty) {
-  return TOWN_NPCS.find((n) => n.tx === tx && n.ty === ty) || null;
+  return TOWN_NPCS.find((n) => n.tx === tx && n.ty === ty && npcVisible(n)) || null;
 }
 function townWalkable(tx, ty) {
-  return tileAtTown(tx, ty) !== "#" && !npcAt(tx, ty);
+  if (tileAtTown(tx, ty) === "#") return false;
+  if (tx === TOILET.tx && ty === TOILET.ty) return false;
+  return !npcAt(tx, ty);
 }
 
 // ===== メッセージ / バトル状態 =====
@@ -97,13 +107,118 @@ let cutsceneDraw = null;   // カットシーン中の背景描画関数
 let cutsceneSteps = null, cutsceneIndex = 0, cutsceneOnDone = null;
 let quiz = null;           // チュートリアル等の選択クイズ
 let gameTime = 0;          // 経過時間(コトハの浮遊などの演出用)
+let quest = null;          // 現在の目的 { stage, kills, goal }
+let materials = {};         // 集めた素材 名前->個数
+
+// ===== 素材の売値 / ショップの品ぞろえ =====
+const MATERIAL_PRICE = {
+  "スライムのゼリー": 8, "こうもりの羽": 10, "れいきのかけら": 14, "こわれた鎧の破片": 18,
+};
+const SHOP_ITEMS = [
+  { name: "どうの剣", kind: "atk", value: 4, price: 30 },
+  { name: "はがねの剣", kind: "atk", value: 10, price: 120 },
+  { name: "木の盾", kind: "def", value: 3, price: 25 },
+  { name: "鉄の盾", kind: "def", value: 8, price: 100 },
+  { name: "たびびとの服", kind: "hp", value: 15, price: 40 },
+  { name: "くさりかたびら", kind: "hp", value: 40, price: 150 },
+];
+let shop = null;             // { sel, msg, msgT }
+let boughtItems = new Set(); // 購入済みアイテムのindex
+
+function materialsValue() {
+  let v = 0;
+  for (const [n, c] of Object.entries(materials)) v += (MATERIAL_PRICE[n] || 5) * c;
+  return v;
+}
+function effText(it) {
+  return it.kind === "atk" ? `こうげき+${it.value}` : it.kind === "def" ? `ぼうぎょ+${it.value}` : `さいだいHP+${it.value}`;
+}
+function shopRows() {
+  const rows = [];
+  if (shop.type === "material") {
+    const sv = materialsValue();
+    rows.push({ kind: "sell", enabled: sv > 0, label: sv > 0 ? `素材を ぜんぶ売る（+${sv}G）` : "売る素材がない" });
+  } else {
+    SHOP_ITEMS.forEach((it, i) => {
+      const owned = boughtItems.has(i);
+      rows.push({
+        kind: "buy", idx: i, enabled: !owned && player.gold >= it.price,
+        label: owned ? `✓ ${it.name}（${effText(it)}）購入ずみ` : `${it.name}（${effText(it)}）${it.price}G`,
+      });
+    });
+  }
+  rows.push({ kind: "exit", enabled: true, label: "店を出る" });
+  return rows;
+}
+function openShop(type) {
+  shop = {
+    type, sel: 0, msgT: 260,
+    msg: type === "material" ? "コトハ「集めた素材をお金に換えよう！」" : "コトハ「武器や防具で強くなろう！」",
+  };
+  state = STATE.SHOP;
+}
+function shopSelect(row) {
+  if (!row) return;
+  if (row.kind === "exit") { shop = null; state = STATE.TOWN; return; }
+  if (!row.enabled) { shop.msg = "コトハ「ゴールドが足りないみたい…」"; shop.msgT = 200; return; }
+  if (row.kind === "sell") {
+    const v = materialsValue();
+    player.gold += v; materials = {};
+    shop.msg = `素材を売って ${v}G 手に入れた！`; shop.msgT = 220;
+    if (quest && quest.stage === 3) quest.stage = 4; // 最初の目的を達成
+
+  } else if (row.kind === "buy") {
+    const it = SHOP_ITEMS[row.idx];
+    player.gold -= it.price; boughtItems.add(row.idx);
+    if (it.kind === "atk") player.atk += it.value;
+    else if (it.kind === "def") player.def += it.value;
+    else { player.maxhp += it.value; player.hp += it.value; }
+    shop.msg = `${it.name}を そうびした！`; shop.msgT = 220;
+  }
+  const rows = shopRows();
+  if (shop.sel >= rows.length) shop.sel = rows.length - 1;
+}
+function drawShop() {
+  ctx.fillStyle = "#06122b"; ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#fff"; ctx.font = "bold 22px 'MS Gothic', monospace";
+  ctx.fillText(shop.type === "material" ? "素材屋" : "武器屋", W / 2, 44);
+  ctx.fillStyle = "#ffe082"; ctx.font = "15px 'MS Gothic', monospace";
+  ctx.fillText(`所持金 ${player.gold}G`, W / 2, 72);
+  const rows = shopRows();
+  for (let i = 0; i < rows.length; i++) {
+    const y = 92 + i * 44;
+    drawWindow(40, y, 400, 40, shop.sel === i);
+    ctx.textAlign = "left";
+    ctx.fillStyle = (rows[i].enabled || rows[i].kind === "exit") ? "#fff" : "#7a8aa8";
+    ctx.font = "15px 'MS Gothic', monospace";
+    ctx.fillText(rows[i].label, 70, y + 26);
+  }
+  if (shop.msgT > 0) {
+    ctx.textAlign = "center"; ctx.fillStyle = "#9fe0c0"; ctx.font = "13px 'MS Gothic', monospace";
+    ctx.fillText(shop.msg, W / 2, H - 22);
+  }
+  ctx.textAlign = "center";
+}
+
+// ===== クエスト(目的)管理 =====
+function setupFirstQuest() { quest = { stage: 0, kills: 0, goal: 5, shopRevealed: false }; }
+function addMaterial(name) { materials[name] = (materials[name] || 0) + 1; }
+function questLines() {
+  if (!quest) return null;
+  if (quest.stage === 0) return ["モンスターを5匹たおす", `素材あつめ ${quest.kills}/${quest.goal}`];
+  if (quest.stage === 1) return ["町(赤い屋根)へ向かう", "素材あつめ 達成！"];
+  if (quest.stage === 2) return ["町の人に素材屋の場所を聞く", '"Where is the material shop?"'];
+  if (quest.stage === 3) return ["素材屋で素材を売ろう"];
+  return ["町を探索しよう"];
+}
 
 // ===== 敵テンプレート =====
 const ENEMIES = [
-  { name: "スライム",   hp: 12, atk: 3, exp: 5,  color: "#3fbf6f" },
-  { name: "おおコウモリ", hp: 16, atk: 4, exp: 7,  color: "#7a5ad6" },
-  { name: "ゴースト",   hp: 20, atk: 5, exp: 9,  color: "#9fd6e6" },
-  { name: "アーマー兵", hp: 28, atk: 6, exp: 12, color: "#b0b0c0" },
+  { name: "スライム",   hp: 12, atk: 3, exp: 5,  color: "#3fbf6f", drop: "スライムのゼリー" },
+  { name: "おおコウモリ", hp: 16, atk: 4, exp: 7,  color: "#7a5ad6", drop: "こうもりの羽" },
+  { name: "ゴースト",   hp: 20, atk: 5, exp: 9,  color: "#9fd6e6", drop: "れいきのかけら" },
+  { name: "アーマー兵", hp: 28, atk: 6, exp: 12, color: "#b0b0c0", drop: "こわれた鎧の破片" },
 ];
 const BOSS = { name: "まおう", hp: 60, atk: 9, exp: 0, color: "#c0392b", boss: true };
 
@@ -125,6 +240,7 @@ function normalizeKey(key) {
     case "ArrowRight": case "d": case "D": return "right";
     case "Enter": case " ": case "z": case "Z": return "confirm";
     case "x": case "X": case "Escape": return "cancel";
+    case "c": case "C": return "kotoha";
   }
   return key;
 }
@@ -134,6 +250,24 @@ document.querySelectorAll(".dbtn").forEach((b) => {
   b.addEventListener("touchstart", (e) => { e.preventDefault(); if (!Chat.isOpen()) onInput(b.dataset.dir); }, { passive: false });
   b.addEventListener("mousedown", (e) => { e.preventDefault(); if (!Chat.isOpen()) onInput(b.dataset.dir); });
 });
+
+// 「コトハにきく」コマンド(ボタン)
+const kotohaBtn = document.getElementById("kotoha-btn");
+if (kotohaBtn) kotohaBtn.addEventListener("click", (e) => { e.preventDefault(); openKotohaChat(); });
+
+// コトハに相談(日本語で何でも教えてくれる)。探索中のみ。
+function openKotohaChat() {
+  if (Chat.isOpen()) return;
+  if (state !== STATE.FIELD && state !== STATE.TOWN) return;
+  for (const k in keys) keys[k] = false;
+  Chat.openKotoha(toeicLevel, getKotohaContext(), () => {});
+}
+// コトハに渡す文脈(現在の目的)。NPC会話中にコトハへ切替えたときも使う。
+function getKotohaContext() {
+  const ql = quest ? questLines() : null;
+  return ql ? ql[0] : null;
+}
+window.getKotohaContext = getKotohaContext;
 
 // Canvasタップ: 状態に応じて確定/選択
 canvas.addEventListener("pointerdown", (e) => {
@@ -153,11 +287,13 @@ function onInput(k) {
   }
   if (state === STATE.FIELD) {
     if (["up", "down", "left", "right"].includes(k)) tryMove(k);
+    else if (k === "kotoha") openKotohaChat();
     return;
   }
   if (state === STATE.TOWN) {
     if (["up", "down", "left", "right"].includes(k)) tryMove(k);
     else if (k === "confirm") tryTalk();
+    else if (k === "kotoha") openKotohaChat();
     return;
   }
   if (state === STATE.MESSAGE) {
@@ -169,6 +305,14 @@ function onInput(k) {
     else if (k === "down") quiz.sel = (quiz.sel + 1) % 4;
     else if (k === "left" || k === "right") quiz.sel = (quiz.sel + 2) % 4;
     else if (k === "confirm") answerQuiz(quiz.sel);
+    return;
+  }
+  if (state === STATE.SHOP && shop) {
+    const rows = shopRows();
+    if (k === "up") shop.sel = (shop.sel - 1 + rows.length) % rows.length;
+    else if (k === "down") shop.sel = (shop.sel + 1) % rows.length;
+    else if (k === "confirm") shopSelect(rows[shop.sel]);
+    else if (k === "cancel") { shop = null; state = STATE.TOWN; }
     return;
   }
   if (state === STATE.BATTLE && battle.phase === "select") {
@@ -190,7 +334,7 @@ function onTap(x, y) {
   if (state === STATE.TOWN) {
     const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
     const n = npcAt(tx, ty);
-    if (n) talkToNPC(n);
+    if (n) interactNPC(n);
     return;
   }
   if (state === STATE.TITLE) {
@@ -207,6 +351,14 @@ function onTap(x, y) {
       const col = i % 2, row = (i / 2) | 0;
       const bx = 16 + col * 232, by = 312 + row * 76;
       if (x >= bx && x <= bx + 216 && y >= by && y <= by + 64) { answerQuiz(i); return; }
+    }
+    return;
+  }
+  if (state === STATE.SHOP && shop) {
+    const rows = shopRows();
+    for (let i = 0; i < rows.length; i++) {
+      const ry = 92 + i * 44;
+      if (x >= 40 && x <= 440 && y >= ry && y <= ry + 40) { shop.sel = i; shopSelect(rows[i]); return; }
     }
     return;
   }
@@ -227,8 +379,9 @@ function startGame(level) {
   toeicLevel = level;
   player.tx = 2; player.ty = 12; player.px = 2 * TILE; player.py = 12 * TILE;
   player.dir = "down"; player.moving = false;
-  player.level = 1; player.maxhp = 20; player.hp = 20; player.atk = 6;
-  player.exp = 0; player.nextExp = 10; player.wins = 0;
+  player.level = 1; player.maxhp = 20; player.hp = 20; player.atk = 6; player.def = 0;
+  player.exp = 0; player.nextExp = 10; player.wins = 0; player.gold = 0;
+  materials = {}; quest = null; boughtItems = new Set();
   resetEncounter();
   startOpening();
 }
@@ -254,12 +407,62 @@ function tryTalk() {
   if (player.dir === "up") fy--; else if (player.dir === "down") fy++;
   else if (player.dir === "left") fx--; else if (player.dir === "right") fx++;
   const n = npcAt(fx, fy);
-  if (n) talkToNPC(n);
+  if (n) interactNPC(n);
+}
+
+// NPCに話しかけたときの分岐(店/方向を尋ねるイベント/通常会話)
+function interactNPC(n) {
+  if (n.shop) { openShop(n.shop); return; }
+  if (quest && quest.stage === 2) {
+    // AI会話の中で「素材屋の場所」を聞けたらフラグ。AIが使えない時はスクリプト版。
+    if (Chat.aiReady()) talkAskDirections(n);
+    else askDirections(n);
+    return;
+  }
+  talkToNPC(n);
 }
 
 function talkToNPC(npc) {
   for (const k in keys) keys[k] = false; // 移動キーが残らないように
+  Chat.setQuest(null);
   Chat.open(npc, toeicLevel, () => { /* 会話終了後は街に留まる */ });
+}
+
+// AI会話版: "Where is the material shop?" 等を聞けたら素材屋が出てくる
+function talkAskDirections(npc) {
+  for (const k in keys) keys[k] = false;
+  Chat.setQuest({
+    note: "the traveler asks where the material shop (素材屋) is, or how to find/reach it. In that situation your reply must tell them, in character and in English, that the material shop's owner is in the toilet right now.",
+    onFlag: () => revealMaterialShop(),
+  });
+  Chat.open(npc, toeicLevel, () => { /* 会話終了後は街に留まる */ });
+}
+
+function revealMaterialShop() {
+  if (!quest) return;
+  quest.shopRevealed = true;
+  if (quest.stage === 2) quest.stage = 3;
+}
+
+// 町の人に素材屋の場所を尋ねる → 素材屋がトイレから出てくる
+function askDirections(npc) {
+  const who = npc.name.split(" ").pop();
+  playTownCutscene([
+    { who: "コトハ", lines: ["いいね！ \"Where is the material shop?\" って聞いてみよう！"] },
+    { who: who, lines: ["The material shop? Hmm...", "The owner is in the toilet right now!"] },
+    { who: "コトハ", lines: ["『素材屋の店主なら、今トイレに行ってるよ』だって。", "なるほど、それで見つからなかったんだ！"] },
+    { action: () => { quest.shopRevealed = true; }, who: "コトハ", lines: ["あっ、トイレから出てきた！ あの人が素材屋さんだよ。", "話しかけて素材を売ろう！"] },
+  ], () => { quest.stage = 3; });
+}
+
+// 町を背景にしたカットシーン
+function playTownCutscene(steps, onDone) {
+  for (const k in keys) keys[k] = false;
+  cutsceneDraw = drawTown;
+  playCutscene(steps, () => {
+    cutsceneDraw = null; messageSpeaker = null; state = STATE.TOWN;
+    if (onDone) onDone();
+  });
 }
 
 function enterTown() {
@@ -267,14 +470,22 @@ function enterTown() {
   player.tx = 7; player.ty = 12; player.px = 7 * TILE; player.py = 12 * TILE;
   player.dir = "up"; player.moving = false;
   state = STATE.TOWN;
+  // 素材を集めて初めて町に来たら、コトハが素材屋探しを提案
+  if (quest && quest.stage === 1) {
+    quest.stage = 2;
+    playTownCutscene([
+      { who: "コトハ", lines: ["ここが町だね！ 素材を売れる「素材屋」を探そう。"] },
+      { who: "コトハ", lines: ["…でも見当たらないなぁ。町の人に場所を聞いてみよう！", "英語で \"Where is the material shop?\" って聞くんだよ。"] },
+      { who: "コトハ", lines: ["（material shop ＝ 素材屋、Where is 〜? ＝ 〜はどこ？）", "だれかに話しかけてみて！"] },
+    ]);
+  }
 }
 
 function leaveTown() {
   player.tx = savedOverworld.tx; player.ty = savedOverworld.ty;
   player.px = player.tx * TILE; player.py = player.ty * TILE;
   player.dir = "down"; player.moving = false;
-  player.hp = player.maxhp; // 宿で休んで全回復
-  showMessage(["宿屋でやすんだ。", "HPが ぜんかい した！"], () => { state = STATE.FIELD; });
+  state = STATE.FIELD;
 }
 
 function onArrive() {
@@ -284,7 +495,7 @@ function onArrive() {
     return;
   }
   const t = tileAt(player.tx, player.ty);
-  if (t === "O") { // 町に入る
+  if (t === "O") { // 町に入る(イベント判定は enterTown 内)
     enterTown();
     return;
   }
@@ -319,6 +530,7 @@ function startBattle(isBoss) {
     isBoss,
     name: src.name, color: src.color,
     ehp: src.hp, emaxhp: src.hp, eatk: src.atk, exp: src.exp,
+    drop: isBoss ? null : src.drop,
     phase: "intro", word: null, log: "",
     shake: 0, ehurt: 0, phurt: 0,
   };
@@ -347,7 +559,7 @@ function chooseAnswer(idx) {
       enemyTurnOrNext();
     });
   } else {
-    const dmg = battle.eatk + Math.floor(rnd() * 3);
+    const dmg = Math.max(1, battle.eatk + Math.floor(rnd() * 3) - player.def);
     player.hp = Math.max(0, player.hp - dmg);
     battle.phurt = 12;
     state = STATE.BATTLE;
@@ -361,7 +573,7 @@ function chooseAnswer(idx) {
 // 正解後、ときどき敵の反撃を挟む
 function enemyTurnOrNext() {
   if (battle.isBoss && rnd() < 0.5) {
-    const dmg = battle.eatk + Math.floor(rnd() * 3);
+    const dmg = Math.max(1, battle.eatk + Math.floor(rnd() * 3) - player.def);
     player.hp = Math.max(0, player.hp - dmg);
     battle.phurt = 12;
     queueResolve([`${battle.name}の はんげき！ ${dmg} のダメージ！`], () => {
@@ -378,6 +590,20 @@ function winBattle() {
   player.exp += battle.exp;
   const lines = [`${battle.name}を たおした！`];
   if (!battle.isBoss) lines.push(`けいけんち ${battle.exp} を かくとく！`);
+  // 素材ドロップ
+  if (!battle.isBoss && battle.drop) {
+    addMaterial(battle.drop);
+    lines.push(`「${battle.drop}」を 手に入れた！`);
+  }
+  // クエスト(討伐数)進行
+  if (!battle.isBoss && quest && quest.stage === 0) {
+    quest.kills++;
+    if (quest.kills >= quest.goal) {
+      quest.stage = 1;
+      lines.push(`コトハ「5匹たおした！ 素材も集まったね。`);
+      lines.push(`　町(赤い屋根)へ向かって換金しよう！」`);
+    }
+  }
   // レベルアップ判定
   let leveled = [];
   while (player.exp >= player.nextExp && !battle.isBoss) {
@@ -441,6 +667,7 @@ function loop(t) {
 function update(dt) {
   gameTime += dt;
   if (quiz && quiz.wrong > 0) quiz.wrong -= dt * 0.05;
+  if (shop && shop.msgT > 0) shop.msgT -= dt;
   if (state === STATE.FIELD || state === STATE.TOWN || (player.moving)) {
     if (player.moving) {
       const speed = 0.18 * dt;
@@ -483,6 +710,7 @@ function render() {
       if (cutsceneDraw) cutsceneDraw(); else drawField();
       drawQuizUI();
       break;
+    case STATE.SHOP: drawShop(); break;
     case STATE.BATTLE: drawBattleScene(); drawBattleUI(); break;
     case STATE.GAMEOVER: drawEnd("ゲームオーバー", "#c0392b"); break;
     case STATE.CLEAR: drawEnd("魔王をたおした！ クリア！", "#f1c40f"); break;
@@ -523,6 +751,7 @@ function drawField() {
   }
   // プレイヤー
   drawHero(player.px, player.py, player.dir, player.anim);
+  drawKotoha(player.px + 30, player.py + 8, 0.6); // 相棒コトハが隣を飛ぶ
   // HUD
   drawHud();
 }
@@ -570,11 +799,41 @@ function drawHero(px, py, dir, anim) {
 }
 
 function drawHud() {
-  drawWindow(8, 8, 180, 60, false);
+  drawWindow(8, 8, 188, 76, false);
   ctx.fillStyle = "#fff"; ctx.textAlign = "left";
   ctx.font = "13px 'MS Gothic', monospace";
-  ctx.fillText(`Lv ${player.level}   TOEIC${toeicLevel}`, 20, 30);
-  ctx.fillText(`HP ${player.hp}/${player.maxhp}`, 20, 50);
+  ctx.fillText(`Lv ${player.level}   ${player.gold}G`, 20, 28);
+  ctx.fillText(`HP ${player.hp}/${player.maxhp}`, 20, 48);
+  ctx.fillText(`こうげき${player.atk}  ぼうぎょ${player.def}`, 20, 68);
+  ctx.textAlign = "center";
+  drawRightPanel();
+}
+
+// 画面右上: いまの目的＋集めた素材
+function drawRightPanel() {
+  const bx = W - 196, bw = 188;
+  let y = 8;
+  const ql = questLines();
+  if (ql) {
+    const bh = 26 + ql.length * 18 + 4;
+    drawWindow(bx, y, bw, bh, false);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#ffe082"; ctx.font = "12px 'MS Gothic', monospace";
+    ctx.fillText("● いまの目的", bx + 10, y + 20);
+    ctx.fillStyle = "#fff";
+    for (let i = 0; i < ql.length; i++) ctx.fillText(ql[i], bx + 10, y + 40 + i * 18);
+    y += bh + 6;
+  }
+  const ms = Object.entries(materials).slice(0, 5);
+  if (ms.length) {
+    const bh = 24 + ms.length * 16 + 4;
+    drawWindow(bx, y, bw, bh, false);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#9fe0c0"; ctx.font = "12px 'MS Gothic', monospace";
+    ctx.fillText("● そざい", bx + 10, y + 19);
+    ctx.fillStyle = "#fff"; ctx.font = "11px 'MS Gothic', monospace";
+    for (let i = 0; i < ms.length; i++) ctx.fillText(`${ms[i][0]} ×${ms[i][1]}`, bx + 10, y + 37 + i * 16);
+  }
   ctx.textAlign = "center";
 }
 
@@ -602,10 +861,13 @@ function drawTown() {
   ctx.font = "11px 'MS Gothic', monospace";
   ctx.fillText("でぐち", 7 * TILE + TILE / 2, 13 * TILE - 2);
 
-  // NPC
-  for (const n of TOWN_NPCS) drawNPC(n);
+  // トイレ
+  drawToilet(TOILET.tx * TILE, TOILET.ty * TILE);
+  // NPC(見えているものだけ)
+  for (const n of TOWN_NPCS) if (npcVisible(n)) drawNPC(n);
   // プレイヤー
   drawHero(player.px, player.py, player.dir, player.anim);
+  drawKotoha(player.px + 30, player.py + 8, 0.6); // 相棒コトハが隣を飛ぶ
 
   drawHud();
   // 操作ヒント
@@ -613,6 +875,15 @@ function drawTown() {
   ctx.fillStyle = "#fff"; ctx.textAlign = "center";
   ctx.font = "12px 'MS Gothic', monospace";
   ctx.fillText("人に近づいて Z / 人をタップ で英会話", W / 2, 456);
+}
+
+function drawToilet(x, y) {
+  ctx.fillStyle = "#cfd8dc"; ctx.fillRect(x + 3, y + 6, 26, 24); // 建物
+  ctx.fillStyle = "#455a64"; ctx.fillRect(x + 2, y + 2, 28, 6);  // 屋根
+  ctx.fillStyle = "#5d4037"; ctx.fillRect(x + 11, y + 14, 10, 16); // ドア
+  ctx.fillStyle = "#1565c0"; ctx.font = "8px 'MS Gothic', monospace"; ctx.textAlign = "center";
+  ctx.fillText("WC", x + 16, y + 13);
+  ctx.textAlign = "center";
 }
 
 function drawNPC(n) {
@@ -791,8 +1062,10 @@ function startOpening() {
     { quiz: { en: "lost", q: "コトハ「\"lost\" ってどういう意味だと思う？」", choices: ["なくした・いなくなった", "見つけた", "食べた", "ねむった"], answer: 0 } },
     { who: "コトハ", lines: ["正解！ \"lost\" は『なくした・いなくなった』。", "じゃあ、さっきの村人の言葉をもう一度…"] },
     { who: "コトハ", lines: ["『助けて！ 犬がいなくなったの！』だって。", "ね？ 言葉が分かると世界が広がるでしょ？"] },
-    { who: "コトハ", lines: ["元の世界に帰る手がかりも、きっと人との会話の中にある。", "さ、冒険のはじまり！ 行こう、相棒！"] },
-  ], () => { cutsceneDraw = null; messageSpeaker = null; state = STATE.FIELD; });
+    { who: "コトハ", lines: ["元の世界に帰る手がかりも、きっと人との会話の中にあるはず。"] },
+    { who: "コトハ", lines: ["でもまずは旅の資金！ 宿屋に泊まるにもお金がいるの。", "モンスターをたおすと素材が手に入るから、それを町で換金しよう。"] },
+    { who: "コトハ", lines: ["まずはモンスターを5匹たおして素材集め！", "それから町(赤い屋根の建物)へ向かおう。さ、行くよ相棒！"] },
+  ], () => { setupFirstQuest(); cutsceneDraw = null; messageSpeaker = null; state = STATE.FIELD; });
 }
 
 function drawActor(x, y, fn) {
@@ -805,15 +1078,41 @@ function drawPerson(body, hair) {
   ctx.fillStyle = "#000"; ctx.fillRect(12, 11, 2, 2); ctx.fillRect(18, 11, 2, 2);
   ctx.fillStyle = "#3e2723"; ctx.fillRect(10, 28, 5, 4); ctx.fillRect(17, 28, 5, 4);
 }
-function drawKotoha(cx, cy) {
+// コトハ: 空を飛ぶ幼い女の子の精霊
+function drawKotoha(cx, cy, scale) {
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(cx, cy); ctx.scale(s, s); ctx.translate(-cx, -cy);
   const y = cy + Math.sin(gameTime / 300) * 5;
-  ctx.fillStyle = "rgba(123,224,210,0.28)"; ctx.beginPath(); ctx.arc(cx, y, 27, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "#7be0d2"; ctx.beginPath(); ctx.arc(cx, y, 16, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "#bff5ec"; ctx.beginPath(); ctx.arc(cx - 5, y - 5, 5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "#1a4a44"; ctx.fillRect(cx - 7, y - 2, 3, 4); ctx.fillRect(cx + 4, y - 2, 3, 4);
-  ctx.fillStyle = "rgba(255,140,140,0.55)"; ctx.fillRect(cx - 11, y + 3, 4, 3); ctx.fillRect(cx + 7, y + 3, 4, 3);
+  // 精霊の光
+  ctx.fillStyle = "rgba(123,224,210,0.22)";
+  ctx.beginPath(); ctx.arc(cx, y, 20, 0, Math.PI * 2); ctx.fill();
+  // 羽(半透明)
+  ctx.fillStyle = "rgba(190,245,236,0.65)";
+  ctx.beginPath(); ctx.ellipse(cx - 10, y + 1, 6, 10, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx + 10, y + 1, 6, 10, -0.5, 0, Math.PI * 2); ctx.fill();
+  // ドレス(白×ティール)
+  ctx.fillStyle = "#eafffb";
+  ctx.beginPath(); ctx.moveTo(cx - 8, y + 13); ctx.lineTo(cx + 8, y + 13); ctx.lineTo(cx + 5, y + 1); ctx.lineTo(cx - 5, y + 1); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#7be0d2"; ctx.fillRect(cx - 8, y + 11, 16, 3);
+  // 手足(肌)
+  ctx.fillStyle = "#f7d3a0"; ctx.fillRect(cx - 4, y + 13, 3, 4); ctx.fillRect(cx + 1, y + 13, 3, 4);
+  // 頭(肌)
+  ctx.fillStyle = "#f7d3a0"; ctx.beginPath(); ctx.arc(cx, y - 5, 7, 0, Math.PI * 2); ctx.fill();
+  // 髪(ミント・ツインテール)
+  ctx.fillStyle = "#8fe6d6";
+  ctx.beginPath(); ctx.arc(cx, y - 7, 7, Math.PI, 0); ctx.fill();
+  ctx.fillRect(cx - 7, y - 8, 3, 7); ctx.fillRect(cx + 4, y - 8, 3, 7);
+  ctx.beginPath(); ctx.arc(cx - 8, y - 2, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 8, y - 2, 3, 0, Math.PI * 2); ctx.fill();
+  // 目(大きめ)・ほっぺ
+  ctx.fillStyle = "#27424a"; ctx.fillRect(cx - 4, y - 6, 2, 3); ctx.fillRect(cx + 2, y - 6, 2, 3);
+  ctx.fillStyle = "#fff"; ctx.fillRect(cx - 4, y - 6, 1, 1); ctx.fillRect(cx + 2, y - 6, 1, 1);
+  ctx.fillStyle = "rgba(255,140,150,0.6)"; ctx.fillRect(cx - 6, y - 3, 2, 2); ctx.fillRect(cx + 4, y - 3, 2, 2);
+  // きらきら
   ctx.fillStyle = "#fff";
-  ctx.fillRect(cx + 19, y - 15, 2, 2); ctx.fillRect(cx - 22, y + 9, 2, 2); ctx.fillRect(cx + 12, y + 18, 2, 2);
+  ctx.fillRect(cx + 15, y - 13, 2, 2); ctx.fillRect(cx - 17, y + 7, 2, 2);
+  ctx.restore();
 }
 function drawIntroScene() {
   for (let y = 0; y < MAP_N; y++) {
