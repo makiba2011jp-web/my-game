@@ -24,6 +24,16 @@
     <!-- コトハにきく(コマンド) -->
     <button id="kotoha-btn">🧚 コトハにきく（Cキー）</button>
 
+    <!-- モバイル用十字キー -->
+    <div id="dpad">
+      <button class="dbtn" data-dir="up">▲</button>
+      <div class="dpad-mid">
+        <button class="dbtn" data-dir="left">◀</button>
+        <button class="dbtn" data-dir="down">▼</button>
+        <button class="dbtn" data-dir="right">▶</button>
+      </div>
+    </div>
+
     <!-- 開発用: 目的ジャンプ -->
     <div id="dev-bar">
       <span>🛠 開発: 目的から開始</span>
@@ -43,16 +53,6 @@
       <button data-stage="13">⑭報告</button>
       <button data-stage="14">⑮ボード</button>
       <button id="dev-model" title="OpusとHaikuを切替">モデル:Opus 4.8</button>
-    </div>
-
-    <!-- モバイル用十字キー -->
-    <div id="dpad">
-      <button class="dbtn" data-dir="up">▲</button>
-      <div class="dpad-mid">
-        <button class="dbtn" data-dir="left">◀</button>
-        <button class="dbtn" data-dir="down">▼</button>
-        <button class="dbtn" data-dir="right">▶</button>
-      </div>
     </div>
 
     <!-- NPCとのAI英会話オーバーレイ -->
@@ -86,6 +86,7 @@
     </div>
   </div>
   <script src="words.js"></script>
+  <script src="voice.js"></script>
   <script src="chat.js"></script>
   <script src="game.js"></script>
 </body>

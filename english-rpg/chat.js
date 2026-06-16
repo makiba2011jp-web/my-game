@@ -377,6 +377,7 @@ const Chat = (() => {
       } finally { expLoading = false; scrollBottom(); }
     });
     btns.appendChild(trBtn); btns.appendChild(exBtn);
+    if (window.Voice) Voice.attachSpeakButton(btns, reply, "en"); // 🔊聞く(voice.js。無ければ無効)
     bubble.appendChild(btns);
 
     row.appendChild(bubble);
@@ -384,6 +385,7 @@ const Chat = (() => {
     row.appendChild(exp);
     logEl.appendChild(row);
     scrollBottom();
+    if (window.Voice) Voice.autoSpeak(reply, "en"); // 自動読み上げ(ONのときのみ)
   }
 
   // コトハに英文を詳しく解説してもらう(その文専用の単発リクエスト)
@@ -632,6 +634,7 @@ const Chat = (() => {
     overlay.style.display = "none";
     opened = false;
     pendingStart = false;
+    if (window.Voice) Voice.cancel(); // 読み上げ中なら止める
     questHook = null;
     suspended = null;
     const after = pendingClose; pendingClose = null;
