@@ -24,6 +24,8 @@ let toeicLevel = 500;     // 選択された難易度
 let stepsToEncounter = 0; // エンカウントまでの歩数
 let autoEncounter = false; // オート戦闘(フィールドで歩かず自動エンカウント)
 let autoTimer = 0;         // 次の自動エンカウントまでの残り時間(ms)
+let msgAutoTimer = 0;      // オート時のメッセージ自動送りタイマー(ms)
+const AUTO_MSG_DELAY = 700; // メッセージ1枚あたりの自動送り間隔(ms)
 
 // マップ (T=木 W=水 G=草 O=町 C=城/魔王)
 const MAP = [
@@ -1484,6 +1486,7 @@ function winBattle() {
   showMessage([...lines, ...leveled], () => {
     battle = null;
     if (wasBoss) { state = STATE.CLEAR; }
+    else if (autoEncounter) { startBattle(false); } // オート: フィールドに戻らず即・次の戦闘
     else { state = STATE.FIELD; }
   });
 }
@@ -1503,8 +1506,10 @@ function showMessage(lines, after, speaker) {
   messageAfter = after;
   messageSpeaker = speaker || null;
   state = STATE.MESSAGE;
+  msgAutoTimer = AUTO_MSG_DELAY; // オート時の自動送り用
 }
 function advanceMessage() {
+  msgAutoTimer = AUTO_MSG_DELAY; // 次の行/次メッセージも自動送りの間隔をリセット
   if (msgQueue.length > 0) { messageLines.push(msgQueue.shift()); if (messageLines.length > 3) messageLines.shift(); return; }
   const after = messageAfter; messageAfter = null;
   if (after) after();
@@ -1571,6 +1576,12 @@ function update(dt) {
   if (autoEncounter && state === STATE.FIELD && !battle && !Chat.isOpen()) {
     autoTimer -= dt;
     if (autoTimer <= 0) { autoTimer = 900; startBattle(false); }
+  }
+  // オート戦闘中は戦闘ナレーション(出現/ダメージ/攻撃/経験値/入手など)を自動送り
+  // ※4択の回答は手動のまま(STATE.BATTLE は対象外)
+  if (autoEncounter && state === STATE.MESSAGE && battle && !Chat.isOpen()) {
+    msgAutoTimer -= dt;
+    if (msgAutoTimer <= 0) advanceMessage();
   }
   if (battle) {
     if (battle.shake > 0) battle.shake -= dt * 0.05;
