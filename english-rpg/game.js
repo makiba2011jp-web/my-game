@@ -22,6 +22,8 @@ const player = {
 
 let toeicLevel = 500;     // 選択された難易度
 let stepsToEncounter = 0; // エンカウントまでの歩数
+let autoEncounter = false; // オート戦闘(フィールドで歩かず自動エンカウント)
+let autoTimer = 0;         // 次の自動エンカウントまでの残り時間(ms)
 
 // マップ (T=木 W=水 G=草 O=町 C=城/魔王)
 const MAP = [
@@ -485,6 +487,13 @@ document.querySelectorAll(".dbtn").forEach((b) => {
 // 「コトハにきく」コマンド(ボタン)
 const kotohaBtn = document.getElementById("kotoha-btn");
 if (kotohaBtn) kotohaBtn.addEventListener("click", (e) => { e.preventDefault(); openKotohaChat(); });
+
+// オート戦闘トグル(フィールドで歩かず自動エンカウント)
+const autoBtn = document.getElementById("auto-btn");
+function updateAutoBtn() { if (autoBtn) autoBtn.textContent = autoEncounter ? "⚔ オート戦闘: ON" : "⚔ オート戦闘: OFF"; }
+function toggleAutoEncounter() { autoEncounter = !autoEncounter; autoTimer = 600; updateAutoBtn(); }
+if (autoBtn) autoBtn.addEventListener("click", (e) => { e.preventDefault(); toggleAutoEncounter(); });
+updateAutoBtn();
 
 // 開発用: 目的ジャンプボタン(data-stage 付きのみ。モデル切替ボタンは chat.js 側で処理)
 document.querySelectorAll("#dev-bar button[data-stage]").forEach((b) => {
@@ -1557,6 +1566,11 @@ function update(dt) {
       if (keys.up) tryMove("up"); else if (keys.down) tryMove("down");
       else if (keys.left) tryMove("left"); else if (keys.right) tryMove("right");
     }
+  }
+  // オート戦闘: フィールドにいる間、歩かなくても一定間隔で自動エンカウント
+  if (autoEncounter && state === STATE.FIELD && !battle && !Chat.isOpen()) {
+    autoTimer -= dt;
+    if (autoTimer <= 0) { autoTimer = 900; startBattle(false); }
   }
   if (battle) {
     if (battle.shake > 0) battle.shake -= dt * 0.05;

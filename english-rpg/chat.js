@@ -219,10 +219,10 @@ function buildKotohaSystem(level, context) {
 3. 冒険で困ったとき→ 世界観に沿ってヒントを出す(答えを全部は言わず、背中を押す)。
 ${context ? `\n参考: 主人公のいまの目的は「${context}」。これに沿ってヒントを出してね。` : ""}`;
 }
-async function callKotoha(level, context, messages) {
+async function callKotoha(level, context, messages, maxTokens) {
   const body = {
     model: AI_CONFIG.model,
-    max_tokens: AI_CONFIG.maxTokens,
+    max_tokens: maxTokens || AI_CONFIG.maxTokens,
     system: buildKotohaSystem(level, context),
     messages,
   };
@@ -393,7 +393,7 @@ const Chat = (() => {
     return callKotoha(level, null, [{
       role: "user",
       content: `次の英文を、英語初心者の私にやさしく詳しく解説して。意味・使われている単語・文法のポイント・どんな場面で使うかも教えてね。読みやすく改行してOKだけど、** などの記号装飾は使わないでね：\n"${en}"`,
-    }]);
+    }], 1500); // 解説は長くなりがちなので上限を多めに(途中で切れないように)
   }
   function addPlayerLine(text) {
     const row = el("div", "chat-row me");
