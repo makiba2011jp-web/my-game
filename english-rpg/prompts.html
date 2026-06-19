@@ -52,12 +52,16 @@
   <div class="ja" id="kotohaPrompt"></div>
 </div>
 
-<h2>⑤ ギルド依頼を生成するときのプロンプト（buildQuestGenSystem）</h2>
-<div class="note">依頼3件（討伐/おつかい/会話）をJSONで作らせる設定。<code>{ }</code> は実行時にゲームのデータ（使ってよいモンスター・品物・NPC一覧など）が入る。</div>
+<h2>⑤ ギルド依頼の生成（※AI生成は廃止）</h2>
+<div class="note">
+  ギルド依頼は<b>AI自動生成をやめ</b>、事前定義リスト（<code>quests.js</code> の <b>QUEST_POOL</b>）から<b>ランダムで3件</b>出題する方式に変更しました。
+  依頼の一覧は <a href="quests-view.html" style="color:#9fd6ff">quests-view.html</a> で確認できます。<br>
+  （以下は廃止した旧プロンプトの参考記録です）
+</div>
 <div class="card">
-  <div><span class="name">🗓 ギルド依頼ジェネレーター</span></div>
+  <div><span class="name">🗓 ギルド依頼ジェネレーター（旧・廃止）</span></div>
   <div class="ja" id="questgenJa"></div>
-  <div class="lbl">原文（AIに送られるそのまま）</div>
+  <div class="lbl">原文（旧）</div>
   <div class="en" id="questgenEn"></div>
 </div>
 

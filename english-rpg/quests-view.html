@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ギルド依頼リスト確認 — 英単語クエスト</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 16px; background: #0a1226; color: #e8eefc;
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "MS Gothic", system-ui, sans-serif; line-height: 1.55; }
+  h1 { font-size: 20px; margin: 4px 0 6px; }
+  .note { font-size: 12px; color: #9fb3d8; background: #11203f; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; }
+  h2 { font-size: 15px; margin: 22px 0 8px; padding: 5px 10px; background: #16284f; border-left: 4px solid #ffd24a; border-radius: 4px; }
+  .count { color: #ffd24a; font-size: 12px; font-weight: normal; margin-left: 6px; }
+  .card { background: #11203f; border: 1px solid #28406f; border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+  .title { font-weight: bold; color: #fff; font-size: 15px; }
+  .badge { font-size: 11px; border-radius: 6px; padding: 1px 8px; margin-right: 8px; color: #0a1226; font-weight: bold; }
+  .b-hunt { background: #ff9b6b; }
+  .b-fetch { background: #ffd24a; }
+  .b-talk { background: #7be0d2; }
+  .desc { color: #cfe0ff; font-size: 13px; margin-top: 5px; }
+  .meta { color: #9fb3d8; font-size: 12px; margin-top: 4px; }
+  .reward { color: #ffd24a; }
+  .en { color: #b9c8e6; font-size: 12px; font-style: italic; margin-top: 4px; }
+  #err { color: #ff9b9b; background: #3a1414; padding: 10px; border-radius: 8px; display: none; }
+</style>
+</head>
+<body>
+<h1>📋 ギルド依頼リスト確認ページ</h1>
+<div class="note">
+  ギルドの依頼ボードは、この一覧（<code>quests.js</code> の <b>QUEST_POOL</b>）から<b>ランダムで3件</b>出題されます（AI自動生成は廃止）。常に最新を表示。<br>
+  ※ <b>プレビューサーバー経由で開いてください</b>（例 <code>http://127.0.0.1:8123/quests-view.html</code>）。ゲーム本体とは無関係。報酬はゲーム側で自動計算するため一覧には出ません。
+</div>
+<div id="err"></div>
+<div id="list"></div>
+
+<script src="quests.js"></script>
+<script>
+  const TYPE_JA = { hunt: "討伐", fetch: "おつかい", talk: "会話" };
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  function detailMeta(q) {
+    if (q.type === "hunt") return `対象: ${esc(q.enemy)} ×${q.count} 体`;
+    if (q.type === "fetch") return `届ける物: ${esc(q.item)}　／　届け先id: ${esc(q.deliverTo)}`;
+    if (q.type === "talk") return `相手id: ${esc(q.npcId)}　／　お題: ${esc(q.goal_ja)}`;
+    return "";
+  }
+
+  function render() {
+    if (typeof QUEST_POOL === "undefined") {
+      const e = document.getElementById("err");
+      e.style.display = "block";
+      e.textContent = "quests.js を読み込めませんでした。プレビューサーバー経由で開いてください: http://127.0.0.1:8123/quests-view.html";
+      return;
+    }
+    const list = document.getElementById("list");
+    let html = "";
+    for (const type of ["hunt", "fetch", "talk"]) {
+      const arr = QUEST_POOL.filter((q) => q.type === type);
+      html += `<h2>${TYPE_JA[type]}（${type}）<span class="count">${arr.length}件</span></h2>`;
+      arr.forEach((q) => {
+        html += `<div class="card">` +
+          `<div><span class="badge b-${q.type}">${TYPE_JA[q.type]}</span><span class="title">${esc(q.title_ja)}</span></div>` +
+          `<div class="desc">${esc(q.desc_ja)}</div>` +
+          `<div class="meta">${detailMeta(q)}</div>` +
+          (q.goal_en ? `<div class="en">英語の目標: ${esc(q.goal_en)}</div>` : "") +
+          `<div class="en">Fia: “${esc(q.flavor_en)}”</div>` +
+          `</div>`;
+      });
+    }
+    html += `<h2>合計<span class="count">${QUEST_POOL.length}件</span></h2>`;
+    list.innerHTML = html;
+  }
+  render();
+</script>
+</body>
+</html>

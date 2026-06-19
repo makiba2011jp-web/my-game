@@ -233,72 +233,8 @@ async function callKotoha(level, context, messages, maxTokens) {
   return block ? block.text : "（うまく聞こえなかったみたい）";
 }
 
-// ===== ギルド依頼ボード: AIで依頼を自動生成 =====
-const QUESTGEN_SCHEMA = {
-  type: "object",
-  properties: {
-    quests: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          type: { type: "string", enum: ["hunt", "fetch", "talk"] },
-          title_ja: { type: "string" },     // 日本語タイトル
-          desc_ja: { type: "string" },      // 日本語の依頼説明
-          flavor_en: { type: "string" },    // 受付嬢の英語セリフ(雰囲気)
-          target: { type: "string" },       // hunt:敵名 / fetch:アイテム名
-          count: { type: "integer" },       // hunt:討伐数
-          deliver_to: { type: "string" },   // fetch/talk:対象NPCのid
-          goal_en: { type: "string" },      // talk:英語で達成すべきこと
-          goal_ja: { type: "string" },      // talk:同じお題の日本語説明(プレイヤー向け)
-        },
-        required: ["type", "title_ja", "desc_ja", "flavor_en"],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ["quests"],
-  additionalProperties: false,
-};
-function buildQuestGenSystem(level, ctx) {
-  const guide = LEVEL_GUIDE[level] || LEVEL_GUIDE[500];
-  const enemies = ctx.enemies.join(", ");
-  const shops = ctx.shops.map((s) => `${s.name}: ${s.items.join(" / ")}`).join("  |  ");
-  const npcs = ctx.npcs.map((n) => `${n.id} (${n.name}, ${n.area})`).join("  |  ");
-  return `You are the quest designer for the Adventurers' Guild in a Dragon-Quest-style fantasy town. Generate a quest board of EXACTLY 3 short side-quests for a rank ${ctx.guildLevel} adventurer: one "hunt", one "fetch", and one "talk", in that order.
-
-You MUST only use the game content listed below. Never invent monsters, items, or NPCs that are not in these lists.
-
-- Monsters (for "hunt".target): ${enemies}
-- Shops and their items (for "fetch".target — pick ONE item from this list): ${shops}
-- Townspeople you may send the player to (for "fetch".deliver_to and "talk".deliver_to — use the id): ${npcs}
-
-Rules per type:
-- hunt: set "target" to one monster name from the list and "count" to a small number (2-5, harder for higher rank).
-- fetch: set "target" to one item name from the shop list, and "deliver_to" to one NPC id. The story: buy that item and deliver it to that person.
-- talk: set "deliver_to" to one NPC id, "goal_en" to a concrete thing the player must accomplish IN ENGLISH when talking to them (e.g. "ask the doctor for advice about a headache", "compliment the bard's song", "ask the guard for directions to the castle"), and "goal_ja" to a short Japanese sentence telling the player that same goal (e.g. "医者に頭痛の相談をする", "吟遊詩人の歌をほめる"). Keep it achievable for the learner.
-
-For every quest: "title_ja" and "desc_ja" must be in natural Japanese (the player reads these). "flavor_en" is one short in-world English line from receptionist Fia introducing the request. ${guide}
-
-Make the three quests varied and fun, fitting a light-comedy fantasy tone.`;
-}
-async function generateQuests(level, ctx) {
-  const body = {
-    model: AI_CONFIG.model,
-    max_tokens: 900,
-    system: buildQuestGenSystem(level, ctx),
-    messages: [{ role: "user", content: "Generate today's guild quest board now." }],
-  };
-  const oc = {};
-  if (curModel().effort) oc.effort = "low";
-  oc.format = { type: "json_schema", schema: QUESTGEN_SCHEMA };
-  body.output_config = oc;
-  const data = await postClaude(body);
-  if (data.stop_reason === "refusal") return null;
-  const block = (data.content || []).find((b) => b.type === "text");
-  if (!block) return null;
-  try { return JSON.parse(block.text).quests || null; } catch { return null; }
-}
+// ※ ギルド依頼はAI自動生成を廃止し、事前定義リスト(quests.js の QUEST_POOL)から
+//    ランダム出題する方式に変更しました(game.js の pickQuestsFromPool)。
 
 // =====================================================================
 // 会話オーバーレイ
@@ -643,7 +579,7 @@ const Chat = (() => {
     if (after) after(); // 「売りたい/泊まりたい」など、閉じた後の動作
   }
 
-  return { open, openKotoha, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; }, generateQuests };
+  return { open, openKotoha, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; } };
 })();
 
 window.Chat = Chat;
