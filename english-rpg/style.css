@@ -120,6 +120,20 @@ html, body {
 }
 #auto-btn:active { background: #4a5a9b; }
 
+#level-btn {
+  width: 100%;
+  max-width: 480px;
+  font-size: 15px;
+  font-weight: bold;
+  color: #0a1226;
+  background: linear-gradient(#ffe9a8, #ffd24a);
+  border: 2px solid #fff;
+  border-radius: 10px;
+  padding: 10px;
+  touch-action: manipulation;
+}
+#level-btn:active { background: #ffd24a; }
+
 /* 開発用バー */
 #dev-bar {
   width: 100%;
@@ -145,6 +159,26 @@ html, body {
 #dev-bar button:active { background: #5a4424; }
 
 /* モバイル十字キー */
+/* 操作ボタンまとめ(表示/非表示トグル) */
+#ctrl-toggle {
+  font-size: 13px;
+  color: #fff;
+  background: #2a3a6b;
+  border: 1px solid #fff;
+  border-radius: 8px;
+  padding: 6px 14px;
+  touch-action: manipulation;
+}
+#ctrl-toggle:active { background: #3a5aa0; }
+#controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+#controls.hidden { display: none; }
+
 #dpad {
   display: none;
   flex-direction: column;

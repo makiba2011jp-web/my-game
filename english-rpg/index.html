@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>英単語クエスト</title>
+  <title>異世界英語</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -21,11 +21,19 @@
 
     <canvas id="game" width="480" height="480"></canvas>
 
+    <!-- 画面上の情報パネル(Lv/目的/もちもの等)の表示/非表示トグル(PC:クリック/Hキー、スマホ:フィールドをタップ) -->
+    <button id="ctrl-toggle">📊 情報パネルを表示</button>
+
+    <!-- 操作ボタン類 -->
+    <div id="controls">
     <!-- コトハにきく(コマンド) -->
     <button id="kotoha-btn">🧚 コトハにきく（Cキー）</button>
 
     <!-- オート戦闘トグル(フィールドで歩かず自動エンカウント) -->
     <button id="auto-btn">⚔ オート戦闘: OFF</button>
+
+    <!-- 難易度切替(ゲーム途中でも変更可) -->
+    <button id="level-btn">難易度: TOEIC 500</button>
 
     <!-- モバイル用十字キー -->
     <div id="dpad">
@@ -57,6 +65,7 @@
       <button data-stage="14">⑮ボード</button>
       <button id="dev-model" title="OpusとHaikuを切替">モデル:Opus 4.8</button>
     </div>
+    </div><!-- /#controls -->
 
     <!-- NPCとのAI英会話オーバーレイ -->
     <div id="chat-overlay">
