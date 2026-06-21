@@ -8,7 +8,7 @@ const TILE = 32, MAP_N = 15;
 ctx.imageSmoothingEnabled = false;
 
 // ===== ゲーム状態 =====
-const STATE = { TITLE: "title", FIELD: "field", TOWN: "town", BATTLE: "battle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", BOARD: "board", QUESTLOG: "questlog", GAMEOVER: "gameover", CLEAR: "clear" };
+const STATE = { TITLE: "title", FIELD: "field", TOWN: "town", BATTLE: "battle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", BOARD: "board", QUESTLOG: "questlog", STATS: "stats", GAMEOVER: "gameover", CLEAR: "clear" };
 let state = STATE.TITLE;
 
 // プレイヤー
@@ -264,7 +264,38 @@ const TOWER_ENEMIES = [
   { name: "だいまどう",   hp: 62, atk: 13, exp: 48, color: "#5a2a8a", drop: "賢者の石" },
 ];
 
-let zone = "";                          // "" | "dungeon" | "tower" (敵/単語の出し分け用)
+// ===== 魔王城(フィールドの C から入る。英文法問題が出る) =====
+// B=玉座(魔王戦)。奥(上)の玉座に着くと魔王戦。
+const CASTLE_MAP = [
+  "#############",
+  "#####.B.#####",
+  "#...........#",
+  "#.##.##.##..#",
+  "#...........#",
+  "#.##.##.##..#",
+  "#...........#",
+  "#.##.##.##..#",
+  "#...........#",
+  "#.##.##.##..#",
+  "#...........#",
+  "#####.D.#####",
+];
+const CASTLE_START = { tx: 6, ty: 10 };
+AREAS.castle = {
+  id: "castle", castle: true, indoor: true, encounter: true, zone: "castle", name: "魔王城",
+  map: CASTLE_MAP, cols: 13, rows: 12,
+  npcs: [], decor: [],
+  doors: [{ tx: 6, ty: 11, to: "field" }],
+};
+// 魔王城の敵(配下)。魔王(BOSS)は玉座Bで出現
+const CASTLE_ENEMIES = [
+  { name: "小悪魔",     hp: 34, atk: 8,  exp: 22, color: "#b04a6a", drop: "悪魔の角" },
+  { name: "ダークナイト", hp: 46, atk: 10, exp: 30, color: "#3a3a5a", drop: "闇の鎧" },
+  { name: "魔導兵",     hp: 40, atk: 11, exp: 32, color: "#6a3a8a", drop: "呪文のスクロール" },
+  { name: "デュラハン", hp: 54, atk: 12, exp: 40, color: "#4a5a6a", drop: "首なしの兜" },
+];
+
+let zone = "";                          // "" | "dungeon" | "tower" | "castle" (敵/単語の出し分け用)
 
 let curArea = AREAS.town;               // 現在のエリア(町 or 家の中)
 let savedOverworld = { tx: 2, ty: 12 }; // 街に入る前のフィールド座標
@@ -342,6 +373,8 @@ let sideQuests = [];         // 受注中のサブクエスト
 let sideQuestId = 0;
 let questLog = null;         // { sel } 受注依頼の詳細表示中の状態
 let sideQuestBoxRect = null; // HUDの「ギルド依頼」ボックスのタップ判定用矩形
+let bagOpen = false;         // もちもの一覧を展開表示しているか
+let bagBoxRect = null;       // 「もちもの」ボックスのタップ判定用矩形
 // 食料品店の品ぞろえ(買うと bag に入る)
 const FOOD_SHOPS = {
   fish:  [{ name: "マグロ", price: 20 }, { name: "イワシ", price: 8 }],
@@ -485,6 +518,20 @@ function drawQuestBoard() {
   }
   ctx.textAlign = "center";
 }
+// 英文を単語単位で折り返して中央寄せ描画(最大maxLines行)
+function drawCenteredWrapped(text, cx, y, maxW, lineH, maxLines) {
+  const words = String(text).split(" ");
+  const lines = []; let line = "";
+  for (const word of words) {
+    const test = line ? line + " " + word : word;
+    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = word; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  const shown = lines.slice(0, maxLines);
+  const startY = y - (shown.length - 1) * lineH / 2;
+  for (let i = 0; i < shown.length; i++) ctx.fillText(shown[i], cx, startY + i * lineH);
+}
 // 簡易テキスト折り返し(日本語向け: 文字数ベース)
 function wrapText(text, x, y, maxW, lineH) {
   const perLine = Math.max(6, Math.floor(maxW / 13));
@@ -585,6 +632,7 @@ if (saveBtn) saveBtn.addEventListener("click", (e) => {
   e.preventDefault();
   showToast(saveGame() ? "💾 セーブしました" : "ここではセーブできません");
 });
+
 
 // 画面上の情報パネル(Lv/HP・いまの目的・もちもの・ギルド依頼)の表示/非表示
 // 初期は非表示にしてマップを見やすく。ボタン/Hキー/フィールドタップで表示。
@@ -698,8 +746,11 @@ function inRect(x, y, r) { return r && x >= r.x && x <= r.x + r.w && y >= r.y &&
 
 function onTap(x, y) {
   if (Chat.isOpen()) return;
-  // 探索中にHUDの「ギルド依頼」ボックスをタップ → 詳細を開く
-  if ((state === STATE.TOWN || state === STATE.FIELD) && inRect(x, y, sideQuestBoxRect)) { openQuestLog(); return; }
+  // 探索中: HUD内のボックスのタップを先に判定
+  if (state === STATE.TOWN || state === STATE.FIELD) {
+    if (inRect(x, y, bagBoxRect)) { bagOpen = !bagOpen; return; }       // もちもの開閉
+    if (inRect(x, y, sideQuestBoxRect)) { openQuestLog(); return; }     // ギルド依頼の詳細
+  }
   // フィールドをタップ → 情報パネルの表示/非表示を切替
   if (state === STATE.FIELD) { toggleControls(); return; }
   if (state === STATE.TOWN) {
@@ -815,7 +866,7 @@ function loadGame() {
   } else {
     curArea = AREAS.town; state = STATE.FIELD;
   }
-  zone = (data.areaId === "dungeon" || data.areaId === "tower") ? data.areaId : ""; // 洞窟/塔内なら復元
+  zone = (AREAS[data.areaId] && AREAS[data.areaId].zone) ? AREAS[data.areaId].zone : ""; // 洞窟/塔/城内なら復元
   for (const k in keys) keys[k] = false;
   resetEncounter();
   showToast("つづきから再開！");
@@ -1155,6 +1206,35 @@ function drawQuestLog() {
   ctx.textAlign = "center";
 }
 
+// ===== 達成率(今いるエリアの習得率を画面に常時表示) =====
+// 「達成」= その項目を3回正解して以降出題されなくなった状態(wordCorrect>=3)
+// 今いるエリアの単語/熟語/文法プールを返す
+function currentPool() {
+  if (zone === "dungeon" && typeof DUNGEON_WORD_DATA !== "undefined") return { name: "ダンジョン", data: DUNGEON_WORD_DATA, key: (w) => w.en };
+  if (zone === "tower" && typeof TOWER_WORD_DATA !== "undefined") return { name: "タワー", data: TOWER_WORD_DATA, key: (w) => w.en };
+  if (zone === "castle" && typeof GRAMMAR_DATA !== "undefined") return { name: "魔王城", data: GRAMMAR_DATA, key: (g) => g.q };
+  return { name: "フィールド", data: WORD_DATA, key: (w) => w.en };
+}
+// 今いるエリア・今の難易度の達成率
+function currentAreaRate() {
+  const p = currentPool();
+  const arr = (p.data && p.data[toeicLevel]) || [];
+  let m = 0;
+  for (const it of arr) if ((wordCorrect[p.key(it)] || 0) >= 3) m++;
+  return { name: p.name, m, total: arr.length, pct: arr.length ? Math.round(m / arr.length * 100) : 0 };
+}
+// 画面左上の達成率バー(情報パネル表示中・探索中のみ)
+function drawAreaRate() {
+  if (!hudShown) return; // 情報パネル非表示なら一緒に隠す
+  if (state !== STATE.FIELD && state !== STATE.TOWN) return;
+  const r = currentAreaRate();
+  drawWindow(8, 8, 196, 24, false);
+  ctx.textAlign = "left"; ctx.font = "11px 'MS Gothic', monospace";
+  ctx.fillStyle = "#ffd24a";
+  ctx.fillText(`🏅 ${r.name} 達成 ${r.pct}% (${r.m}/${r.total})`, 18, 24);
+  ctx.textAlign = "center";
+}
+
 // 達成時の報酬付与(共通)。表示用の行を返す
 function grantSideReward(q) {
   if (q.status === "done") return [];
@@ -1479,13 +1559,31 @@ function enterTower() {
   }]);
 }
 
+// 魔王城に入る(フィールドの C から。英文法問題が出る)
+function enterCastle() {
+  savedOverworld = { tx: player.tx, ty: player.ty };
+  curArea = AREAS.castle;
+  zone = "castle";
+  player.tx = CASTLE_START.tx; player.ty = CASTLE_START.ty;
+  player.px = player.tx * TILE; player.py = player.ty * TILE;
+  player.dir = "up"; player.moving = false;
+  for (const k in keys) keys[k] = false;
+  state = STATE.TOWN;
+  resetEncounter();
+  playTownCutscene([{
+    who: "コトハ",
+    lines: ["ここが魔王城…！ 中の敵は『英文法』で試してくるよ。", "正しい英文を選んで進もう。奥の玉座に魔王がいるはず。", "でぐち(下の扉)からいつでも外に戻れるよ。"],
+  }]);
+}
+
 function onArrive() {
   player.tx = player.targetX; player.ty = player.targetY;
   if (state === STATE.TOWN) {
     const d = doorAt(player.tx, player.ty);
     if (d) { goThroughDoor(d); return; }
-    // ダンジョン/タワー内は歩くとエンカウント
+    // ダンジョン/タワー/城内は歩くとエンカウント
     if (curArea.encounter) {
+      if (curArea.castle && tileAtArea(player.tx, player.ty) === "B") { startBattle(true); return; } // 玉座=魔王戦
       stepsToEncounter--;
       if (stepsToEncounter <= 0) { resetEncounter(); startBattle(false); }
     }
@@ -1504,11 +1602,11 @@ function onArrive() {
     enterTower();
     return;
   }
-  if (t === "C") { // 城: 魔王戦
+  if (t === "C") { // 魔王城に入る
     if (player.level < 3) {
-      showMessage(["城の門は かたく とざされている。", "(レベル3以上で 魔王に いどめる)"], () => { state = STATE.FIELD; });
+      showMessage(["城の門は かたく とざされている。", "(レベル3以上で 入れる)"], () => { state = STATE.FIELD; });
     } else {
-      startBattle(true);
+      enterCastle();
     }
     return;
   }
@@ -1526,30 +1624,40 @@ function wordWeight(en) {
   const c = wordCorrect[en] || 0;
   return c >= 3 ? 0 : c === 2 ? 0.3 : c === 1 ? 0.6 : 1;
 }
+// 出題ウェイトで1件選ぶ(en/qごとの正解回数で再出確率を下げる)。getKeyで重み付けキーを取る
+function pickWeighted(pool, getKey) {
+  let total = 0;
+  for (const c of pool) total += wordWeight(getKey(c));
+  if (total <= 0) return pool[Math.floor(rnd() * pool.length)];
+  let r = rnd() * total, picked = null;
+  for (const c of pool) { r -= wordWeight(getKey(c)); if (r < 0) { picked = c; break; } }
+  return picked || pool[pool.length - 1];
+}
 function pickWord() {
-  // ダンジョン内はダンジョン専用の単語、それ以外は通常の単語
+  if (zone === "castle" && typeof GRAMMAR_DATA !== "undefined") return pickGrammar();
+  // ダンジョン/タワーは専用の単語、それ以外は通常の単語
   let src = WORD_DATA;
   if (zone === "dungeon" && typeof DUNGEON_WORD_DATA !== "undefined") src = DUNGEON_WORD_DATA;
   else if (zone === "tower" && typeof TOWER_WORD_DATA !== "undefined") src = TOWER_WORD_DATA;
-  const pool = src[toeicLevel];
-  let total = 0;
-  for (const cand of pool) total += wordWeight(cand.en);
-  let w = null;
-  if (total <= 0) {
-    // 全単語をマスター済み(まれ): バトルが破綻しないよう全体から均等出題
-    w = pool[Math.floor(rnd() * pool.length)];
-  } else {
-    let r = rnd() * total;
-    for (const cand of pool) { r -= wordWeight(cand.en); if (r < 0) { w = cand; break; } }
-    if (!w) w = pool[pool.length - 1];
-  }
+  const w = pickWeighted(src[toeicLevel], (c) => c.en);
   const choices = shuffle([w.ja, ...w.wrong]);
   return { en: w.en, ja: w.ja, choices, answer: choices.indexOf(w.ja) };
+}
+// 城: 英文法問題を出題(選択肢は英文。正解位置はシャッフル)
+function pickGrammar() {
+  const g = pickWeighted(GRAMMAR_DATA[toeicLevel], (c) => c.q);
+  const correct = g.choices[g.answer];
+  const choices = shuffle(g.choices);
+  return {
+    grammar: true, en: g.q, q: g.q,
+    full: g.q.replace("___", correct),
+    choices, answer: choices.indexOf(correct), ja: g.note,
+  };
 }
 
 function startBattle(isBoss) {
   // 勝利数が増えるほど強い敵も出るように、出現範囲を広げる(ダンジョンは専用の敵)
-  const list = zone === "tower" ? TOWER_ENEMIES : zone === "dungeon" ? DUNGEON_ENEMIES : ENEMIES;
+  const list = zone === "tower" ? TOWER_ENEMIES : zone === "dungeon" ? DUNGEON_ENEMIES : zone === "castle" ? CASTLE_ENEMIES : ENEMIES;
   const range = Math.min(list.length, 2 + Math.floor(player.wins / 2));
   const src = isBoss ? BOSS : list[Math.floor(rnd() * range)];
   battle = {
@@ -1569,20 +1677,25 @@ function nextQuestion() {
   battle.phase = "select";
   menuSel = 0;
   state = STATE.BATTLE;
-  if (window.Voice) Voice.autoSpeak(battle.word.en, "en"); // 出題された英単語を読み上げ(自動ON時)
+  // 出題を読み上げ(自動ON時)。文法は正解を入れた完成文を読む
+  if (window.Voice) Voice.autoSpeak(battle.word.full || battle.word.en, "en");
 }
 
 function chooseAnswer(idx) {
   if (battle.phase !== "select") return;
   battle.phase = "resolve";
-  const correct = idx === battle.word.answer;
+  const w = battle.word;
+  const correct = idx === w.answer;
+  // 正解/不正解の説明行(文法は完成文＋解説、単語は意味)
+  const okLine = w.grammar ? `せいかい！ ${w.full}（${w.ja}）` : `せいかい！ "${w.en}" = ${w.ja}`;
+  const ngLine = w.grammar ? `ざんねん… 正解は「${w.choices[w.answer]}」（${w.ja}）` : `ざんねん… "${w.en}" は ${w.ja}`;
   if (correct) {
-    wordCorrect[battle.word.en] = (wordCorrect[battle.word.en] || 0) + 1; // 正解→次回以降の出題確率を下げる
+    wordCorrect[w.en] = (wordCorrect[w.en] || 0) + 1; // 正解→次回以降の出題確率を下げる
     const dmg = player.atk + Math.floor(rnd() * 4);
     battle.ehp = Math.max(0, battle.ehp - dmg);
     battle.ehurt = 12; battle.shake = 8;
     state = STATE.BATTLE;
-    queueResolve([`せいかい！ "${battle.word.en}" = ${battle.word.ja}`, `${battle.name}に ${dmg} のダメージ！`], () => {
+    queueResolve([okLine, `${battle.name}に ${dmg} のダメージ！`], () => {
       if (battle.ehp <= 0) return winBattle();
       enemyTurnOrNext();
     });
@@ -1591,7 +1704,7 @@ function chooseAnswer(idx) {
     player.hp = Math.max(0, player.hp - dmg);
     battle.phurt = 12;
     state = STATE.BATTLE;
-    queueResolve([`ざんねん… "${battle.word.en}" は ${battle.word.ja}`, `${battle.name}の こうげき！ ${dmg} のダメージ！`], () => {
+    queueResolve([ngLine, `${battle.name}の こうげき！ ${dmg} のダメージ！`], () => {
       if (player.hp <= 0) return loseBattle();
       nextQuestion();
     });
@@ -1789,6 +1902,7 @@ function render() {
     case STATE.GAMEOVER: drawEnd("ゲームオーバー", "#c0392b"); break;
     case STATE.CLEAR: drawEnd("魔王をたおした！ クリア！", "#f1c40f"); break;
   }
+  drawAreaRate(); // 今いるエリアの達成率を常時表示(探索中のみ)
   // トースト通知(セーブしました 等)
   if (toastT > 0) {
     ctx.save();
@@ -1923,15 +2037,16 @@ function drawHero(px, py, dir, anim) {
 function drawHud() {
   if (!hudShown) { sideQuestBoxRect = null; return; } // 情報パネル非表示時はボックスを描かない
   const reg = player.guildLevel > 0;
-  drawWindow(8, 8, 196, reg ? 96 : 76, false);
+  const top = 36; // 達成率バー(8,8,24h)の下に配置
+  drawWindow(8, top, 196, reg ? 96 : 76, false);
   ctx.fillStyle = "#fff"; ctx.textAlign = "left";
   ctx.font = "13px 'MS Gothic', monospace";
-  ctx.fillText(`Lv ${player.level}   ${player.gold}G`, 20, 28);
-  ctx.fillText(`HP ${player.hp}/${player.maxhp}`, 20, 48);
-  ctx.fillText(`こうげき${player.atk}  ぼうぎょ${player.def}`, 20, 68);
+  ctx.fillText(`Lv ${player.level}   ${player.gold}G`, 20, top + 20);
+  ctx.fillText(`HP ${player.hp}/${player.maxhp}`, 20, top + 40);
+  ctx.fillText(`こうげき${player.atk}  ぼうぎょ${player.def}`, 20, top + 60);
   if (reg) {
     ctx.fillStyle = "#ffd24a";
-    ctx.fillText(`ギルドLv${player.guildLevel}  GP${player.guildPoints}/${player.guildLevel * 100}`, 20, 88);
+    ctx.fillText(`ギルドLv${player.guildLevel}  GP${player.guildPoints}/${player.guildLevel * 100}`, 20, top + 80);
   }
   ctx.textAlign = "center";
   drawRightPanel();
@@ -1952,16 +2067,35 @@ function drawRightPanel() {
     for (let i = 0; i < ql.length; i++) ctx.fillText(ql[i], bx + 10, y + 40 + i * 18);
     y += bh + 6;
   }
-  const items = [...Object.entries(materials), ...Object.entries(bag)].slice(0, 6);
-  if (items.length) {
-    const bh = 24 + items.length * 16 + 4;
-    drawWindow(bx, y, bw, bh, false);
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#9fe0c0"; ctx.font = "12px 'MS Gothic', monospace";
-    ctx.fillText("● もちもの", bx + 10, y + 19);
-    ctx.fillStyle = "#fff"; ctx.font = "11px 'MS Gothic', monospace";
-    for (let i = 0; i < items.length; i++) ctx.fillText(`${items[i][0]} ×${items[i][1]}`, bx + 10, y + 37 + i * 16);
-    y += bh + 6;
+  const allItems = [...Object.entries(materials), ...Object.entries(bag)];
+  if (allItems.length) {
+    if (bagOpen) {
+      // 展開: 品目一覧(最大8件)
+      const items = allItems.slice(0, 8);
+      const bh = 24 + items.length * 16 + 6;
+      drawWindow(bx, y, bw, bh, false);
+      bagBoxRect = { x: bx, y, w: bw, h: bh };
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#9fe0c0"; ctx.font = "12px 'MS Gothic', monospace";
+      ctx.fillText(`● もちもの (${allItems.length}) ▼`, bx + 10, y + 19);
+      ctx.fillStyle = "#fff"; ctx.font = "11px 'MS Gothic', monospace";
+      for (let i = 0; i < items.length; i++) ctx.fillText(`${items[i][0]} ×${items[i][1]}`, bx + 10, y + 37 + i * 16);
+      y += bh + 6;
+    } else {
+      // 折りたたみ: 見出しのみ(タップで展開)
+      const bh = 26;
+      drawWindow(bx, y, bw, bh, false);
+      bagBoxRect = { x: bx, y, w: bw, h: bh };
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#9fe0c0"; ctx.font = "12px 'MS Gothic', monospace";
+      ctx.fillText(`● もちもの (${allItems.length})`, bx + 10, y + 18);
+      ctx.fillStyle = "#9fd6ff"; ctx.font = "10px 'MS Gothic', monospace";
+      ctx.textAlign = "right";
+      ctx.fillText("▶タップ", bx + bw - 10, y + 18);
+      y += bh + 6;
+    }
+  } else {
+    bagBoxRect = null;
   }
   // ギルド依頼(受注中サブクエスト)
   if (sideQuests.length) {
@@ -1991,7 +2125,7 @@ function trimLabel(s, n) { return s.length > n ? s.slice(0, n) + "…" : s; }
 function drawArea() {
   const a = curArea;
   updateCamera(a.cols, a.rows);
-  ctx.fillStyle = a.dungeon ? "#0a0a12" : a.tower ? "#12101e" : a.indoor ? "#140d05" : "#2e5a28"; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = a.dungeon ? "#0a0a12" : a.tower ? "#12101e" : a.castle ? "#160a14" : a.indoor ? "#140d05" : "#2e5a28"; ctx.fillRect(0, 0, W, H);
   const c0 = Math.max(0, Math.floor(camX / TILE)), c1 = Math.min(a.cols - 1, Math.floor((camX + W) / TILE));
   const r0 = Math.max(0, Math.floor(camY / TILE)), r1 = Math.min(a.rows - 1, Math.floor((camY + H) / TILE));
   for (let y = r0; y <= r1; y++) {
@@ -1999,6 +2133,7 @@ function drawArea() {
       const px = x * TILE - camX, py = y * TILE - camY;
       if (a.dungeon) drawDungeonTile(a.map[y][x], px, py);
       else if (a.tower) drawTowerTile(a.map[y][x], px, py);
+      else if (a.castle) drawCastleTile(a.map[y][x], px, py);
       else if (a.indoor) drawInteriorTile(a.map[y][x], px, py);
       else drawTownTile(a.map[y][x], px, py);
     }
@@ -2076,6 +2211,28 @@ function drawTowerTile(t, px, py) {
   if (t === "D") { // 出口
     ctx.fillStyle = "#3a5a8a"; ctx.fillRect(px + 6, py + 6, TILE - 12, TILE - 12);
     ctx.fillStyle = "#5a7aaa"; ctx.fillRect(px + 9, py + 9, TILE - 18, TILE - 18);
+  }
+}
+
+function drawCastleTile(t, px, py) {
+  if (t === "#") { // 紫がかった石壁
+    ctx.fillStyle = "#3a2a40"; ctx.fillRect(px, py, TILE, TILE);
+    ctx.strokeStyle = "#281c30"; ctx.lineWidth = 1;
+    ctx.strokeRect(px + 1, py + 1, TILE - 2, 9); ctx.strokeRect(px + 1, py + 11, TILE - 2, 9); ctx.strokeRect(px + 1, py + 21, TILE - 2, 9);
+    ctx.fillStyle = "#4a3450"; ctx.fillRect(px + 3, py + 3, 10, 5); ctx.fillRect(px + 17, py + 13, 10, 5);
+    return;
+  }
+  // 赤じゅうたんの床
+  ctx.fillStyle = "#2a1622"; ctx.fillRect(px, py, TILE, TILE);
+  ctx.fillStyle = "#5a1a2a"; ctx.fillRect(px + 4, py, TILE - 8, TILE);
+  ctx.fillStyle = "#7a2436"; ctx.fillRect(px + 4, py, 2, TILE); ctx.fillRect(px + TILE - 6, py, 2, TILE);
+  if (t === "D") { // 出口
+    ctx.fillStyle = "#3a5a8a"; ctx.fillRect(px + 6, py + 6, TILE - 12, TILE - 12);
+    ctx.fillStyle = "#5a7aaa"; ctx.fillRect(px + 9, py + 9, TILE - 18, TILE - 18);
+  } else if (t === "B") { // 玉座(魔王)
+    ctx.fillStyle = "#caa23a"; ctx.fillRect(px + 8, py + 4, 16, 22);
+    ctx.fillStyle = "#8a6a1a"; ctx.fillRect(px + 8, py + 4, 16, 4);
+    ctx.fillStyle = "#c0392b"; ctx.fillRect(px + 11, py + 9, 10, 12);
   }
 }
 
@@ -2282,28 +2439,36 @@ function drawBattleScene() {
 }
 
 function drawBattleUI() {
+  const w = battle.word;
   // 出題ウィンドウ
-  drawWindow(16, 250, 448, 54, false);
+  drawWindow(16, 248, 448, 58, false);
   ctx.fillStyle = "#fff"; ctx.textAlign = "center";
-  ctx.font = "13px 'MS Gothic', monospace";
-  ctx.fillText("この英単語の意味は？", W / 2, 270);
-  ctx.font = "bold 26px 'MS Gothic', monospace";
-  ctx.fillStyle = "#ffe082";
-  ctx.fillText(battle.word.en, W / 2, 297);
-  // 🔊 単語読み上げボタン(タップで聞き直し)
+  if (w.grammar) {
+    ctx.font = "12px 'MS Gothic', monospace";
+    ctx.fillText("空所( ___ )に入る正しいものは？", W / 2, 266);
+    ctx.fillStyle = "#ffe082"; ctx.font = "15px 'MS Gothic', monospace";
+    drawCenteredWrapped(w.q, W / 2, 287, 432, 17, 2);
+  } else {
+    ctx.font = "13px 'MS Gothic', monospace";
+    ctx.fillText("この英単語の意味は？", W / 2, 270);
+    ctx.font = "bold 26px 'MS Gothic', monospace";
+    ctx.fillStyle = "#ffe082";
+    ctx.fillText(w.en, W / 2, 297);
+  }
+  // 🔊 読み上げボタン(タップで聞き直し)
   if (window.Voice && Voice.supported) {
     drawWindow(BATTLE_SPK.x, BATTLE_SPK.y, BATTLE_SPK.w, BATTLE_SPK.h, false);
     ctx.fillStyle = "#fff"; ctx.font = "18px sans-serif"; ctx.textAlign = "center";
     ctx.fillText("🔊", BATTLE_SPK.x + BATTLE_SPK.w / 2, BATTLE_SPK.y + BATTLE_SPK.h / 2 + 7);
   }
   // 4択
-  ctx.font = "16px 'MS Gothic', monospace";
+  ctx.font = (w.grammar ? "14px" : "16px") + " 'MS Gothic', monospace";
   for (let i = 0; i < 4; i++) {
     const col = i % 2, row = (i / 2) | 0;
     const bx = 16 + col * 232, by = 312 + row * 76;
     drawWindow(bx, by, 216, 64, menuSel === i);
-    ctx.fillStyle = "#fff";
-    ctx.fillText(battle.word.choices[i], bx + 108, by + 39);
+    ctx.fillStyle = "#fff"; ctx.textAlign = "center";
+    ctx.fillText(w.choices[i], bx + 108, by + 39);
   }
   // プレイヤーHP小表示
   ctx.textAlign = "left"; ctx.font = "13px 'MS Gothic', monospace"; ctx.fillStyle = "#fff";

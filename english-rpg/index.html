@@ -26,6 +26,16 @@
 
     <!-- 操作ボタン類 -->
     <div id="controls">
+    <!-- モバイル用十字キー(情報パネル表示ボタンの直下) -->
+    <div id="dpad">
+      <button class="dbtn" data-dir="up">▲</button>
+      <div class="dpad-mid">
+        <button class="dbtn" data-dir="left">◀</button>
+        <button class="dbtn" data-dir="down">▼</button>
+        <button class="dbtn" data-dir="right">▶</button>
+      </div>
+    </div>
+
     <!-- コトハにきく(コマンド) -->
     <button id="kotoha-btn">🧚 コトハにきく（Cキー）</button>
 
@@ -37,16 +47,6 @@
 
     <!-- セーブ(探索中のみ。自動セーブもあり) -->
     <button id="save-btn">💾 セーブする</button>
-
-    <!-- モバイル用十字キー -->
-    <div id="dpad">
-      <button class="dbtn" data-dir="up">▲</button>
-      <div class="dpad-mid">
-        <button class="dbtn" data-dir="left">◀</button>
-        <button class="dbtn" data-dir="down">▼</button>
-        <button class="dbtn" data-dir="right">▶</button>
-      </div>
-    </div>
 
     <!-- 開発用: 目的ジャンプ -->
     <div id="dev-bar">
@@ -103,6 +103,7 @@
   <script src="words.js"></script>
   <script src="words_dungeon.js"></script>
   <script src="words_tower.js"></script>
+  <script src="grammar.js"></script>
   <script src="quests.js"></script>
   <script src="voice.js"></script>
   <script src="chat.js"></script>
