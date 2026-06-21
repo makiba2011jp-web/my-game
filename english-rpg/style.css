@@ -134,6 +134,20 @@ html, body {
 }
 #level-btn:active { background: #ffd24a; }
 
+#save-btn {
+  width: 100%;
+  max-width: 480px;
+  font-size: 15px;
+  font-weight: bold;
+  color: #fff;
+  background: linear-gradient(#3a7b5a, #2a6b4a);
+  border: 2px solid #fff;
+  border-radius: 10px;
+  padding: 10px;
+  touch-action: manipulation;
+}
+#save-btn:active { background: #4a9b6a; }
+
 /* 開発用バー */
 #dev-bar {
   width: 100%;

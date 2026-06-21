@@ -33,14 +33,19 @@
 <body>
 <h1>📚 単語リスト確認ページ</h1>
 <div class="note">
-  <code>words.js</code> をそのまま読み込んで表示（常に最新）。バトルの4択は「正解＋誤答3つ」をシャッフルして出題します。<br>
+  <code>words.js</code>（フィールド）と <code>words_dungeon.js</code>（ダンジョン）を読み込んで表示（常に最新）。バトルの4択は「正解＋誤答3つ」をシャッフルして出題します。<br>
   ※ <b>プレビューサーバー経由で開いてください</b>（例 <code>http://127.0.0.1:8123/words-view.html</code>）。ゲーム本体とは無関係。
 </div>
 <div id="err"></div>
 
 <div class="bar">
   <input id="search" type="text" placeholder="🔍 英単語・意味で検索（例: apple / りんご / 増加）" autocomplete="off">
-  <div class="tabs" id="tabs">
+  <div class="tabs" id="src-tabs">
+    <span class="tab on" data-src="field">📙 フィールド</span>
+    <span class="tab" data-src="dungeon">🕳 ダンジョン</span>
+    <span class="tab" data-src="tower">🗼 タワー(熟語)</span>
+  </div>
+  <div class="tabs" id="lv-tabs">
     <span class="tab on" data-lv="all">すべて</span>
     <span class="tab" data-lv="500">TOEIC 500</span>
     <span class="tab" data-lv="700">TOEIC 700</span>
@@ -52,29 +57,39 @@
 <div id="empty">該当する単語がありません。</div>
 
 <script src="words.js"></script>
+<script src="words_dungeon.js"></script>
+<script src="words_tower.js"></script>
 <script>
-  let curLv = "all", curQ = "";
+  let curLv = "all", curSrc = "field", curQ = "";
   const listEl = document.getElementById("list");
   const emptyEl = document.getElementById("empty");
+  const SRC_LABEL = { field: "フィールド", dungeon: "ダンジョン", tower: "タワー(熟語)" };
 
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function curData() {
+    if (curSrc === "dungeon") return typeof DUNGEON_WORD_DATA !== "undefined" ? DUNGEON_WORD_DATA : null;
+    if (curSrc === "tower") return typeof TOWER_WORD_DATA !== "undefined" ? TOWER_WORD_DATA : null;
+    return typeof WORD_DATA !== "undefined" ? WORD_DATA : null;
+  }
 
   function render() {
-    if (typeof WORD_DATA === "undefined") {
+    const data = curData();
+    if (!data) {
       document.getElementById("err").style.display = "block";
       document.getElementById("err").textContent =
-        "words.js を読み込めませんでした。プレビューサーバー経由で開いてください: http://127.0.0.1:8123/words-view.html";
+        "単語データを読み込めませんでした。プレビューサーバー経由で開いてください: http://127.0.0.1:8123/words-view.html";
       return;
     }
+    document.getElementById("err").style.display = "none";
     const levels = curLv === "all" ? [500, 700, 900] : [parseInt(curLv, 10)];
     const q = curQ.trim().toLowerCase();
     let html = "", total = 0;
     for (const lv of levels) {
-      const arr = (WORD_DATA[lv] || []).filter((w) =>
+      const arr = (data[lv] || []).filter((w) =>
         !q || w.en.toLowerCase().includes(q) || w.ja.includes(curQ.trim()) || w.wrong.some((x) => x.includes(curQ.trim())));
       if (!arr.length) continue;
       total += arr.length;
-      html += `<h2>TOEIC ${lv}<span class="count">${arr.length}語</span></h2>`;
+      html += `<h2>【${SRC_LABEL[curSrc]}】TOEIC ${lv}<span class="count">${arr.length}語</span></h2>`;
       arr.forEach((w, i) => {
         html += `<div class="row">` +
           `<span class="num">${i + 1}</span>` +
@@ -89,9 +104,14 @@
   }
 
   document.getElementById("search").addEventListener("input", (e) => { curQ = e.target.value; render(); });
-  document.getElementById("tabs").addEventListener("click", (e) => {
+  document.getElementById("src-tabs").addEventListener("click", (e) => {
     const t = e.target.closest(".tab"); if (!t) return;
-    document.querySelectorAll(".tab").forEach((x) => x.classList.remove("on"));
+    document.querySelectorAll("#src-tabs .tab").forEach((x) => x.classList.remove("on"));
+    t.classList.add("on"); curSrc = t.dataset.src; render();
+  });
+  document.getElementById("lv-tabs").addEventListener("click", (e) => {
+    const t = e.target.closest(".tab"); if (!t) return;
+    document.querySelectorAll("#lv-tabs .tab").forEach((x) => x.classList.remove("on"));
     t.classList.add("on"); curLv = t.dataset.lv; render();
   });
   render();
