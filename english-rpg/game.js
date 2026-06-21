@@ -8,7 +8,7 @@ const TILE = 32, MAP_N = 15;
 ctx.imageSmoothingEnabled = false;
 
 // ===== ゲーム状態 =====
-const STATE = { TITLE: "title", FIELD: "field", TOWN: "town", BATTLE: "battle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", BOARD: "board", QUESTLOG: "questlog", STATS: "stats", GAMEOVER: "gameover", CLEAR: "clear" };
+const STATE = { TITLE: "title", FIELD: "field", TOWN: "town", BATTLE: "battle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", BOARD: "board", QUESTLOG: "questlog", WORDLIST: "wordlist", GAMEOVER: "gameover", CLEAR: "clear" };
 let state = STATE.TITLE;
 
 // プレイヤー
@@ -375,6 +375,9 @@ let questLog = null;         // { sel } 受注依頼の詳細表示中の状態
 let sideQuestBoxRect = null; // HUDの「ギルド依頼」ボックスのタップ判定用矩形
 let bagOpen = false;         // もちもの一覧を展開表示しているか
 let bagBoxRect = null;       // 「もちもの」ボックスのタップ判定用矩形
+let rateBoxRect = null;      // 「習得」バーのタップ判定用矩形
+let wordList = null;         // 習得リスト表示中の状態 { page }
+let wordListBack = STATE.FIELD; // 習得リストを閉じたあとに戻る状態
 // 食料品店の品ぞろえ(買うと bag に入る)
 const FOOD_SHOPS = {
   fish:  [{ name: "マグロ", price: 20 }, { name: "イワシ", price: 8 }],
@@ -728,6 +731,12 @@ function onInput(k) {
     else if (k === "cancel") { questLog = null; state = STATE.TOWN; }
     return;
   }
+  if (state === STATE.WORDLIST && wordList) {
+    if (k === "left" || k === "up") wordList.page--;
+    else if (k === "right" || k === "down") wordList.page++;
+    else if (k === "cancel" || k === "confirm") closeWordList();
+    return;
+  }
   if (state === STATE.BATTLE && battle.phase === "select") {
     if (k === "up") menuSel = (menuSel + 3) % 4;
     else if (k === "down") menuSel = (menuSel + 1) % 4;
@@ -748,6 +757,7 @@ function onTap(x, y) {
   if (Chat.isOpen()) return;
   // 探索中: HUD内のボックスのタップを先に判定
   if (state === STATE.TOWN || state === STATE.FIELD) {
+    if (inRect(x, y, rateBoxRect)) { openWordList(); return; }          // 習得バー→ワードリスト
     if (inRect(x, y, bagBoxRect)) { bagOpen = !bagOpen; return; }       // もちもの開閉
     if (inRect(x, y, sideQuestBoxRect)) { openQuestLog(); return; }     // ギルド依頼の詳細
   }
@@ -799,6 +809,16 @@ function onTap(x, y) {
       const ry = 64 + i * 38;
       if (x >= 30 && x <= 450 && y >= ry && y <= ry + 34) { questLog.sel = i; questLogSelect(rows[i]); return; }
     }
+    return;
+  }
+  if (state === STATE.WORDLIST && wordList) {
+    const fy = H - 36;
+    if (y >= fy && y <= fy + 28) {
+      if (x >= 16 && x <= 112) { wordList.page--; return; }
+      if (x >= 120 && x <= 216) { wordList.page++; return; }
+      if (x >= W - 116 && x <= W - 16) { closeWordList(); return; }
+    }
+    wlToggleAt(x, y); // 行タップで習得/未習得を切替
     return;
   }
   if (state === STATE.BATTLE && battle.phase === "select") {
@@ -1223,16 +1243,76 @@ function currentAreaRate() {
   for (const it of arr) if ((wordCorrect[p.key(it)] || 0) >= 3) m++;
   return { name: p.name, m, total: arr.length, pct: arr.length ? Math.round(m / arr.length * 100) : 0 };
 }
-// 画面左上の達成率バー(情報パネル表示中・探索中のみ)
+// 画面左上の習得バー(情報パネル表示中・探索中のみ)。タップで習得リストを開く
 function drawAreaRate() {
-  if (!hudShown) return; // 情報パネル非表示なら一緒に隠す
-  if (state !== STATE.FIELD && state !== STATE.TOWN) return;
+  if (!hudShown || (state !== STATE.FIELD && state !== STATE.TOWN)) { rateBoxRect = null; return; }
   const r = currentAreaRate();
   drawWindow(8, 8, 196, 24, false);
+  rateBoxRect = { x: 8, y: 8, w: 196, h: 24 };
   ctx.textAlign = "left"; ctx.font = "11px 'MS Gothic', monospace";
   ctx.fillStyle = "#ffd24a";
-  ctx.fillText(`🏅 ${r.name} 達成 ${r.pct}% (${r.m}/${r.total})`, 18, 24);
+  ctx.fillText(`🏅 ${r.name} 習得 ${r.pct}% (${r.m}/${r.total})`, 18, 24);
+  ctx.textAlign = "right"; ctx.fillStyle = "#9fd6ff"; ctx.font = "9px 'MS Gothic', monospace";
+  ctx.fillText("▶一覧", 8 + 196 - 6, 21);
   ctx.textAlign = "center";
+}
+
+// ===== 習得リスト(今いるエリア・今の難易度の語と正解回数。タップで習得↔未習得) =====
+const WL_ROWS = 13;
+function openWordList() {
+  for (const k in keys) keys[k] = false;
+  wordListBack = (state === STATE.TOWN) ? STATE.TOWN : STATE.FIELD;
+  wordList = { page: 0 };
+  state = STATE.WORDLIST;
+}
+function closeWordList() { wordList = null; state = wordListBack; }
+function wlData() {
+  const p = currentPool();
+  return { name: p.name, key: p.key, arr: (p.data && p.data[toeicLevel]) || [] };
+}
+function wlPages(arr) { return Math.max(1, Math.ceil(arr.length / WL_ROWS)); }
+function drawWordList() {
+  ctx.fillStyle = "#0a1226"; ctx.fillRect(0, 0, W, H);
+  const d = wlData(); const pages = wlPages(d.arr);
+  if (wordList.page >= pages) wordList.page = pages - 1;
+  if (wordList.page < 0) wordList.page = 0;
+  let mastered = 0;
+  for (const it of d.arr) if ((wordCorrect[d.key(it)] || 0) >= 3) mastered++;
+  ctx.textAlign = "center"; ctx.fillStyle = "#fff"; ctx.font = "bold 16px 'MS Gothic', monospace";
+  ctx.fillText(`習得リスト：${d.name} TOEIC${toeicLevel}`, W / 2, 26);
+  ctx.fillStyle = "#9fb3d8"; ctx.font = "11px 'MS Gothic', monospace";
+  ctx.fillText(`${mastered}/${d.arr.length} 習得  ・ ページ ${wordList.page + 1}/${pages}  ・ 行タップで正解数+1(3で習得・次で0)`, W / 2, 44);
+  const start = wordList.page * WL_ROWS;
+  const slice = d.arr.slice(start, start + WL_ROWS);
+  for (let i = 0; i < slice.length; i++) {
+    const it = slice[i]; const c = wordCorrect[d.key(it)] || 0; const done = c >= 3;
+    const y = 54 + i * 28;
+    drawWindow(16, y, W - 32, 25, false);
+    ctx.textAlign = "left"; ctx.font = "12px 'MS Gothic', monospace";
+    ctx.fillStyle = done ? "#9fffcf" : "#fff";
+    ctx.fillText(`${done ? "✓ " : "  "}${trimLabel(it.en || it.q, 24)}`, 26, y + 17);
+    ctx.textAlign = "right"; ctx.font = "12px 'MS Gothic', monospace"; ctx.fillStyle = "#ffd24a";
+    ctx.fillText("●".repeat(c) + "○".repeat(Math.max(0, 3 - c)) + `  正解${c}回`, W - 26, y + 17);
+  }
+  // フッタ(前/次/とじる)
+  const fy = H - 36;
+  drawWindow(16, fy, 96, 28, false); drawWindow(120, fy, 96, 28, false); drawWindow(W - 116, fy, 100, 28, false);
+  ctx.textAlign = "center"; ctx.font = "14px 'MS Gothic', monospace"; ctx.fillStyle = "#fff";
+  ctx.fillText("◀ 前", 64, fy + 19); ctx.fillText("次 ▶", 168, fy + 19); ctx.fillText("× とじる", W - 66, fy + 19);
+}
+function wlToggleAt(x, y) {
+  const d = wlData();
+  const start = wordList.page * WL_ROWS;
+  const slice = d.arr.slice(start, start + WL_ROWS);
+  for (let i = 0; i < slice.length; i++) {
+    const ry = 54 + i * 28;
+    if (x >= 16 && x <= W - 16 && y >= ry && y <= ry + 25) {
+      const k = d.key(slice[i]);
+      wordCorrect[k] = ((wordCorrect[k] || 0) + 1) % 4; // クリックごとに 0→1→2→3→0
+      return true;
+    }
+  }
+  return false;
 }
 
 // 達成時の報酬付与(共通)。表示用の行を返す
@@ -1898,6 +1978,7 @@ function render() {
     case STATE.SHOP: drawShop(); break;
     case STATE.BOARD: drawQuestBoard(); break;
     case STATE.QUESTLOG: drawQuestLog(); break;
+    case STATE.WORDLIST: drawWordList(); break;
     case STATE.BATTLE: drawBattleScene(); drawBattleUI(); break;
     case STATE.GAMEOVER: drawEnd("ゲームオーバー", "#c0392b"); break;
     case STATE.CLEAR: drawEnd("魔王をたおした！ クリア！", "#f1c40f"); break;
