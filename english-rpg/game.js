@@ -32,7 +32,7 @@ const SAVE_KEY = "isekai_eigo_save_v1"; // セーブデータの保存先(localS
 let autoSaveTimer = 0;    // 自動セーブの間隔タイマー(ms)
 let toastMsg = "", toastT = 0; // 画面に一瞬出す通知(セーブしました等)
 
-// マップ (T=木 W=水 G=草 O=町 C=城/魔王 X=ダンジョン入口 Y=タワー入口)
+// マップ (T=木 W=水 G=草 O=町 C=城/魔王 X=ダンジョン入口 Y=タワー入口 Z=氷の洞窟入口)
 const MAP = [
   "TTTTTTTTTTTTTTT",
   "TGGGGGGGGGGYGGT",
@@ -42,7 +42,7 @@ const MAP = [
   "TGGOGGGGGXGGGGT",
   "TGGGGGGGTTGGGGT",
   "TGGGGGGGTGGGGGT",
-  "TGGGGGGGGGGGGGT",
+  "TGGGGGGZGGGGGGT",
   "TGGWWGGGGGGGGGT",
   "TGGWWGGGGGTTGGT",
   "TGGGGGGGGGTGGGT",
@@ -295,7 +295,37 @@ const CASTLE_ENEMIES = [
   { name: "デュラハン", hp: 54, atk: 12, exp: 40, color: "#4a5a6a", drop: "首なしの兜" },
 ];
 
-let zone = "";                          // "" | "dungeon" | "tower" | "castle" (敵/単語の出し分け用)
+// ===== ダンジョン2 / 氷の洞窟(フィールドの Z から入る。専用単語が出る) =====
+const DUNGEON2_MAP = [
+  "###############",
+  "#.....#.#.....#",
+  "#.###.#.#.###.#",
+  "#.#.......#...#",
+  "#.#.#####.#.#.#",
+  "#...#...#...#.#",
+  "###.#.#.#.###.#",
+  "#...#.#.#...#.#",
+  "#.###.#.###.#.#",
+  "#.............#",
+  "######.D.######",
+];
+const DUNGEON2_START = { tx: 7, ty: 9 };
+AREAS.dungeon2 = {
+  id: "dungeon2", dungeon2: true, indoor: true, encounter: true, zone: "dungeon2", name: "氷の洞窟",
+  map: DUNGEON2_MAP, cols: 15, rows: 11,
+  npcs: [], decor: [],
+  doors: [{ tx: 7, ty: 10, to: "field" }],
+};
+// 氷の洞窟の敵
+const DUNGEON2_ENEMIES = [
+  { name: "こおりスライム", hp: 30, atk: 7,  exp: 18, color: "#7ad0e0", drop: "こおりのかけら" },
+  { name: "フロストウルフ", hp: 38, atk: 9,  exp: 24, color: "#aab8d8", drop: "凍った牙" },
+  { name: "ゆきおんな",     hp: 44, atk: 10, exp: 30, color: "#dfeefc", drop: "白銀の髪" },
+  { name: "アイスゴーレム", hp: 56, atk: 12, exp: 40, color: "#6aa0c0", drop: "氷晶の核" },
+  { name: "ブリザードドラゴン", hp: 66, atk: 14, exp: 52, color: "#3a8ac0", drop: "氷竜のうろこ" },
+];
+
+let zone = "";                          // "" | "dungeon" | "dungeon2" | "tower" | "castle" (敵/単語の出し分け用)
 
 let curArea = AREAS.town;               // 現在のエリア(町 or 家の中)
 let savedOverworld = { tx: 2, ty: 12 }; // 街に入る前のフィールド座標
@@ -1231,6 +1261,7 @@ function drawQuestLog() {
 // 今いるエリアの単語/熟語/文法プールを返す
 function currentPool() {
   if (zone === "dungeon" && typeof DUNGEON_WORD_DATA !== "undefined") return { name: "ダンジョン", data: DUNGEON_WORD_DATA, key: (w) => w.en };
+  if (zone === "dungeon2" && typeof DUNGEON2_WORD_DATA !== "undefined") return { name: "氷の洞窟", data: DUNGEON2_WORD_DATA, key: (w) => w.en };
   if (zone === "tower" && typeof TOWER_WORD_DATA !== "undefined") return { name: "タワー", data: TOWER_WORD_DATA, key: (w) => w.en };
   if (zone === "castle" && typeof GRAMMAR_DATA !== "undefined") return { name: "魔王城", data: GRAMMAR_DATA, key: (g) => g.q };
   return { name: "フィールド", data: WORD_DATA, key: (w) => w.en };
@@ -1622,6 +1653,23 @@ function enterDungeon() {
   }]);
 }
 
+// 氷の洞窟(ダンジョン2)に入る(フィールドの入口 Z から)
+function enterDungeon2() {
+  savedOverworld = { tx: player.tx, ty: player.ty };
+  curArea = AREAS.dungeon2;
+  zone = "dungeon2";
+  player.tx = DUNGEON2_START.tx; player.ty = DUNGEON2_START.ty;
+  player.px = player.tx * TILE; player.py = player.ty * TILE;
+  player.dir = "up"; player.moving = false;
+  for (const k in keys) keys[k] = false;
+  state = STATE.TOWN;
+  resetEncounter();
+  playTownCutscene([{
+    who: "コトハ",
+    lines: ["ひんやり…ここは氷の洞窟だ！ 凍えるモンスターが出るよ。", "ここにも見たことのない英単語がたくさん。覚えていこう！", "でぐち(下の扉)からいつでも外に戻れるよ。"],
+  }]);
+}
+
 // タワーに入る(フィールドの入口 Y から。熟語が出る)
 function enterTower() {
   savedOverworld = { tx: player.tx, ty: player.ty };
@@ -1682,6 +1730,10 @@ function onArrive() {
     enterTower();
     return;
   }
+  if (t === "Z") { // 氷の洞窟(ダンジョン2)に入る
+    enterDungeon2();
+    return;
+  }
   if (t === "C") { // 魔王城に入る
     if (player.level < 3) {
       showMessage(["城の門は かたく とざされている。", "(レベル3以上で 入れる)"], () => { state = STATE.FIELD; });
@@ -1718,6 +1770,7 @@ function pickWord() {
   // ダンジョン/タワーは専用の単語、それ以外は通常の単語
   let src = WORD_DATA;
   if (zone === "dungeon" && typeof DUNGEON_WORD_DATA !== "undefined") src = DUNGEON_WORD_DATA;
+  else if (zone === "dungeon2" && typeof DUNGEON2_WORD_DATA !== "undefined") src = DUNGEON2_WORD_DATA;
   else if (zone === "tower" && typeof TOWER_WORD_DATA !== "undefined") src = TOWER_WORD_DATA;
   const w = pickWeighted(src[toeicLevel], (c) => c.en);
   const choices = shuffle([w.ja, ...w.wrong]);
@@ -1737,7 +1790,7 @@ function pickGrammar() {
 
 function startBattle(isBoss) {
   // 勝利数が増えるほど強い敵も出るように、出現範囲を広げる(ダンジョンは専用の敵)
-  const list = zone === "tower" ? TOWER_ENEMIES : zone === "dungeon" ? DUNGEON_ENEMIES : zone === "castle" ? CASTLE_ENEMIES : ENEMIES;
+  const list = zone === "tower" ? TOWER_ENEMIES : zone === "dungeon" ? DUNGEON_ENEMIES : zone === "dungeon2" ? DUNGEON2_ENEMIES : zone === "castle" ? CASTLE_ENEMIES : ENEMIES;
   const range = Math.min(list.length, 2 + Math.floor(player.wins / 2));
   const src = isBoss ? BOSS : list[Math.floor(rnd() * range)];
   battle = {
@@ -2093,6 +2146,10 @@ function drawTile(t, x, y) {
     ctx.fillStyle = "#7a8090"; ctx.fillRect(x + 9, y + 4, 14, 3); ctx.fillRect(x + 9, y + 12, 14, 2); ctx.fillRect(x + 9, y + 20, 14, 2);
     ctx.fillStyle = "#7a8090"; ctx.fillRect(x + 8, y + 2, 4, 4); ctx.fillRect(x + 14, y + 2, 4, 4); ctx.fillRect(x + 20, y + 2, 4, 4); // 銃眼
     ctx.fillStyle = "#1a1a2a"; ctx.fillRect(x + 13, y + 20, 6, 8); // 入口
+  } else if (t === "Z") { // 氷の洞窟入口(青い岩山)
+    ctx.fillStyle = "#7aa6c8"; ctx.beginPath(); ctx.moveTo(x + 4, y + 28); ctx.lineTo(x + 16, y + 4); ctx.lineTo(x + 28, y + 28); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#bfe4f5"; ctx.fillRect(x + 6, y + 24, 20, 4); // 雪の積もり
+    ctx.fillStyle = "#0a2436"; ctx.beginPath(); ctx.moveTo(x + 11, y + 28); ctx.lineTo(x + 16, y + 15); ctx.lineTo(x + 21, y + 28); ctx.closePath(); ctx.fill();
   }
 }
 
@@ -2206,13 +2263,14 @@ function trimLabel(s, n) { return s.length > n ? s.slice(0, n) + "…" : s; }
 function drawArea() {
   const a = curArea;
   updateCamera(a.cols, a.rows);
-  ctx.fillStyle = a.dungeon ? "#0a0a12" : a.tower ? "#12101e" : a.castle ? "#160a14" : a.indoor ? "#140d05" : "#2e5a28"; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = a.dungeon ? "#0a0a12" : a.dungeon2 ? "#08121e" : a.tower ? "#12101e" : a.castle ? "#160a14" : a.indoor ? "#140d05" : "#2e5a28"; ctx.fillRect(0, 0, W, H);
   const c0 = Math.max(0, Math.floor(camX / TILE)), c1 = Math.min(a.cols - 1, Math.floor((camX + W) / TILE));
   const r0 = Math.max(0, Math.floor(camY / TILE)), r1 = Math.min(a.rows - 1, Math.floor((camY + H) / TILE));
   for (let y = r0; y <= r1; y++) {
     for (let x = c0; x <= c1; x++) {
       const px = x * TILE - camX, py = y * TILE - camY;
       if (a.dungeon) drawDungeonTile(a.map[y][x], px, py);
+      else if (a.dungeon2) drawDungeon2Tile(a.map[y][x], px, py);
       else if (a.tower) drawTowerTile(a.map[y][x], px, py);
       else if (a.castle) drawCastleTile(a.map[y][x], px, py);
       else if (a.indoor) drawInteriorTile(a.map[y][x], px, py);
@@ -2272,6 +2330,23 @@ function drawDungeonTile(t, px, py) {
   // 洞窟の床
   ctx.fillStyle = "#1c1c26"; ctx.fillRect(px, py, TILE, TILE);
   ctx.fillStyle = "#23232f"; ctx.fillRect(px + 5, py + 7, 4, 3); ctx.fillRect(px + 19, py + 16, 4, 3); ctx.fillRect(px + 12, py + 24, 3, 2);
+  if (t === "D") { // 出口
+    ctx.fillStyle = "#3a5a8a"; ctx.fillRect(px + 6, py + 6, TILE - 12, TILE - 12);
+    ctx.fillStyle = "#5a7aaa"; ctx.fillRect(px + 9, py + 9, TILE - 18, TILE - 18);
+  }
+}
+
+function drawDungeon2Tile(t, px, py) {
+  if (t === "#") { // 氷壁
+    ctx.fillStyle = "#274a60"; ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = "#356a86"; ctx.fillRect(px + 2, py + 2, TILE - 4, 9);
+    ctx.fillStyle = "#1c3344"; ctx.fillRect(px, py + TILE - 5, TILE, 5);
+    ctx.fillStyle = "#bfe4f5"; ctx.fillRect(px + 6, py + 4, 5, 3); // 氷の輝き
+    return;
+  }
+  // 凍った床
+  ctx.fillStyle = "#10222e"; ctx.fillRect(px, py, TILE, TILE);
+  ctx.fillStyle = "#1a3340"; ctx.fillRect(px + 5, py + 7, 5, 3); ctx.fillRect(px + 19, py + 16, 5, 3); ctx.fillRect(px + 12, py + 24, 4, 2);
   if (t === "D") { // 出口
     ctx.fillStyle = "#3a5a8a"; ctx.fillRect(px + 6, py + 6, TILE - 12, TILE - 12);
     ctx.fillStyle = "#5a7aaa"; ctx.fillRect(px + 9, py + 9, TILE - 18, TILE - 18);

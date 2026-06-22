@@ -43,6 +43,7 @@
   <div class="tabs" id="src-tabs">
     <span class="tab on" data-src="field">📙 フィールド</span>
     <span class="tab" data-src="dungeon">🕳 ダンジョン</span>
+    <span class="tab" data-src="dungeon2">❄ 氷の洞窟</span>
     <span class="tab" data-src="tower">🗼 タワー(熟語)</span>
   </div>
   <div class="tabs" id="lv-tabs">
@@ -58,16 +59,18 @@
 
 <script src="words.js"></script>
 <script src="words_dungeon.js"></script>
+<script src="words_dungeon2.js"></script>
 <script src="words_tower.js"></script>
 <script>
   let curLv = "all", curSrc = "field", curQ = "";
   const listEl = document.getElementById("list");
   const emptyEl = document.getElementById("empty");
-  const SRC_LABEL = { field: "フィールド", dungeon: "ダンジョン", tower: "タワー(熟語)" };
+  const SRC_LABEL = { field: "フィールド", dungeon: "ダンジョン", dungeon2: "氷の洞窟", tower: "タワー(熟語)" };
 
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   function curData() {
     if (curSrc === "dungeon") return typeof DUNGEON_WORD_DATA !== "undefined" ? DUNGEON_WORD_DATA : null;
+    if (curSrc === "dungeon2") return typeof DUNGEON2_WORD_DATA !== "undefined" ? DUNGEON2_WORD_DATA : null;
     if (curSrc === "tower") return typeof TOWER_WORD_DATA !== "undefined" ? TOWER_WORD_DATA : null;
     return typeof WORD_DATA !== "undefined" ? WORD_DATA : null;
   }
