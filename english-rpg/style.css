@@ -437,6 +437,36 @@ html, body {
 }
 .study-q-label { font-size: 12px; color: #9fc0ff; font-weight: bold; margin-bottom: 3px; }
 .study-q-ja { font-size: 16px; color: #fff; }
+/* 勉強机: テーマ選択 */
+.theme-pick {
+  align-self: stretch;
+  background: rgba(90, 130, 220, 0.12);
+  border: 1px solid #5a82dc;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 2px 0;
+}
+.theme-pick-title { font-size: 14px; color: #cfe0ff; font-weight: bold; margin-bottom: 8px; text-align: center; }
+.theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.theme-btn {
+  font-size: 13px;
+  color: #fff;
+  background: #1b2c52;
+  border: 1px solid #3a5088;
+  border-radius: 7px;
+  padding: 8px 6px;
+  cursor: pointer;
+}
+.theme-btn:active { background: #2a3f70; }
+.theme-random {
+  grid-column: 1 / -1;
+  color: #0a1226;
+  background: #ffd24a;
+  border-color: #ffd24a;
+  font-weight: bold;
+}
+.theme-random:active { background: #ffdf76; }
+
 .hint-btn { color: #ffd24a; border-color: #ffd24a; }
 .hint-btn:active { background: rgba(255, 210, 74, 0.2); }
 .study-hint {

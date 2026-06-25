@@ -256,7 +256,27 @@ async function callKotoha(level, context, messages, maxTokens) {
 }
 
 // ===== 勉強机: コトハの和文英訳ドリル(出題→英訳→添削→次の問題) =====
-function buildStudySystem(level) {
+// 学習テーマ(ランダム+英文法テーマ)。note は出題方針としてシステムプロンプトに渡す。
+const STUDY_THEMES = [
+  { id: "random",      label: "🎲 ランダム",     note: "文法項目を限定せず、いろいろな文型・時制をバランスよく混ぜて出題する。" },
+  { id: "present",     label: "現在形",          note: "現在形(習慣・一般的な事実)を主に使う文を中心に出題する。" },
+  { id: "past",        label: "過去形",          note: "過去形(過去の出来事)を主に使う文を中心に出題する。" },
+  { id: "future",      label: "未来形",          note: "未来表現(will / be going to)を主に使う文を中心に出題する。" },
+  { id: "progressive", label: "進行形",          note: "現在進行形・過去進行形を主に使う文を中心に出題する。" },
+  { id: "perfect",     label: "完了形",          note: "現在完了・過去完了(継続/経験/完了/結果)を主に使う文を中心に出題する。" },
+  { id: "modal",       label: "助動詞",          note: "助動詞(can / must / should / may / might / have to など)を主に使う文を中心に出題する。" },
+  { id: "subjunctive", label: "仮定法・条件文",  note: "if条件文や仮定法過去・仮定法過去完了を主に使う文を中心に出題する。" },
+  { id: "passive",     label: "受動態",          note: "受動態(be + 過去分詞)を主に使う文を中心に出題する。" },
+  { id: "infgerund",   label: "不定詞・動名詞",  note: "to不定詞・動名詞(名詞用法/目的/動詞の目的語など)を主に使う文を中心に出題する。" },
+  { id: "participle",  label: "分詞・分詞構文",  note: "分詞(現在分詞/過去分詞の修飾)や分詞構文を主に使う文を中心に出題する。" },
+  { id: "pattern5",    label: "5文型",           note: "英語の5文型(SV/SVC/SVO/SVOO/SVOC)を意識した文を中心に出題する。特にSVOOやSVOCを織り交ぜる。" },
+  { id: "relative",    label: "関係詞",          note: "関係代名詞(who/which/that)や関係副詞を主に使う文を中心に出題する。" },
+  { id: "comparison",  label: "比較",            note: "比較級・最上級・as ~ as を主に使う文を中心に出題する。" },
+  { id: "preposition", label: "前置詞",          note: "前置詞(at/in/on/by/for/with など)の使い分けが要点になる文を中心に出題する。" },
+  { id: "conjunction", label: "接続詞",          note: "接続詞(when/because/although/so/if など)で節をつなぐ文を中心に出題する。" },
+  { id: "question",    label: "疑問文・否定文",  note: "疑問文(Wh疑問・Yes/No疑問)や否定文の作り方が要点になる文を中心に出題する。" },
+];
+function buildStudySystem(level, theme) {
   const guide = level === 900
     ? `TOEIC900・上級(CEFR C1相当)。しっかり手応えのある英作文にする。
    - 1文あたり15〜25語程度の長めで内容のある文。
@@ -285,6 +305,7 @@ function buildStudySystem(level) {
 
 出題する日本語文の難易度(必ずこのレベルに合わせ、これより簡単にしない):
 ${guide}
+${theme && theme.id !== "random" ? `\n今回の学習テーマ: 「${theme.label}」。${theme.note}\n- 出題する日本語文は、英訳するとこのテーマの文法が自然に必要になるように作る。テーマから外れた文は出さない。` : `\n今回の学習テーマ: ランダム。${(theme && theme.note) || "いろいろな文型・時制をバランスよく出題する。"}`}
 - 出題は1文ずつ。毎回ちがう話題でバリエーションを出す。
 - next_ja は必ず日本語。model_en と評価する対象は英語。
 - 模範英訳 model_en も、このレベルにふさわしい自然で適切な難度の英語にする。
@@ -292,11 +313,11 @@ ${guide}
 
 最初のターン(主人公がまだ何も英訳していないとき)は、feedback_ja に短い挨拶、correct=true、model_en は空文字、next_ja に最初の問題を入れてください。`;
 }
-async function callClaudeStudy(level, messages) {
+async function callClaudeStudy(level, messages, theme) {
   const body = {
     model: AI_CONFIG.model,
     max_tokens: AI_CONFIG.maxTokens,
-    system: buildStudySystem(level),
+    system: buildStudySystem(level, theme),
     messages,
   };
   const oc = outputConfigWith(STUDY_SCHEMA); if (oc) body.output_config = oc;
@@ -321,8 +342,9 @@ const Chat = (() => {
   let history = [];
   let busy = false;
   let pendingStart = false; // キー入力待ちで開始を保留中か
-  let convMode = "npc";     // "npc"(町人と英会話) | "kotoha"(コトハに相談)
+  let convMode = "npc";     // "npc"(町人と英会話) | "kotoha"(コトハに相談) | "study"(英訳ドリル)
   let kotohaContext = null; // コトハに渡す現在の目的など
+  let studyTheme = null;    // 勉強机ドリルで選択中の学習テーマ
   let sendLabel = "話す";
   let suspended = null;     // NPC会話を退避してコトハに切替えた時の保存先
 
@@ -451,6 +473,28 @@ const Chat = (() => {
     row.appendChild(bubble);
     logEl.appendChild(row);
     scrollBottom();
+  }
+
+  // 勉強机: 学習テーマの選択画面(ドリル開始前)
+  function addThemePicker() {
+    const box = el("div", "theme-pick");
+    box.appendChild(el("div", "theme-pick-title", "📚 今日のテーマを選んでね"));
+    const grid = el("div", "theme-grid");
+    for (const t of STUDY_THEMES) {
+      const b = el("button", "theme-btn" + (t.id === "random" ? " theme-random" : ""), t.label);
+      b.addEventListener("click", () => {
+        if (busy) return;
+        studyTheme = t;
+        logEl.innerHTML = ""; // テーマ選択を消してドリル開始
+        addInfo(`コトハ「テーマは『${t.label}』だね！ 日本語の文を英語にしてみてね。」`);
+        history = [];
+        history.push({ role: "user", content: "(レッスンを始めて。最初の問題を出して。)" });
+        turn(true);
+      });
+      grid.appendChild(b);
+    }
+    box.appendChild(grid);
+    logEl.appendChild(box); scrollBottom();
   }
 
   // 勉強机: 出題(日本語の問題)を表示。💡ヒントボタンつき。
@@ -612,7 +656,7 @@ const Chat = (() => {
         addKotohaLine(reply);
         history.push({ role: "assistant", content: reply });
       } else if (convMode === "study") {
-        const data = await callClaudeStudy(level, history);
+        const data = await callClaudeStudy(level, history, studyTheme);
         typing.remove();
         if (!data || typeof data.next_ja !== "string" || data.next_ja.trim() === "") throw { code: "no_text" };
         if (isOpening) { if (data.feedback_ja) addKotohaLine(data.feedback_ja); }
@@ -656,9 +700,8 @@ const Chat = (() => {
       return;
     }
     if (convMode === "study") {
-      addInfo("コトハ「英訳れんしゅうを始めるよ！ 私が出す日本語の文を、英語にして送ってね。」");
-      history.push({ role: "user", content: "(レッスンを始めて。最初の問題を出して。)" });
-      turn(true);
+      // まずテーマを選んでもらう(選択後にドリル開始)
+      addThemePicker();
       return;
     }
     if (questHook && questHook.intro) addInfo(questHook.intro); // 会話チャレンジ等のミッション説明
@@ -670,6 +713,7 @@ const Chat = (() => {
   function sendUser() {
     if (busy) return;
     if (AI_CONFIG.mode === "browser" && !getApiKey()) { showKeyPanel(); return; }
+    if (convMode === "study" && !studyTheme) { addInfo("コトハ「まずは上のボタンから今日のテーマを選んでね！」"); return; }
     const text = inputEl.value.trim();
     if (!text) return;
     inputEl.value = "";
@@ -705,7 +749,7 @@ const Chat = (() => {
 
   // 勉強机: コトハと和文英訳のドリル
   function openStudy(toeicLevel, onClose) {
-    convMode = "study"; kotohaContext = null; sendLabel = "答える";
+    convMode = "study"; kotohaContext = null; sendLabel = "答える"; studyTheme = null;
     npc = { id: "kotoha", name: "コトハ" }; level = toeicLevel; onCloseCb = onClose || null;
     inputEl.placeholder = "英語で答える… (Enterで送信)";
     beginSession("コトハ（英訳れんしゅう）");
