@@ -228,6 +228,52 @@ html, body {
   justify-content: center;
   padding: 12px;
 }
+/* 名前入力(オープニング) */
+#name-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  z-index: 110;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+#name-box {
+  width: 100%;
+  max-width: 360px;
+  background: #0a1a3f;
+  border: 3px solid #fff;
+  border-radius: 10px;
+  padding: 22px 20px;
+  text-align: center;
+}
+#name-title { font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 16px; }
+#name-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 18px;
+  text-align: center;
+  padding: 10px 12px;
+  border: 1px solid #2a3a6b;
+  border-radius: 8px;
+  background: #0c1830;
+  color: #fff;
+}
+#name-input::placeholder { color: #7a8cb0; }
+#name-ok {
+  margin-top: 16px;
+  width: 100%;
+  font-size: 16px;
+  font-weight: bold;
+  color: #0a1226;
+  background: #ffd24a;
+  border: none;
+  border-radius: 8px;
+  padding: 11px;
+  cursor: pointer;
+}
+#name-hint { margin-top: 10px; font-size: 11px; color: #8aa; }
 #chat-window {
   width: 100%;
   max-width: 460px;

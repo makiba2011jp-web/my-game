@@ -47,6 +47,7 @@ const setApiKey = (k) => localStorage.setItem(API_KEY_STORE, k);
 // クエスト連動: 会話中に特定の条件を満たすと quest_flag が立つ
 // { note: 英語の条件文, flagMessage?: 表示文, onFlag?: 即時実行, onClose?: 閉じたとき実行 }
 let questHook = null;
+let travelerKnown = false; // この会話相手が主人公と面識ありか(名前で呼ぶ)
 let pendingClose = null; // フラグ発火後、会話を閉じたときに実行する動作
 function aiReady() {
   return AI_CONFIG.mode === "proxy" ? !!AI_CONFIG.proxyUrl : !!getApiKey();
@@ -71,6 +72,7 @@ const NPC_PERSONA = {
   church: "You are Clara, a gentle sister at the town church. You offer comfort, blessings, and quiet encouragement to travelers. Serene and kind.",
   salon: "You are Coco, the cheerful stylist at the town hair salon. You chat happily about hair, fashion, and looking your best. You also keep a beloved pet cat. Bubbly and upbeat. You do NOT run an inn and do not offer rooms.",
   police: "You are Bruno, a dependable town guard at the police station. You keep the peace, give directions, and warn about dangers outside town. Steady and dutiful.",
+  florist: "You are Lily, a sweet, slightly shy girl who runs the town's flower shop. You adore flowers and gentle conversation. You are warm and encouraging, and you visibly light up and get happier when the traveler speaks beautiful, fluent English.",
   fish: "You are Finn, the lively owner of the fish shop (魚屋). You sell fresh fish like tuna (マグロ) and sardines (イワシ), and love talking about the day's catch. You do NOT run an inn and do not offer rooms.",
   green: "You are Vera, the friendly owner of the greengrocer (八百屋). You sell fresh vegetables and fruit, and enjoy recommending what's in season. You do NOT run an inn and do not offer rooms.",
   meat: "You are Otto, the hearty owner of the butcher shop (肉屋). You sell meat of all kinds and love a good barbecue. You do NOT run an inn and do not offer rooms.",
@@ -104,6 +106,10 @@ function buildSystem(npc, level, questNote) {
   const persona = NPC_PERSONA[npc.id] || NPC_PERSONA.innkeeper;
   const guide = LEVEL_GUIDE[level] || LEVEL_GUIDE[500];
   const shortName = npc.name.split(" ").pop();
+  const pname = (window.getPlayerName && window.getPlayerName()) || "";
+  const nameLine = (travelerKnown && pname)
+    ? `\n- You already know this traveler from before. Their name is "${pname}". Greet them and address them warmly by name ("${pname}") now and then, like an acquaintance you are glad to see again.`
+    : "";
   const questLine = questNote
     ? `Set "quest_flag" to true ONLY if ${questNote} In that case, your "reply" should follow that situation. In every other case, set "quest_flag" to false.`
     : `Always set "quest_flag" to false.`;
@@ -112,7 +118,7 @@ function buildSystem(npc, level, questNote) {
 You are an NPC in a Dragon-Quest-style fantasy town. The person you are talking to is a Japanese learner practicing English conversation with you.
 
 Behavior rules:
-- Stay fully in character as ${shortName}. Never break character or mention that you are an AI.
+- Stay fully in character as ${shortName}. Never break character or mention that you are an AI.${nameLine}
 - ${guide}
 - Keep every reply to 1-2 short sentences, and usually end by asking the traveler a question so the conversation keeps going.
 - If the traveler's message is a stage direction inside parentheses or asterisks (e.g. "(The traveler approaches you.)"), treat it as narration: just greet or react in character, and report the correction as natural with an empty note.
@@ -126,7 +132,7 @@ You MUST answer using the required JSON structure:
 - "correction.corrected": the most natural English way to say what the traveler meant (use this to show them the English even when they wrote in Japanese). If their English was already natural, repeat their sentence as-is.
 - "correction.note_ja": a short Japanese explanation (in Japanese). If they wrote in Japanese instead of English, explain that the people of this world only understand English and encourage them to try the English line in "corrected". If their English was just unnatural, explain what to fix. If it was already natural, give brief Japanese praise.
 - "quest_flag": ${questLine}
-Always write "reply_ja" and "note_ja" in Japanese.`;
+Always write "reply_ja" and "note_ja" in Japanese.${questHook && questHook.tone ? "\n\n" + questHook.tone : ""}`;
 }
 
 // ===== Claude 呼び出し（mode により接続先を切り替え）=====
@@ -206,9 +212,11 @@ async function callClaude(npc, level, messages) {
 // 相棒コトハに相談(日本語で回答する素のテキスト)
 function buildKotohaSystem(level, context) {
   const lv = level === 900 ? "上級" : level === 700 ? "中級" : "初級";
+  const pname = (window.getPlayerName && window.getPlayerName()) || "";
+  const nameLine = pname ? `主人公の名前は「${pname}」。相棒として、ときどき名前で呼びかけてね。\n` : "";
   return `あなたは「コトハ」。幼い女の子の姿をした言葉の精霊で、主人公(日本語話者・英語学習中／レベルは${lv})の相棒です。
 この世界の住人は英語しか話さない異世界。主人公だけがあなたを見て、日本語で話せます。
-
+${nameLine}
 性格と話し方:
 - 明るく元気で面倒見がいい。幼いけれどちょっとお姉さんぶる。語学にとても詳しい。
 - 返事は必ず日本語。幼い女の子らしい親しみやすいタメ口で、簡潔に(2〜5文ほど)。相手を決して責めず励ます。
@@ -478,14 +486,19 @@ const Chat = (() => {
         addKotohaLine(reply);
         history.push({ role: "assistant", content: reply });
       } else {
+        // 直前のプレイヤー発言(好感度判定などに使う)
+        const last = history[history.length - 1];
+        const userText = (last && last.role === "user") ? last.content : "";
         const data = await callClaude(npc, level, history);
         typing.remove();
         if (!data || typeof data.reply !== "string" || data.reply.trim() === "") throw { code: "no_text" };
         if (!isOpening) addCorrection(data.correction);
         addNpcLine(data.reply, data.reply_ja || "");
         history.push({ role: "assistant", content: data.reply });
-        // クエストフラグ判定(会話の中で条件を満たしたら発火)
-        if (questHook && data.quest_flag === true) {
+        // 毎ターンのフック(花屋の好感度など。開始の挨拶ターンは除く)
+        if (!isOpening && questHook && questHook.onReply) questHook.onReply(data, userText);
+        // クエストフラグ判定(会話の中で条件を満たしたら発火。persist指定のフックは消さない)
+        if (questHook && data.quest_flag === true && !questHook.persist) {
           const h = questHook; questHook = null;
           if (h.flagMessage) addInfo(h.flagMessage);
           if (h.onFlag) h.onFlag();              // 即時(会話は続ける)
@@ -535,6 +548,9 @@ const Chat = (() => {
   function open(npcObj, toeicLevel, onClose) {
     convMode = "npc"; kotohaContext = null; sendLabel = "話す";
     npc = npcObj; level = toeicLevel; onCloseCb = onClose || null;
+    // 面識判定 → 今回の会話で「会ったことがある」状態にする
+    travelerKnown = !!(window.npcKnowsName && window.npcKnowsName(npcObj.id));
+    if (window.markNPCMet) window.markNPCMet(npcObj.id);
     inputEl.placeholder = "英語で話す… (Enterで送信)";
     beginSession(npcObj.name);
   }
@@ -579,7 +595,7 @@ const Chat = (() => {
     if (after) after(); // 「売りたい/泊まりたい」など、閉じた後の動作
   }
 
-  return { open, openKotoha, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; } };
+  return { open, openKotoha, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; }, info: (t) => addInfo(t) };
 })();
 
 window.Chat = Chat;
