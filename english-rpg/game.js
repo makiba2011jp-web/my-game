@@ -2069,9 +2069,30 @@ function enemyTurnOrNext() {
   }
 }
 
+// 経験値を加算してレベルアップ判定(上がったぶんのメッセージ配列を返す)
+function gainExp(amount) {
+  player.exp += amount;
+  const leveled = [];
+  while (player.exp >= player.nextExp) {
+    player.exp -= player.nextExp;
+    player.level++;
+    player.maxhp += 6; player.hp = player.maxhp; player.atk += 2;
+    player.nextExp = Math.floor(player.nextExp * 1.6);
+    leveled.push(`レベル ${player.level} に あがった！ (HP/攻撃 アップ)`);
+  }
+  return leveled;
+}
+// コトハとの英訳学習で正解したときの報酬(難易度に応じた経験値)。chat.js から呼ぶ。
+const STUDY_EXP = { 500: 3, 700: 5, 900: 8 };
+window.studyCorrectReward = () => {
+  const exp = STUDY_EXP[toeicLevel] || 3;
+  const leveled = gainExp(exp);
+  if (canSave()) saveGame(); // 学習の成果を保存
+  return { exp, leveled };
+};
+
 function winBattle() {
   player.wins++;
-  player.exp += battle.exp;
   const lines = [`${battle.name}を たおした！`];
   if (!battle.isBoss) lines.push(`けいけんち ${battle.exp} を かくとく！`);
   // 素材ドロップ
@@ -2098,15 +2119,10 @@ function winBattle() {
       else lines.push(`ギルド依頼『${q.title_ja}』 ${q.progress}/${q.count}`);
     }
   }
-  // レベルアップ判定
+  // 経験値とレベルアップ(ボスは経験値のみ加算してレベルは据え置き)
   let leveled = [];
-  while (player.exp >= player.nextExp && !battle.isBoss) {
-    player.exp -= player.nextExp;
-    player.level++;
-    player.maxhp += 6; player.hp = player.maxhp; player.atk += 2;
-    player.nextExp = Math.floor(player.nextExp * 1.6);
-    leveled.push(`レベル ${player.level} に あがった！ (HP/攻撃 アップ)`);
-  }
+  if (battle.isBoss) player.exp += battle.exp;
+  else leveled = gainExp(battle.exp);
   const wasBoss = battle.isBoss;
   showMessage([...lines, ...leveled], () => {
     battle = null;

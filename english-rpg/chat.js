@@ -660,7 +660,17 @@ const Chat = (() => {
         typing.remove();
         if (!data || typeof data.next_ja !== "string" || data.next_ja.trim() === "") throw { code: "no_text" };
         if (isOpening) { if (data.feedback_ja) addKotohaLine(data.feedback_ja); }
-        else addStudyFeedback(data); // 直前の英訳への講評＋模範
+        else {
+          addStudyFeedback(data); // 直前の英訳への講評＋模範
+          // 正解したら経験値を獲得(難易度に応じて)
+          if (data.correct && window.studyCorrectReward) {
+            const r = window.studyCorrectReward();
+            if (r) {
+              addInfo(`✨ けいけんち +${r.exp} を かくとく！`);
+              (r.leveled || []).forEach((line) => addInfo("🎉 " + line));
+            }
+          }
+        }
         addStudyProblem(data.next_ja); // 次の問題
         history.push({ role: "assistant", content: JSON.stringify({ model_en: data.model_en, next_ja: data.next_ja }) });
       } else {
