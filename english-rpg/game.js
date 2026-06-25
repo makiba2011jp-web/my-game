@@ -160,8 +160,8 @@ const DECOR_TEMPLATES = {
   realestate: [{ tx: 1, ty: 1, kind: "shelf" }, { tx: 9, ty: 1, kind: "shelf" }, { tx: 2, ty: 3, kind: "table" }, { tx: 8, ty: 3, kind: "counter" }, { tx: 1, ty: 5, kind: "board" }, { tx: 9, ty: 5, kind: "plant" }],
   // マイホーム(購入グレード別の内装。マップは13×11のHOME_MAP)
   home_cottage: [{ tx: 1, ty: 5, kind: "bed" }, { tx: 1, ty: 7, kind: "barrel" }, { tx: 3, ty: 7, kind: "crate" }, { tx: 8, ty: 7, kind: "desk" }],
-  home_stone:   [{ tx: 1, ty: 5, kind: "bed" }, { tx: 3, ty: 6, kind: "table" }, { tx: 1, ty: 7, kind: "shelf" }, { tx: 5, ty: 5, kind: "plant" }, { tx: 1, ty: 1, kind: "lamp" }, { tx: 5, ty: 1, kind: "lamp" }, { tx: 3, ty: 7, kind: "rug", solid: false }, { tx: 8, ty: 7, kind: "desk" }],
-  home_manor:   [{ tx: 1, ty: 5, kind: "bed" }, { tx: 3, ty: 5, kind: "bed" }, { tx: 1, ty: 7, kind: "shelf" }, { tx: 3, ty: 7, kind: "table" }, { tx: 5, ty: 5, kind: "plant" }, { tx: 1, ty: 1, kind: "lamp" }, { tx: 5, ty: 1, kind: "lamp" }, { tx: 10, ty: 5, kind: "plant" }, { tx: 10, ty: 7, kind: "shelf" }, { tx: 9, ty: 7, kind: "table" }, { tx: 5, ty: 7, kind: "rug", solid: false }, { tx: 8, ty: 7, kind: "desk" }],
+  home_stone:   [{ tx: 1, ty: 5, kind: "bed" }, { tx: 3, ty: 6, kind: "table" }, { tx: 1, ty: 7, kind: "shelf" }, { tx: 5, ty: 5, kind: "plant" }, { tx: 1, ty: 1, kind: "lamp" }, { tx: 5, ty: 1, kind: "lamp" }, { tx: 3, ty: 7, kind: "rug", solid: false }, { tx: 8, ty: 7, kind: "desk" }, { tx: 8, ty: 5, kind: "stove" }, { tx: 9, ty: 5, kind: "sink" }],
+  home_manor:   [{ tx: 1, ty: 5, kind: "bed" }, { tx: 3, ty: 5, kind: "bed" }, { tx: 1, ty: 7, kind: "shelf" }, { tx: 3, ty: 7, kind: "table" }, { tx: 5, ty: 5, kind: "plant" }, { tx: 1, ty: 1, kind: "lamp" }, { tx: 5, ty: 1, kind: "lamp" }, { tx: 10, ty: 7, kind: "shelf" }, { tx: 9, ty: 7, kind: "table" }, { tx: 5, ty: 7, kind: "rug", solid: false }, { tx: 8, ty: 7, kind: "desk" }, { tx: 8, ty: 5, kind: "stove" }, { tx: 9, ty: 5, kind: "sink" }, { tx: 10, ty: 5, kind: "counter" }],
 };
 // 室内庭(右上の g マス)の花壇。全グレード共通で置く。歩いて入れる。
 const HOME_GARDEN_DECOR = [
@@ -475,6 +475,10 @@ let questLog = null;         // { sel } 受注依頼の詳細表示中の状態
 let sideQuestBoxRect = null; // HUDの「ギルド依頼」ボックスのタップ判定用矩形
 let bagOpen = false;         // もちもの一覧を展開表示しているか
 let bagBoxRect = null;       // 「もちもの」ボックスのタップ判定用矩形
+let dishes = [];             // 作った料理 [{name,score,heal,atk,def}]
+let dishRowRects = [];       // 料理パネルの各行タップ判定用
+let mealBuff = { atk: 0, def: 0 }; // 料理を食べて得た「次の戦闘」バフ(保留中)
+let battleBuff = { atk: 0, def: 0 }; // 現在の戦闘中に効いているバフ
 let rateBoxRect = null;      // 「習得」バーのタップ判定用矩形
 let wordList = null;         // 習得リスト表示中の状態 { page }
 let wordListBack = STATE.FIELD; // 習得リストを閉じたあとに戻る状態
@@ -485,6 +489,8 @@ const FOOD_SHOPS = {
   meat:  [{ name: "とり肉", price: 14 }, { name: "ぶた肉", price: 18 }],
 };
 const SHOP_TITLE = { material: "素材屋", weapon: "武器屋", fish: "魚屋", green: "八百屋", meat: "肉屋", home: "不動産屋 〜 物件リスト" };
+// 料理に使える食材(食材ショップの品)。台所の調理で消費する。
+const INGREDIENT_NAMES = [].concat(...Object.values(FOOD_SHOPS).map((a) => a.map((x) => x.name)));
 function buyItem(name) { bag[name] = (bag[name] || 0) + 1; }
 function hasItem(name) { return (bag[name] || 0) > 0; }
 function useItem(name) { if (bag[name] > 0) { bag[name]--; if (bag[name] <= 0) delete bag[name]; } }
@@ -891,6 +897,7 @@ function onTap(x, y) {
   if (state === STATE.TOWN || state === STATE.FIELD) {
     if (inRect(x, y, rateBoxRect)) { openWordList(); return; }          // 習得バー→ワードリスト
     if (inRect(x, y, bagBoxRect)) { bagOpen = !bagOpen; return; }       // もちもの開閉
+    for (const r of dishRowRects) if (inRect(x, y, r)) { eatDish(r.idx); return; } // 料理を食べる
     if (inRect(x, y, sideQuestBoxRect)) { openQuestLog(); return; }     // ギルド依頼の詳細
   }
   // フィールドをタップ → 情報パネルの表示/非表示を切替
@@ -900,6 +907,7 @@ function onTap(x, y) {
     const n = npcAt(tx, ty);
     if (n) { interactNPC(n); return; }
     if (deskAt(tx, ty)) { startDeskStudy(); return; } // 勉強机タップ→英訳ドリル
+    if (kitchenAt(tx, ty)) { startCooking(); return; } // 台所タップ→料理
     if (!hudShown) { setHud(true); return; } // 何もない所をタップ → 情報パネルを表示
     return;
   }
@@ -990,6 +998,7 @@ function saveGame() {
     materials: { ...materials }, bag: { ...bag }, boughtItems: [...boughtItems],
     sideQuests: sideQuests.map((q) => ({ ...q })), sideQuestId,
     wordCorrect: { ...wordCorrect }, npcAffection: { ...npcAffection }, metNPCs: [...metNPCs], ownedHome,
+    dishes: dishes.map((d) => ({ ...d })), mealBuff: { ...mealBuff },
     savedOverworld: { ...savedOverworld }, catSpot,
   };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); return true; }
@@ -1012,6 +1021,9 @@ function loadGame() {
   affectionRecent = {};
   metNPCs = new Set(data.metNPCs || []);
   ownedHome = data.ownedHome || null; refreshHome();
+  dishes = data.dishes || [];
+  mealBuff = data.mealBuff || { atk: 0, def: 0 };
+  battleBuff = { atk: 0, def: 0 };
   savedOverworld = data.savedOverworld || { tx: 2, ty: 12 };
   catSpot = Math.min(data.catSpot || 0, CAT_SPOTS.length - 1);
   CAT.tx = CAT_SPOTS[catSpot][0]; CAT.ty = CAT_SPOTS[catSpot][1];
@@ -1045,6 +1057,7 @@ function startGame(level) {
   bag = {}; catSpot = 0; CAT.tx = CAT_SPOTS[0][0]; CAT.ty = CAT_SPOTS[0][1];
   board = null; boardCache = null; sideQuests = []; questLog = null;
   wordCorrect = {}; zone = ""; npcAffection = {}; affectionRecent = {}; metNPCs = new Set(); ownedHome = null; refreshHome();
+  dishes = []; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
   resetEncounter();
   startOpening();
 }
@@ -1073,6 +1086,7 @@ function devJump(stage) {
   catSpot = 0; CAT.tx = CAT_SPOTS[0][0]; CAT.ty = CAT_SPOTS[0][1];
   board = null; boardCache = null; sideQuests = []; questLog = null;
   wordCorrect = {}; metNPCs = new Set(); npcAffection = {}; affectionRecent = {}; ownedHome = null; refreshHome();
+  dishes = []; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
   resetEncounter();
   if (stage <= 1) {
     curArea = AREAS.town;
@@ -1110,6 +1124,7 @@ function tryTalk() {
   const n = npcAt(fx, fy);
   if (n) { interactNPC(n); return; }
   if (deskAt(fx, fy)) { startDeskStudy(); return; } // マイホームの勉強机→英訳ドリル
+  if (kitchenAt(fx, fy)) { startCooking(); return; } // マイホームの台所→料理
 }
 // マイホームの勉強机が指定マスにあるか
 function deskAt(tx, ty) {
@@ -1119,6 +1134,52 @@ function deskAt(tx, ty) {
 function startDeskStudy() {
   for (const k in keys) keys[k] = false;
   Chat.openStudy(toeicLevel, () => { /* 終了後は家に留まる */ });
+}
+// マイホームの台所(コンロ/流し/作業台)が指定マスにあるか
+function kitchenAt(tx, ty) {
+  return curArea.id === "home" && (curArea.decor || []).some((d) =>
+    (d.kind === "stove" || d.kind === "sink" || d.kind === "counter") && d.tx === tx && d.ty === ty);
+}
+// 台所: コトハと料理。手持ち食材を渡して英語で調理→完成・採点→効果つき料理を入手
+function startCooking() {
+  for (const k in keys) keys[k] = false;
+  const ings = INGREDIENT_NAMES.filter((n) => bag[n] > 0).map((n) => `${n}×${bag[n]}`);
+  Chat.openCooking(toeicLevel, ings, (name, score, used) => cookFinish(name, score, used));
+}
+// 料理完成: 使った食材を消費し、出来栄えに応じた効果の料理を作る。返り値 { lines }。
+function cookFinish(name, score, used) {
+  score = Math.max(0, Math.min(100, Math.round(score || 0)));
+  let consumedNames = [];
+  for (const ing of (used || [])) {
+    const key = INGREDIENT_NAMES.find((n) => ing && String(ing).indexOf(n) >= 0); // 「マグロ×1」等の表記ゆれ吸収
+    if (key && bag[key] > 0) { useItem(key); consumedNames.push(key); }
+  }
+  const consumed = consumedNames.length;
+  const heal = 12 + Math.round(score * 0.4) + consumed * 6;
+  let atk = 0, def = 0;
+  if (score >= 85) { atk = 5; def = 3; } else if (score >= 70) { atk = 3; def = 1; } else if (score >= 50) { atk = 2; def = 0; }
+  dishes.push({ name: name || "なぞの料理", score, heal, atk, def });
+  if (dishes.length > 12) dishes.shift();
+  const lines = [consumed ? `使った食材: ${consumedNames.join("、")}（消費）` : "（食材は使わなかった）"];
+  let eff = `効果: HP+${heal}`;
+  if (atk || def) eff += ` ／ 次の戦闘 ${atk ? `こうげき+${atk} ` : ""}${def ? `ぼうぎょ+${def}` : ""}`;
+  lines.push(eff);
+  if (canSave()) saveGame();
+  return { lines };
+}
+// 料理を食べる(もちものからタップ)。HP回復＋次の戦闘バフを保留。
+function eatDish(i) {
+  const d = dishes[i]; if (!d) return;
+  const back = state;
+  const before = player.hp;
+  player.hp = Math.min(player.maxhp, player.hp + d.heal);
+  const healed = player.hp - before;
+  mealBuff.atk += d.atk; mealBuff.def += d.def;
+  dishes.splice(i, 1);
+  if (canSave()) saveGame();
+  const lines = [`${d.name}を 食べた！ HP+${healed}`];
+  if (d.atk || d.def) lines.push(`次の戦闘で ${d.atk ? `こうげき+${d.atk} ` : ""}${d.def ? `ぼうぎょ+${d.def}` : ""}！`);
+  showMessage(lines, () => { state = back; });
 }
 
 // 宿屋に泊まる(HP全回復＋クエスト進行)。泊まったらコトハがギルド登録を提案。
@@ -2025,7 +2086,12 @@ function startBattle(isBoss) {
     shake: 0, ehurt: 0, phurt: 0,
   };
   menuSel = 0;
-  showMessage([`${battle.name} が あらわれた！`], () => { nextQuestion(); });
+  // 料理で得た「次の戦闘」バフをこの戦闘に適用(1戦闘かぎり)
+  battleBuff = { atk: mealBuff.atk, def: mealBuff.def };
+  const buffLine = (mealBuff.atk || mealBuff.def)
+    ? [`料理の効果！ ${mealBuff.atk ? `こうげき+${mealBuff.atk} ` : ""}${mealBuff.def ? `ぼうぎょ+${mealBuff.def}` : ""}`] : [];
+  mealBuff = { atk: 0, def: 0 };
+  showMessage([`${battle.name} が あらわれた！`, ...buffLine], () => { nextQuestion(); });
 }
 
 function nextQuestion() {
@@ -2054,7 +2120,7 @@ function chooseAnswer(idx) {
   }
   if (correct) {
     wordCorrect[w.en] = (wordCorrect[w.en] || 0) + 1; // 正解→次回以降の出題確率を下げる
-    const dmg = player.atk + Math.floor(rnd() * 4);
+    const dmg = player.atk + battleBuff.atk + Math.floor(rnd() * 4);
     battle.ehp = Math.max(0, battle.ehp - dmg);
     battle.ehurt = 12; battle.shake = 8;
     state = STATE.BATTLE;
@@ -2063,7 +2129,7 @@ function chooseAnswer(idx) {
       enemyTurnOrNext();
     });
   } else {
-    const dmg = Math.max(1, battle.eatk + Math.floor(rnd() * 3) - player.def);
+    const dmg = Math.max(1, battle.eatk + Math.floor(rnd() * 3) - (player.def + battleBuff.def));
     player.hp = Math.max(0, player.hp - dmg);
     battle.phurt = 12;
     state = STATE.BATTLE;
@@ -2077,7 +2143,7 @@ function chooseAnswer(idx) {
 // 正解後、ときどき敵の反撃を挟む
 function enemyTurnOrNext() {
   if (battle.isBoss && rnd() < 0.5) {
-    const dmg = Math.max(1, battle.eatk + Math.floor(rnd() * 3) - player.def);
+    const dmg = Math.max(1, battle.eatk + Math.floor(rnd() * 3) - (player.def + battleBuff.def));
     player.hp = Math.max(0, player.hp - dmg);
     battle.phurt = 12;
     queueResolve([`${battle.name}の はんげき！ ${dmg} のダメージ！`], () => {
@@ -2516,6 +2582,26 @@ function drawRightPanel() {
   } else {
     bagBoxRect = null;
   }
+  // 料理(タップで食べる)
+  dishRowRects = [];
+  if (dishes.length) {
+    const ds = dishes.slice(0, 5);
+    const bh = 24 + ds.length * 16 + 6;
+    drawWindow(bx, y, bw, bh, false);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#ffd24a"; ctx.font = "12px 'MS Gothic', monospace";
+    ctx.fillText(`● 料理 (${dishes.length}) タップで食べる`, bx + 10, y + 19);
+    ctx.font = "11px 'MS Gothic', monospace";
+    for (let i = 0; i < ds.length; i++) {
+      const ry = y + 28 + i * 16;
+      const d = ds[i];
+      const eff = `HP+${d.heal}${d.atk ? ` 攻+${d.atk}` : ""}${d.def ? ` 防+${d.def}` : ""}`;
+      ctx.fillStyle = "#fff";
+      ctx.fillText(`🍳${d.name}（${eff}）`, bx + 10, ry + 9);
+      dishRowRects.push({ x: bx, y: ry - 3, w: bw, h: 16, idx: i });
+    }
+    y += bh + 6;
+  }
   // ギルド依頼(受注中サブクエスト)
   if (sideQuests.length) {
     const sq = sideQuests.slice(0, 3);
@@ -2721,7 +2807,30 @@ function drawDecor(kind, x, y) {
     case "flower": drawFlower(x, y); break;
     case "fence": drawFence(x, y); break;
     case "desk": drawDesk(x, y); break;
+    case "stove": drawStove(x, y); break;
+    case "sink": drawSink(x, y); break;
   }
+}
+// 台所: コンロ(鍋つき)
+function drawStove(x, y) {
+  ctx.fillStyle = "#9aa3ad"; ctx.fillRect(x + 2, y + 8, 28, 22);       // 本体
+  ctx.fillStyle = "#cfd6dd"; ctx.fillRect(x + 2, y + 8, 28, 4);        // 天板ふち
+  ctx.fillStyle = "#2b2f36"; ctx.fillRect(x + 5, y + 12, 9, 7); ctx.fillRect(x + 18, y + 12, 9, 7); // 五徳(2口)
+  ctx.fillStyle = "#3a3f47"; ctx.fillRect(x + 6, y + 22, 6, 5); ctx.fillRect(x + 20, y + 22, 6, 5); // 扉
+  ctx.fillStyle = "#ffce54"; ctx.fillRect(x + 8, y + 24, 2, 1); ctx.fillRect(x + 22, y + 24, 2, 1); // 取っ手
+  // 鍋
+  ctx.fillStyle = "#5a5f66"; ctx.fillRect(x + 16, y + 9, 11, 5);
+  ctx.fillStyle = "#7a818a"; ctx.fillRect(x + 14, y + 10, 2, 2); ctx.fillRect(x + 27, y + 10, 2, 2); // 取っ手
+}
+// 台所: 流し台(蛇口つき)
+function drawSink(x, y) {
+  ctx.fillStyle = "#8a939d"; ctx.fillRect(x + 2, y + 8, 28, 22);       // 本体
+  ctx.fillStyle = "#cfd6dd"; ctx.fillRect(x + 2, y + 8, 28, 5);        // 天板
+  ctx.fillStyle = "#5c6470"; ctx.fillRect(x + 7, y + 14, 18, 9);       // シンク(凹み)
+  ctx.fillStyle = "#3c424c"; ctx.fillRect(x + 9, y + 16, 14, 5);
+  // 蛇口
+  ctx.fillStyle = "#cfd6dd"; ctx.fillRect(x + 15, y + 7, 3, 6); ctx.fillRect(x + 15, y + 7, 8, 2);
+  ctx.fillStyle = "#3a3f47"; ctx.fillRect(x + 5, y + 24, 22, 4);       // 扉ライン
 }
 // 勉強机(本・本立て・ランプ付き)
 function drawDesk(x, y) {

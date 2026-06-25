@@ -118,6 +118,20 @@ const STUDY_SCHEMA = {
   required: ["feedback_ja", "correct", "model_en", "next_ja"],
   additionalProperties: false,
 };
+// 台所(コトハと料理)用スキーマ。効果量(回復/バフ)はscoreから game.js 側で算出する。
+const COOK_SCHEMA = {
+  type: "object",
+  properties: {
+    reply_ja: { type: "string" },        // コトハの反応・誘導(日本語・タメ口)
+    done: { type: "boolean" },           // 料理が完成したか
+    dish_name_ja: { type: "string" },    // 完成した料理名(done時。それ以外は"")
+    score: { type: "integer" },          // 出来栄え0-100(done時。それ以外は0)
+    ingredients_used: { type: "array", items: { type: "string" } }, // 使った食材(渡したリストの表記)
+    comment_ja: { type: "string" },      // 採点コメント(done時)
+  },
+  required: ["reply_ja", "done", "dish_name_ja", "score", "ingredients_used", "comment_ja"],
+  additionalProperties: false,
+};
 function buildSystem(npc, level, questNote) {
   const persona = NPC_PERSONA[npc.id] || NPC_PERSONA.innkeeper;
   const guide = LEVEL_GUIDE[level] || LEVEL_GUIDE[500];
@@ -334,6 +348,38 @@ async function callClaudeStudy(level, messages, theme) {
   return JSON.parse(block.text);
 }
 
+// ===== 台所: コトハと料理(英語で手順を指示→完成・採点→効果つき料理) =====
+function buildCookSystem(level, ingredients) {
+  const pname = (window.getPlayerName && window.getPlayerName()) || "";
+  const list = (ingredients && ingredients.length) ? ingredients.join("、") : "(手持ちの食材なし)";
+  return `あなたは「コトハ」。幼い女の子の姿をした言葉の精霊で、主人公${pname ? `(${pname})` : ""}の料理の相棒です。いまは台所で、主人公の英語の調理指示を受けて一緒に料理しています。
+
+進め方:
+- 主人公は英語で調理の手順を指示します。あなたは reply_ja に日本語(幼い女の子の親しみやすいタメ口)で、反応・あいづち・次の手順への誘導を2〜4文で書きます。
+- 使える食材は次のものだけ: ${list}。このリストにない食材は使えません。リストにない物を指示されたら reply_ja で「それは持ってないよ」とやさしく伝え、done=false にします。
+- 数ターンやりとりして、主人公が「完成/できた/これで終わり(I'm done など)」と示すか、十分な手順がそろったら done=true にして料理を完成させます。
+- done=true のとき: dish_name_ja に料理名(日本語)、score(0-100)に出来栄え、ingredients_used に実際に使った食材(渡したリストの表記そのまま。例「マグロ×1」なら「マグロ」)、comment_ja に短い採点コメント(日本語)を入れる。
+  - 出来栄えscoreは「手順の丁寧さ・食材の活かし方・英語の指示の明確さ」で評価する。英語が雑/手順が少ないと低め、丁寧で具体的だと高め。
+- done=false のとき: dish_name_ja="", score=0, ingredients_used=[], comment_ja="" にする。
+- reply_ja は必ず日本語で書く。`;
+}
+async function callClaudeCook(level, messages, ingredients) {
+  const body = {
+    model: AI_CONFIG.model,
+    max_tokens: AI_CONFIG.maxTokens,
+    system: buildCookSystem(level, ingredients),
+    messages,
+  };
+  const oc = outputConfigWith(COOK_SCHEMA); if (oc) body.output_config = oc;
+  const data = await postClaude(body);
+  if (data.stop_reason === "refusal") {
+    return { reply_ja: "（…うまく作れないみたい。ごめんね）", done: false, dish_name_ja: "", score: 0, ingredients_used: [], comment_ja: "" };
+  }
+  const block = (data.content || []).find((b) => b.type === "text");
+  if (!block) throw { code: "no_text" };
+  return JSON.parse(block.text);
+}
+
 // ※ ギルド依頼はAI自動生成を廃止し、事前定義リスト(quests.js の QUEST_POOL)から
 //    ランダム出題する方式に変更しました(game.js の pickQuestsFromPool)。
 
@@ -346,9 +392,12 @@ const Chat = (() => {
   let history = [];
   let busy = false;
   let pendingStart = false; // キー入力待ちで開始を保留中か
-  let convMode = "npc";     // "npc"(町人と英会話) | "kotoha"(コトハに相談) | "study"(英訳ドリル)
+  let convMode = "npc";     // "npc"(町人と英会話) | "kotoha"(相談) | "study"(英訳ドリル) | "cook"(料理)
   let kotohaContext = null; // コトハに渡す現在の目的など
   let studyTheme = null;    // 勉強机ドリルで選択中の学習テーマ
+  let cookIngredients = []; // 料理で使える手持ち食材
+  let cookOnResult = null;  // 料理完成時のコールバック(game.js)
+  let cookDone = false;     // 料理が完成済みか
   let sendLabel = "話す";
   let suspended = null;     // NPC会話を退避してコトハに切替えた時の保存先
 
@@ -677,6 +726,22 @@ const Chat = (() => {
         }
         addStudyProblem(data.next_ja); // 次の問題
         history.push({ role: "assistant", content: JSON.stringify({ model_en: data.model_en, next_ja: data.next_ja }) });
+      } else if (convMode === "cook") {
+        const data = await callClaudeCook(level, history, cookIngredients);
+        typing.remove();
+        if (!data || typeof data.reply_ja !== "string") throw { code: "no_text" };
+        addKotohaLine(data.reply_ja);
+        history.push({ role: "assistant", content: JSON.stringify({ reply_ja: data.reply_ja, done: data.done }) });
+        if (data.done && !cookDone) {
+          cookDone = true;
+          addInfo(`🍽 ${data.dish_name_ja || "料理"} が完成！ 出来栄え ${data.score}点`);
+          if (data.comment_ja) addKotohaLine(data.comment_ja);
+          if (cookOnResult) {
+            const r = cookOnResult(data.dish_name_ja, data.score, data.ingredients_used || []);
+            if (r && r.lines) r.lines.forEach((ln) => addInfo(ln));
+          }
+          addInfo("（× でとじる。料理は「もちもの」からタップで食べられるよ）");
+        }
       } else {
         // 直前のプレイヤー発言(好感度判定などに使う)
         const last = history[history.length - 1];
@@ -723,6 +788,13 @@ const Chat = (() => {
       addThemePicker();
       return;
     }
+    if (convMode === "cook") {
+      addInfo("🍳 コトハ「料理しよう！ 英語で手順を教えてね。できあがったら『I'm done』って言ってね。」");
+      addInfo(cookIngredients.length ? ("食材: " + cookIngredients.join("、")) : "（食材がないみたい。魚屋・八百屋・肉屋で買ってこよう！）");
+      history.push({ role: "user", content: "(料理を始めるよ。何を作るか提案して。)" });
+      turn(true);
+      return;
+    }
     if (questHook && questHook.intro) addInfo(questHook.intro); // 会話チャレンジ等のミッション説明
     addInfo("コトハ「英語で話しかけてみて！ 変なところは私が直すから！」");
     history.push({ role: "user", content: "(The traveler walks up and greets you.)" });
@@ -733,6 +805,7 @@ const Chat = (() => {
     if (busy) return;
     if (AI_CONFIG.mode === "browser" && !getApiKey()) { showKeyPanel(); return; }
     if (convMode === "study" && !studyTheme) { addInfo("コトハ「まずは上のボタンから今日のテーマを選んでね！」"); return; }
+    if (convMode === "cook" && cookDone) { addInfo("コトハ「もう完成したよ！ × でとじてね。」"); return; }
     const text = inputEl.value.trim();
     if (!text) return;
     inputEl.value = "";
@@ -775,6 +848,15 @@ const Chat = (() => {
     beginSession("コトハ（英訳れんしゅう）");
   }
 
+  // 台所: コトハと料理。ingredients=使える手持ち食材, onResult(name,score,used)=完成時
+  function openCooking(toeicLevel, ingredients, onResult) {
+    convMode = "cook"; kotohaContext = null; sendLabel = "指示する";
+    cookIngredients = ingredients || []; cookOnResult = onResult || null; cookDone = false;
+    npc = { id: "kotoha", name: "コトハ" }; level = toeicLevel; onCloseCb = null;
+    inputEl.placeholder = "英語で手順を指示… (Enterで送信)";
+    beginSession("コトハ（料理）");
+  }
+
   function beginSession(title) {
     suspended = null;
     pendingClose = null;
@@ -807,7 +889,7 @@ const Chat = (() => {
     if (after) after(); // 「売りたい/泊まりたい」など、閉じた後の動作
   }
 
-  return { open, openKotoha, openStudy, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; }, info: (t) => addInfo(t) };
+  return { open, openKotoha, openStudy, openCooking, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; }, info: (t) => addInfo(t) };
 })();
 
 window.Chat = Chat;
