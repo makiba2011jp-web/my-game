@@ -22,10 +22,11 @@ const AI_CONFIG = {
 };
 function curModel() { return MODELS[AI_CONFIG.modelKey] || MODELS.opus; }
 // effort はモデルにより未対応(Haiku 4.5は400)。対応モデルのみ付ける。
-function outputConfig(withFormat) {
+function outputConfig(withFormat) { return outputConfigWith(withFormat ? SCHEMA : null); }
+function outputConfigWith(schema) {
   const oc = {};
   if (curModel().effort) oc.effort = "low";
-  if (withFormat) oc.format = { type: "json_schema", schema: SCHEMA };
+  if (schema) oc.format = { type: "json_schema", schema };
   return Object.keys(oc).length ? oc : undefined;
 }
 function setModel(key) {
@@ -76,6 +77,7 @@ const NPC_PERSONA = {
   fish: "You are Finn, the lively owner of the fish shop (魚屋). You sell fresh fish like tuna (マグロ) and sardines (イワシ), and love talking about the day's catch. You do NOT run an inn and do not offer rooms.",
   green: "You are Vera, the friendly owner of the greengrocer (八百屋). You sell fresh vegetables and fruit, and enjoy recommending what's in season. You do NOT run an inn and do not offer rooms.",
   meat: "You are Otto, the hearty owner of the butcher shop (肉屋). You sell meat of all kinds and love a good barbecue. You do NOT run an inn and do not offer rooms.",
+  realestate: "You are Estelle, the polished and friendly owner of the town's real estate agency (不動産屋). You sell houses and properties to travelers who want a home of their own — a small cottage, a stone house, or a grand manor. You love talking about rooms, gardens, and the perfect place to live. You do NOT run an inn and do NOT offer rooms for the night or food; you sell houses to OWN.",
 };
 const LEVEL_GUIDE = {
   500: "Use very simple words and short sentences (around CEFR A2 / TOEIC 500). Avoid difficult vocabulary and complex grammar.",
@@ -100,6 +102,18 @@ const SCHEMA = {
     quest_flag: { type: "boolean" },
   },
   required: ["reply", "reply_ja", "correction", "quest_flag"],
+  additionalProperties: false,
+};
+// 勉強机(コトハの和文英訳ドリル)用スキーマ
+const STUDY_SCHEMA = {
+  type: "object",
+  properties: {
+    feedback_ja: { type: "string" }, // 直前の英訳へのコトハの講評(日本語)。開始時は挨拶。
+    correct: { type: "boolean" },    // 直前の英訳が概ね正しいか。開始時は true。
+    model_en: { type: "string" },    // 直前の問題の模範英訳。開始時は空文字。
+    next_ja: { type: "string" },     // 次に英訳してもらう日本語の問題文。
+  },
+  required: ["feedback_ja", "correct", "model_en", "next_ja"],
   additionalProperties: false,
 };
 function buildSystem(npc, level, questNote) {
@@ -241,6 +255,60 @@ async function callKotoha(level, context, messages, maxTokens) {
   return block ? block.text : "（うまく聞こえなかったみたい）";
 }
 
+// ===== 勉強机: コトハの和文英訳ドリル(出題→英訳→添削→次の問題) =====
+function buildStudySystem(level) {
+  const guide = level === 900
+    ? `TOEIC900・上級(CEFR C1相当)。しっかり手応えのある英作文にする。
+   - 1文あたり15〜25語程度の長めで内容のある文。
+   - 関係詞・分詞構文・仮定法・接続詞による複文/重文、抽象的・ビジネス/時事的な話題を積極的に使う。
+   - 高度な語彙やコロケーション、受動態・完了形・無生物主語など、英訳に工夫が要る構造を含める。
+   - 例:「来期の業績が改善しなければ、経営陣は事業の一部を売却せざるを得ないだろう。」「彼女が提案した計画は、コストを抑えつつ生産性を高めるという点で画期的だった。」`
+    : level === 700
+    ? `TOEIC700・中級(CEFR B1-B2相当)。日常・ビジネスでよく使う、少しひねりのある文。
+   - 1文あたり10〜16語程度。
+   - 接続詞や関係詞を使った複文、未来・現在完了・助動詞・比較などを織り交ぜる。
+   - 例:「会議が長引いたので、私たちは昼食を食べる時間がありませんでした。」「もし明日雨が降ったら、イベントは延期されます。」`
+    : `TOEIC500・初級(CEFR A2相当)。短くやさしい基本文。
+   - 1文あたり5〜9語程度。
+   - 現在・過去の基本時制、be動詞・一般動詞、身近で具体的な話題。複雑な構文は避ける。
+   - 例:「私は毎朝コーヒーを飲みます。」「彼女は昨日、新しい靴を買いました。」`;
+  const pname = (window.getPlayerName && window.getPlayerName()) || "";
+  return `あなたは「コトハ」。幼い女の子の姿をした言葉の精霊で、主人公${pname ? `(${pname})` : ""}の英語学習の相棒です。いまは勉強机で「和文英訳ドリル」の先生をしています。
+
+進め方:
+1. あなたは日本語の短い文を1つ出題します(next_ja)。主人公はそれを英語に訳して送ります。
+2. 次のターンでは、直前にあなたが出した日本語文に対する主人公の英訳を評価します。
+   - 概ね正しく自然なら correct=true。文法ミスや不自然さ・意味のズレがあれば correct=false。
+   - feedback_ja: 日本語で短く優しい講評(褒める/どこをどう直すか)。決して責めず励ます、幼い女の子の親しみやすいタメ口。
+   - model_en: その日本語文の自然な模範英訳を1つ。
+3. つづけて新しい日本語文を next_ja に入れて出題します。これを繰り返します。
+
+出題する日本語文の難易度(必ずこのレベルに合わせ、これより簡単にしない):
+${guide}
+- 出題は1文ずつ。毎回ちがう話題でバリエーションを出す。
+- next_ja は必ず日本語。model_en と評価する対象は英語。
+- 模範英訳 model_en も、このレベルにふさわしい自然で適切な難度の英語にする。
+- 主人公が日本語のまま答えた場合は correct=false にして、英語で書くようやさしく促す。
+
+最初のターン(主人公がまだ何も英訳していないとき)は、feedback_ja に短い挨拶、correct=true、model_en は空文字、next_ja に最初の問題を入れてください。`;
+}
+async function callClaudeStudy(level, messages) {
+  const body = {
+    model: AI_CONFIG.model,
+    max_tokens: AI_CONFIG.maxTokens,
+    system: buildStudySystem(level),
+    messages,
+  };
+  const oc = outputConfigWith(STUDY_SCHEMA); if (oc) body.output_config = oc;
+  const data = await postClaude(body);
+  if (data.stop_reason === "refusal") {
+    return { feedback_ja: "（…うまく出せないみたい。ごめんね）", correct: true, model_en: "", next_ja: "今日はとてもいい天気です。" };
+  }
+  const block = (data.content || []).find((b) => b.type === "text");
+  if (!block) throw { code: "no_text" };
+  return JSON.parse(block.text);
+}
+
 // ※ ギルド依頼はAI自動生成を廃止し、事前定義リスト(quests.js の QUEST_POOL)から
 //    ランダム出題する方式に変更しました(game.js の pickQuestsFromPool)。
 
@@ -339,6 +407,13 @@ const Chat = (() => {
       content: `次の英文を、英語初心者の私にやさしく詳しく解説して。意味・使われている単語・文法のポイント・どんな場面で使うかも教えてね。読みやすく改行してOKだけど、** などの記号装飾は使わないでね：\n"${en}"`,
     }], 1500); // 解説は長くなりがちなので上限を多めに(途中で切れないように)
   }
+  // 勉強机: 出題された日本語文を英訳するためのヒント(完成英文は出さない)
+  async function callStudyHint(ja, lv) {
+    return callKotoha(lv, null, [{
+      role: "user",
+      content: `次の日本語を英語に訳すための「ヒント」を、英語学習中の私に教えて。完成した英文そのものは絶対に書かないでね。使えそうな英単語や言い回しを2〜4個、それと文の組み立て方(時制や構文のポイント)を、日本語で短く。** などの記号装飾は使わないでね：\n「${ja}」`,
+    }], 500);
+  }
   function addPlayerLine(text) {
     const row = el("div", "chat-row me");
     row.appendChild(el("div", "bubble me-bubble", text));
@@ -376,6 +451,57 @@ const Chat = (() => {
     row.appendChild(bubble);
     logEl.appendChild(row);
     scrollBottom();
+  }
+
+  // 勉強机: 出題(日本語の問題)を表示。💡ヒントボタンつき。
+  function addStudyProblem(ja) {
+    const box = el("div", "study-q");
+    box.appendChild(el("div", "study-q-label", "📝 英訳しよう"));
+    box.appendChild(el("div", "study-q-ja", ja));
+    const hint = el("div", "study-hint");
+    hint.style.display = "none";
+    let loaded = false, loading = false;
+    const btn = el("button", "tr-btn hint-btn", "💡 ヒントを見る");
+    btn.addEventListener("click", async () => {
+      if (loading) return;
+      if (loaded) { // 2回目以降は表示/非表示の切替
+        const show = hint.style.display === "none";
+        hint.style.display = show ? "block" : "none";
+        btn.textContent = show ? "🔼 ヒントをかくす" : "💡 ヒントを見る";
+        return;
+      }
+      loading = true; btn.textContent = "💡 コトハが考え中…";
+      try {
+        hint.textContent = await callStudyHint(ja, level);
+        hint.style.display = "block";
+        loaded = true; btn.textContent = "🔼 ヒントをかくす";
+      } catch (err) {
+        hint.textContent = "⚠ " + errorMessage(err);
+        hint.style.display = "block";
+        btn.textContent = "💡 もう一度ヒント";
+      } finally { loading = false; scrollBottom(); }
+    });
+    const btns = el("div", "bubble-btns");
+    btns.appendChild(btn);
+    box.appendChild(btns);
+    box.appendChild(hint);
+    logEl.appendChild(box); scrollBottom();
+  }
+  // 勉強机: 直前の英訳への講評＋模範英訳を表示
+  function addStudyFeedback(data) {
+    const ok = !!data.correct;
+    const box = el("div", "correction " + (ok ? "ok" : "fix"));
+    box.appendChild(el("div", "corr-title", ok ? "✓ せいかい！" : "✏️ コトハの添削"));
+    if (data.feedback_ja) box.appendChild(el("div", "corr-note", data.feedback_ja));
+    if (data.model_en) {
+      const line = el("div", "corr-fixed");
+      line.appendChild(el("span", "corr-label", "模範: "));
+      line.appendChild(el("span", "corr-eng", data.model_en));
+      box.appendChild(line);
+      if (window.Voice) { const b = el("div", "bubble-btns"); Voice.attachSpeakButton(b, data.model_en, "en"); box.appendChild(b); }
+    }
+    logEl.appendChild(box); scrollBottom();
+    if (window.Voice && data.model_en) Voice.autoSpeak(data.model_en, "en");
   }
 
   function setBusy(b) {
@@ -485,6 +611,14 @@ const Chat = (() => {
         if (!reply || reply.trim() === "") throw { code: "no_text" };
         addKotohaLine(reply);
         history.push({ role: "assistant", content: reply });
+      } else if (convMode === "study") {
+        const data = await callClaudeStudy(level, history);
+        typing.remove();
+        if (!data || typeof data.next_ja !== "string" || data.next_ja.trim() === "") throw { code: "no_text" };
+        if (isOpening) { if (data.feedback_ja) addKotohaLine(data.feedback_ja); }
+        else addStudyFeedback(data); // 直前の英訳への講評＋模範
+        addStudyProblem(data.next_ja); // 次の問題
+        history.push({ role: "assistant", content: JSON.stringify({ model_en: data.model_en, next_ja: data.next_ja }) });
       } else {
         // 直前のプレイヤー発言(好感度判定などに使う)
         const last = history[history.length - 1];
@@ -519,6 +653,12 @@ const Chat = (() => {
   function startGreeting() {
     if (convMode === "kotoha") {
       addKotohaLine("どうしたの、相棒？ 英語で何て言えばいいか、町の人の言葉の意味、冒険で困ったこと…なんでも聞いて！");
+      return;
+    }
+    if (convMode === "study") {
+      addInfo("コトハ「英訳れんしゅうを始めるよ！ 私が出す日本語の文を、英語にして送ってね。」");
+      history.push({ role: "user", content: "(レッスンを始めて。最初の問題を出して。)" });
+      turn(true);
       return;
     }
     if (questHook && questHook.intro) addInfo(questHook.intro); // 会話チャレンジ等のミッション説明
@@ -563,6 +703,14 @@ const Chat = (() => {
     beginSession("コトハ");
   }
 
+  // 勉強机: コトハと和文英訳のドリル
+  function openStudy(toeicLevel, onClose) {
+    convMode = "study"; kotohaContext = null; sendLabel = "答える";
+    npc = { id: "kotoha", name: "コトハ" }; level = toeicLevel; onCloseCb = onClose || null;
+    inputEl.placeholder = "英語で答える… (Enterで送信)";
+    beginSession("コトハ（英訳れんしゅう）");
+  }
+
   function beginSession(title) {
     suspended = null;
     pendingClose = null;
@@ -595,7 +743,7 @@ const Chat = (() => {
     if (after) after(); // 「売りたい/泊まりたい」など、閉じた後の動作
   }
 
-  return { open, openKotoha, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; }, info: (t) => addInfo(t) };
+  return { open, openKotoha, openStudy, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; }, info: (t) => addInfo(t) };
 })();
 
 window.Chat = Chat;

@@ -30,6 +30,19 @@ const AUTO_MSG_DELAY = 700; // メッセージ1枚あたりの自動送り間隔
 let wordCorrect = {};     // 単語ごとの正解回数(en -> 回数)。出題ウェイト計算に使用
 let floristAffection = 0; // 花屋リリィの好感度(0〜100)。良い英語の会話で上がる
 let metNPCs = new Set();  // 一度会話したNPCのid。次から名前で呼んでくれる
+let ownedHome = null;     // 所有しているマイホームのid(null=未購入)
+// 不動産屋で買える物件(安い順)。買うと町の「売り家」が「マイホーム」になる
+const HOME_PROPERTIES = [
+  { id: "cottage", name: "ボロ小屋",     price: 500,  decor: "home_cottage" },
+  { id: "stone",   name: "石造りの家",   price: 2000, decor: "home_stone" },
+  { id: "manor",   name: "大きな邸宅",   price: 8000, decor: "home_manor" },
+];
+// 所有グレードに応じてマイホームの内装と表示名を更新
+function refreshHome() {
+  const p = ownedHome && HOME_PROPERTIES.find((x) => x.id === ownedHome);
+  AREAS.home.name = p ? "マイホーム" : "売り家";
+  AREAS.home.decor = p ? (DECOR_TEMPLATES[p.decor] || []).concat(HOME_GARDEN_DECOR) : [];
+}
 
 // chat.js から参照: 主人公名 / NPCが面識ありか / 面識を記録
 window.getPlayerName = () => player.name;
@@ -123,6 +136,7 @@ const BUILDING_DEFS = {
   green:      { name: "八百屋", npc: { id: "green",      name: "八百屋 Vera",       color: "#6aa84a", shop: "green" }, decor: "green" },
   meat:       { name: "肉屋",   npc: { id: "meat",       name: "肉屋 Otto",         color: "#b05a4a", shop: "meat" }, decor: "meat" },
   florist:    { name: "花屋",   npc: { id: "florist",    name: "花屋 リリィ",       color: "#e57aa0" }, decor: "florist" },
+  realestate: { name: "不動産屋", npc: { id: "realestate", name: "不動産屋 Estelle",   color: "#b0884a" }, decor: "realestate" },
 };
 // 内装(家具)テンプレ。中央列(列5の通路と店主(5,2))は空ける。
 const DECOR_TEMPLATES = {
@@ -142,7 +156,19 @@ const DECOR_TEMPLATES = {
   green:      [{ tx: 1, ty: 1, kind: "crate" }, { tx: 9, ty: 1, kind: "crate" }, { tx: 2, ty: 3, kind: "crate" }, { tx: 8, ty: 3, kind: "crate" }, { tx: 2, ty: 5, kind: "barrel" }, { tx: 8, ty: 5, kind: "plant" }],
   meat:       [{ tx: 3, ty: 3, kind: "counter" }, { tx: 4, ty: 3, kind: "counter" }, { tx: 7, ty: 3, kind: "counter" }, { tx: 8, ty: 3, kind: "counter" }, { tx: 1, ty: 1, kind: "shelf" }, { tx: 9, ty: 1, kind: "barrel" }],
   florist:    [{ tx: 1, ty: 1, kind: "plant" }, { tx: 9, ty: 1, kind: "plant" }, { tx: 1, ty: 4, kind: "plant" }, { tx: 9, ty: 4, kind: "plant" }, { tx: 2, ty: 3, kind: "plant" }, { tx: 8, ty: 3, kind: "plant" }, { tx: 3, ty: 5, kind: "plant" }, { tx: 7, ty: 5, kind: "plant" }],
+  realestate: [{ tx: 1, ty: 1, kind: "shelf" }, { tx: 9, ty: 1, kind: "shelf" }, { tx: 2, ty: 3, kind: "table" }, { tx: 8, ty: 3, kind: "counter" }, { tx: 1, ty: 5, kind: "board" }, { tx: 9, ty: 5, kind: "plant" }],
+  // マイホーム(購入グレード別の内装。マップは13×11のHOME_MAP)
+  home_cottage: [{ tx: 1, ty: 5, kind: "bed" }, { tx: 1, ty: 7, kind: "barrel" }, { tx: 3, ty: 7, kind: "crate" }, { tx: 8, ty: 7, kind: "desk" }],
+  home_stone:   [{ tx: 1, ty: 5, kind: "bed" }, { tx: 3, ty: 6, kind: "table" }, { tx: 1, ty: 7, kind: "shelf" }, { tx: 5, ty: 5, kind: "plant" }, { tx: 1, ty: 1, kind: "lamp" }, { tx: 5, ty: 1, kind: "lamp" }, { tx: 3, ty: 7, kind: "rug", solid: false }, { tx: 8, ty: 7, kind: "desk" }],
+  home_manor:   [{ tx: 1, ty: 5, kind: "bed" }, { tx: 3, ty: 5, kind: "bed" }, { tx: 1, ty: 7, kind: "shelf" }, { tx: 3, ty: 7, kind: "table" }, { tx: 5, ty: 5, kind: "plant" }, { tx: 1, ty: 1, kind: "lamp" }, { tx: 5, ty: 1, kind: "lamp" }, { tx: 10, ty: 5, kind: "plant" }, { tx: 10, ty: 7, kind: "shelf" }, { tx: 9, ty: 7, kind: "table" }, { tx: 5, ty: 7, kind: "rug", solid: false }, { tx: 8, ty: 7, kind: "desk" }],
 };
+// 室内庭(右上の g マス)の花壇。全グレード共通で置く。歩いて入れる。
+const HOME_GARDEN_DECOR = [
+  { tx: 8, ty: 1, kind: "flower", solid: false }, { tx: 10, ty: 1, kind: "flower", solid: false },
+  { tx: 9, ty: 2, kind: "flower", solid: false }, { tx: 11, ty: 2, kind: "flower", solid: false },
+  { tx: 8, ty: 3, kind: "flower", solid: false }, { tx: 10, ty: 3, kind: "flower", solid: false },
+  { tx: 9, ty: 4, kind: "flower", solid: false }, { tx: 11, ty: 4, kind: "flower", solid: false },
+];
 
 // 町の建物配置(col,row は建物ブロックの左上。w/h省略時は3×2。ギルドのみ5×3)
 const TOWN_BUILDINGS = [
@@ -151,9 +177,22 @@ const TOWN_BUILDINGS = [
   { id: "weapon", col: 2, row: 6 }, { id: "material", col: 6, row: 6 }, { id: "smith", col: 10, row: 6 },
   { id: "guild", col: 14, row: 6, w: 5, h: 3 }, { id: "salon", col: 20, row: 6 }, { id: "police", col: 24, row: 6 },
   { id: "fish", col: 6, row: 10 }, { id: "green", col: 12, row: 10 }, { id: "meat", col: 18, row: 10 }, { id: "florist", col: 24, row: 10 },
+  { id: "realestate", col: 2, row: 10 },
+  // マイホームは町の離れ(下部)に庭付きの大きな建物として配置(5×3)
+  { id: "home", col: 3, row: 18, w: 5, h: 3 },
 ];
-const TOWN_COLS = 30, TOWN_ROWS = 22;
-const TOWN_TREES = [[5, 15], [11, 16], [20, 15], [26, 17], [3, 18]];
+const TOWN_COLS = 30, TOWN_ROWS = 26;
+const TOWN_TREES = [[5, 15], [20, 15], [26, 17], [12, 18], [1, 16], [28, 20]];
+// マイホームの庭(離れの建物まわりの外構)。柵は通れない・花壇は通れる。
+const HOME_YARD_DECOR = [
+  { tx: 2, ty: 21, kind: "fence" }, { tx: 2, ty: 22, kind: "fence" }, { tx: 2, ty: 23, kind: "fence" },
+  { tx: 8, ty: 21, kind: "fence" }, { tx: 8, ty: 22, kind: "fence" }, { tx: 8, ty: 23, kind: "fence" },
+  { tx: 3, ty: 23, kind: "fence" }, { tx: 4, ty: 23, kind: "fence" }, { tx: 6, ty: 23, kind: "fence" }, { tx: 7, ty: 23, kind: "fence" },
+  { tx: 3, ty: 21, kind: "flower", solid: false }, { tx: 4, ty: 21, kind: "flower", solid: false },
+  { tx: 6, ty: 21, kind: "flower", solid: false }, { tx: 7, ty: 21, kind: "flower", solid: false },
+  { tx: 3, ty: 22, kind: "flower", solid: false }, { tx: 4, ty: 22, kind: "flower", solid: false },
+  { tx: 6, ty: 22, kind: "flower", solid: false }, { tx: 7, ty: 22, kind: "flower", solid: false },
+];
 // 迷いネコ(教会の裏に出現)。逃げ先の候補。
 const CAT = { id: "cat", name: "黒ネコ", tx: 27, ty: 1, color: "#1a1a1a" };
 const CAT_SPOTS = [[27, 1], [23, 1], [19, 1]];
@@ -173,7 +212,7 @@ const _town = (function buildTown() {
     for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) g[b.row + dy][b.col + dx] = "#";
     const doorX = b.col + (w >> 1), doorY = b.row + h - 1;
     g[doorY][doorX] = "D";
-    const spawn = b.id === "guild" ? { tx: 6, ty: 6 } : { tx: 5, ty: 5 };
+    const spawn = b.id === "guild" ? { tx: 6, ty: 6 } : b.id === "home" ? { tx: 6, ty: 8 } : { tx: 5, ty: 5 };
     doors.push({ tx: doorX, ty: doorY, to: b.id, spawn, ret: { tx: doorX, ty: doorY + 1 } });
   }
   const exX = TOWN_COLS >> 1, exY = TOWN_ROWS - 2;
@@ -194,7 +233,7 @@ const AREAS = {
   town: {
     id: "town", indoor: false, map: TOWN_MAP, cols: TOWN_COLS, rows: TOWN_ROWS,
     npcs: [{ id: "bard", name: "吟遊詩人 Lyra", tx: 15, ty: 14, color: "#6ab0e0" }, CAT],
-    decor: [{ tx: TOILET.tx, ty: TOILET.ty, kind: "toilet" }],
+    decor: [{ tx: TOILET.tx, ty: TOILET.ty, kind: "toilet" }, ...HOME_YARD_DECOR],
     doors: _town.doors.map((d) => ({ tx: d.tx, ty: d.ty, to: d.to, spawn: d.spawn })),
   },
   guild: {
@@ -211,6 +250,26 @@ for (const [id, def] of Object.entries(BUILDING_DEFS)) {
     doors: [{ tx: 5, ty: 6, to: "town", spawn: townReturnOf(id) }],
   };
 }
+// マイホーム内部(13×11の広め。右上に室内庭 g、下中央 D が玄関)
+const HOME_MAP = [
+  "#############",
+  "#......#gggg#",
+  "#......#gggg#",
+  "#......#gggg#",
+  "#.......gggg#",
+  "#...........#",
+  "#...........#",
+  "#...........#",
+  "#...........#",
+  "#.....D.....#",
+  "#############",
+];
+// マイホーム(購入前は「売り家」。店員なし。内装は購入グレードで変わる)
+AREAS.home = {
+  id: "home", indoor: true, name: "売り家", map: HOME_MAP, cols: 13, rows: 11,
+  npcs: [], decor: [],
+  doors: [{ tx: 6, ty: 9, to: "town", spawn: townReturnOf("home") }],
+};
 // ===== ダンジョン(フィールドの入口 X から入る) =====
 // #=岩壁 .=床 D=出口。柱(##)を散らした開けた洞窟。歩くとエンカウント。
 const DUNGEON_MAP = [
@@ -424,7 +483,7 @@ const FOOD_SHOPS = {
   green: [{ name: "キャベツ", price: 6 }, { name: "トマト", price: 8 }],
   meat:  [{ name: "とり肉", price: 14 }, { name: "ぶた肉", price: 18 }],
 };
-const SHOP_TITLE = { material: "素材屋", weapon: "武器屋", fish: "魚屋", green: "八百屋", meat: "肉屋" };
+const SHOP_TITLE = { material: "素材屋", weapon: "武器屋", fish: "魚屋", green: "八百屋", meat: "肉屋", home: "不動産屋 〜 物件リスト" };
 function buyItem(name) { bag[name] = (bag[name] || 0) + 1; }
 function hasItem(name) { return (bag[name] || 0) > 0; }
 function useItem(name) { if (bag[name] > 0) { bag[name]--; if (bag[name] <= 0) delete bag[name]; } }
@@ -442,6 +501,14 @@ function shopRows() {
   if (shop.type === "material") {
     const sv = materialsValue();
     rows.push({ kind: "sell", enabled: sv > 0, label: sv > 0 ? `素材を ぜんぶ売る（+${sv}G）` : "売る素材がない" });
+  } else if (shop.type === "home") {
+    HOME_PROPERTIES.forEach((p, i) => {
+      const owned = ownedHome === p.id;
+      rows.push({
+        kind: "buyhome", idx: i, enabled: !owned && player.gold >= p.price,
+        label: owned ? `✓ ${p.name}（いま住んでいる）` : `${p.name}（${p.price}G）`,
+      });
+    });
   } else if (FOOD_SHOPS[shop.type]) {
     FOOD_SHOPS[shop.type].forEach((it, i) => {
       rows.push({ kind: "buyfood", idx: i, enabled: player.gold >= it.price, label: `${it.name}（${it.price}G）` });
@@ -487,6 +554,11 @@ function shopSelect(row) {
     else if (it.kind === "def") player.def += it.value;
     else { player.maxhp += it.value; player.hp += it.value; }
     shop.msg = `${it.name}を そうびした！`; shop.msgT = 220;
+  } else if (row.kind === "buyhome") {
+    const p = HOME_PROPERTIES[row.idx];
+    player.gold -= p.price; ownedHome = p.id;
+    refreshHome();
+    shop.msg = `${p.name}を 買った！ 町に「マイホーム」ができたよ。休んでセーブできるよ!`; shop.msgT = 360;
   } else if (row.kind === "buyfood") {
     const it = FOOD_SHOPS[shop.type][row.idx];
     player.gold -= it.price; buyItem(it.name);
@@ -695,6 +767,15 @@ document.querySelectorAll("#dev-bar button[data-stage]").forEach((b) => {
   b.addEventListener("click", (e) => { e.preventDefault(); devJump(parseInt(b.dataset.stage, 10)); });
 });
 
+// 開発用: 所持金に10000G追加(マイホーム購入などのテスト用)
+const devGoldBtn = document.getElementById("dev-gold");
+if (devGoldBtn) devGoldBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  player.gold += 10000;
+  showToast(`💰 +10000G（所持金 ${player.gold}G）`);
+});
+window.gold = (n) => { player.gold = n; showToast(`💰 所持金を ${player.gold}G に`); }; // コンソール用
+
 // 名前入力(オープニング)
 const nameOkBtn = document.getElementById("name-ok");
 if (nameOkBtn) nameOkBtn.addEventListener("click", (e) => { e.preventDefault(); confirmName(); });
@@ -817,6 +898,7 @@ function onTap(x, y) {
     const tx = Math.floor((x + camX) / TILE), ty = Math.floor((y + camY) / TILE);
     const n = npcAt(tx, ty);
     if (n) { interactNPC(n); return; }
+    if (deskAt(tx, ty)) { startDeskStudy(); return; } // 勉強机タップ→英訳ドリル
     if (!hudShown) { setHud(true); return; } // 何もない所をタップ → 情報パネルを表示
     return;
   }
@@ -906,7 +988,7 @@ function saveGame() {
     quest: quest ? { ...quest } : null,
     materials: { ...materials }, bag: { ...bag }, boughtItems: [...boughtItems],
     sideQuests: sideQuests.map((q) => ({ ...q })), sideQuestId,
-    wordCorrect: { ...wordCorrect }, floristAffection, metNPCs: [...metNPCs],
+    wordCorrect: { ...wordCorrect }, floristAffection, metNPCs: [...metNPCs], ownedHome,
     savedOverworld: { ...savedOverworld }, catSpot,
   };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); return true; }
@@ -926,6 +1008,7 @@ function loadGame() {
   wordCorrect = data.wordCorrect || {};
   floristAffection = data.floristAffection || 0;
   metNPCs = new Set(data.metNPCs || []);
+  ownedHome = data.ownedHome || null; refreshHome();
   savedOverworld = data.savedOverworld || { tx: 2, ty: 12 };
   catSpot = Math.min(data.catSpot || 0, CAT_SPOTS.length - 1);
   CAT.tx = CAT_SPOTS[catSpot][0]; CAT.ty = CAT_SPOTS[catSpot][1];
@@ -958,7 +1041,7 @@ function startGame(level) {
   materials = {}; quest = null; boughtItems = new Set();
   bag = {}; catSpot = 0; CAT.tx = CAT_SPOTS[0][0]; CAT.ty = CAT_SPOTS[0][1];
   board = null; boardCache = null; sideQuests = []; questLog = null;
-  wordCorrect = {}; zone = ""; floristAffection = 0; metNPCs = new Set();
+  wordCorrect = {}; zone = ""; floristAffection = 0; metNPCs = new Set(); ownedHome = null; refreshHome();
   resetEncounter();
   startOpening();
 }
@@ -986,7 +1069,7 @@ function devJump(stage) {
   if (stage === 12) bag["迷いネコ"] = 1;        // ⑬: 捕獲済みのネコを所持(届けられる)
   catSpot = 0; CAT.tx = CAT_SPOTS[0][0]; CAT.ty = CAT_SPOTS[0][1];
   board = null; boardCache = null; sideQuests = []; questLog = null;
-  wordCorrect = {}; metNPCs = new Set();
+  wordCorrect = {}; metNPCs = new Set(); ownedHome = null; refreshHome();
   resetEncounter();
   if (stage <= 1) {
     curArea = AREAS.town;
@@ -1022,7 +1105,17 @@ function tryTalk() {
   if (player.dir === "up") fy--; else if (player.dir === "down") fy++;
   else if (player.dir === "left") fx--; else if (player.dir === "right") fx++;
   const n = npcAt(fx, fy);
-  if (n) interactNPC(n);
+  if (n) { interactNPC(n); return; }
+  if (deskAt(fx, fy)) { startDeskStudy(); return; } // マイホームの勉強机→英訳ドリル
+}
+// マイホームの勉強机が指定マスにあるか
+function deskAt(tx, ty) {
+  return curArea.id === "home" && (curArea.decor || []).some((d) => d.kind === "desk" && d.tx === tx && d.ty === ty);
+}
+// 勉強机: コトハと和文英訳の英語学習(出題→英訳→添削の繰り返し)
+function startDeskStudy() {
+  for (const k in keys) keys[k] = false;
+  Chat.openStudy(toeicLevel, () => { /* 終了後は家に留まる */ });
 }
 
 // 宿屋に泊まる(HP全回復＋クエスト進行)。泊まったらコトハがギルド登録を提案。
@@ -1079,6 +1172,7 @@ function interactNPC(n) {
   if (n.id === "guild_receptionist") { talkGuild(n); return; } // ギルド受付: 登録/依頼/報告
   if (n.id === "salon") { talkSalon(n); return; }              // 美容師Coco: 特徴を聞く/ネコを届ける
   if (n.id === "florist") { talkFlorist(n); return; }          // 花屋リリィ: 好感度つきAI会話
+  if (n.id === "realestate") { talkRealEstate(n); return; }    // 不動産屋: 家を買う
   if (n.shop) { talkShop(n); return; }                         // 店: 売りたい/買いたい→メニュー
   if (quest && quest.stage === 2) {                            // 素材屋の場所を尋ねるイベント
     if (Chat.aiReady()) talkAskDirections(n);
@@ -1628,6 +1722,25 @@ function talkToNPC(npc) {
   Chat.open(npc, toeicLevel, () => { /* 会話終了後は街に留まる */ });
 }
 
+// 不動産屋: AI会話で「家を買いたい」と伝えると物件リストが開く(AI無しなら直接)
+function talkRealEstate(n) {
+  for (const k in keys) keys[k] = false;
+  if (!Chat.aiReady()) { openHomeShop(); return; }
+  Chat.setQuest({
+    note: "the traveler says they want to buy a house or property, see the houses/properties for sale, or find a place to live (e.g. \"I want to buy a house\", \"Do you have any houses for sale?\", \"I'm looking for a place to live\"). When they do, happily offer to show the properties you have available.",
+    flagMessage: "コトハ「物件を見せてくれるって！ × でとじて物件リストへ」",
+    onClose: () => openHomeShop(),
+  });
+  Chat.open(n, toeicLevel, () => {});
+}
+function openHomeShop() {
+  shop = {
+    type: "home", sel: 0, msgT: 280,
+    msg: ownedHome ? "コトハ「もっといい家に住み替える?」" : "コトハ「どの家を買う? 自分の家ができるよ!」",
+  };
+  state = STATE.SHOP;
+}
+
 // AI会話版: "Where is the material shop?" 等を聞けたら素材屋が出てくる
 function talkAskDirections(npc) {
   for (const k in keys) keys[k] = false;
@@ -1669,7 +1782,21 @@ function playTownCutscene(steps, onDone) {
 // 扉を通る(家の中へ／町へ／フィールドへ)
 function goThroughDoor(d) {
   if (d.to === "field") { leaveTown(); return; }
+  if (d.to === "home") { enterHome(d.spawn); return; }
   enterArea(d.to, d.spawn);
+}
+// マイホーム: 未購入なら入れない。購入済みなら入ってHP全回復＋セーブ
+function enterHome(spawn) {
+  for (const k in keys) keys[k] = false;
+  if (!ownedHome) {
+    playTownCutscene([{ who: "コトハ", lines: ["ここは売りに出てる家だね。", "不動産屋さんで買えるみたい。自分の家、ほしいね!"] }]);
+    return;
+  }
+  refreshHome();
+  enterArea("home", spawn);
+  player.hp = player.maxhp;
+  const saved = canSave() && saveGame();
+  playTownCutscene([{ who: "コトハ", lines: ["ただいま! 我が家はやっぱり落ち着くね。", `HPが全回復したよ!${saved ? " 冒険も記録(セーブ)しておいたね。" : ""}`] }]);
 }
 function enterArea(id, spawn) {
   curArea = AREAS[id];
@@ -2426,6 +2553,11 @@ function drawInteriorTile(t, px, py) {
     ctx.fillStyle = "#4a382a"; ctx.fillRect(px, py + TILE - 5, TILE, 5);
     return;
   }
+  if (t === "g") { // 室内の庭(芝生)
+    ctx.fillStyle = "#3f7a34"; ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = "#46863a"; ctx.fillRect(px + 5, py + 7, 3, 3); ctx.fillRect(px + 20, py + 16, 3, 3); ctx.fillRect(px + 12, py + 24, 3, 3);
+    return;
+  }
   // 木の床
   ctx.fillStyle = "#b58a52"; ctx.fillRect(px, py, TILE, TILE);
   ctx.fillStyle = "#a87c46"; ctx.fillRect(px, py + TILE - 3, TILE, 3);
@@ -2550,7 +2682,45 @@ function drawDecor(kind, x, y) {
     case "forge": drawForge(x, y); break;
     case "counter": drawCounter(x, y); break;
     case "board": drawBoard(x, y); break;
+    case "flower": drawFlower(x, y); break;
+    case "fence": drawFence(x, y); break;
+    case "desk": drawDesk(x, y); break;
   }
+}
+// 勉強机(本・本立て・ランプ付き)
+function drawDesk(x, y) {
+  ctx.fillStyle = "#7a5230"; ctx.fillRect(x + 2, y + 12, 28, 6);        // 天板
+  ctx.fillStyle = "#5e3f22"; ctx.fillRect(x + 4, y + 18, 4, 12); ctx.fillRect(x + 24, y + 18, 4, 12); // 脚
+  ctx.fillStyle = "#3f2c18"; ctx.fillRect(x + 4, y + 18, 24, 3);        // 引き出し
+  // 開いた本
+  ctx.fillStyle = "#f3ead4"; ctx.fillRect(x + 9, y + 7, 14, 6);
+  ctx.fillStyle = "#c9b88f"; ctx.fillRect(x + 15, y + 7, 2, 6);
+  ctx.strokeStyle = "#9a8a64"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x + 11, y + 9); ctx.lineTo(x + 14, y + 9); ctx.moveTo(x + 18, y + 9); ctx.lineTo(x + 21, y + 9); ctx.stroke();
+  // 本立て(背表紙3冊)
+  ctx.fillStyle = "#c0506a"; ctx.fillRect(x + 3, y + 3, 3, 9);
+  ctx.fillStyle = "#4a80c0"; ctx.fillRect(x + 6, y + 4, 3, 8);
+  ctx.fillStyle = "#5aa84a"; ctx.fillRect(x + 9, y + 5, 3, 7);
+  // 卓上ランプ
+  ctx.fillStyle = "#caa030"; ctx.fillRect(x + 25, y + 6, 2, 6);
+  ctx.fillStyle = "#ffe082"; ctx.beginPath(); ctx.arc(x + 26, y + 5, 3, 0, Math.PI * 2); ctx.fill();
+}
+// 花壇(歩ける飾り)。カラフルな花を数輪。
+function drawFlower(x, y) {
+  ctx.fillStyle = "#2e8a30"; ctx.fillRect(x + 6, y + 18, 3, 8); ctx.fillRect(x + 15, y + 16, 3, 10); ctx.fillRect(x + 23, y + 19, 3, 7);
+  const blooms = [[7, 16, "#ff6f91"], [16, 13, "#ffd24a"], [24, 17, "#7aa0ff"]];
+  for (const [bx, by, col] of blooms) {
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(x + bx, y + by, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff8e0"; ctx.beginPath(); ctx.arc(x + bx, y + by, 1.5, 0, Math.PI * 2); ctx.fill();
+  }
+}
+// 木の柵(通れない)
+function drawFence(x, y) {
+  ctx.fillStyle = "#8a6a3e"; ctx.fillRect(x + 3, y + 12, 26, 4); ctx.fillRect(x + 3, y + 20, 26, 4); // 横木
+  ctx.fillStyle = "#6e5230";
+  ctx.fillRect(x + 5, y + 8, 4, 20); ctx.fillRect(x + 14, y + 8, 4, 20); ctx.fillRect(x + 23, y + 8, 4, 20); // 杭
+  ctx.fillStyle = "#9a784a"; ctx.fillRect(x + 5, y + 8, 4, 2); ctx.fillRect(x + 14, y + 8, 4, 2); ctx.fillRect(x + 23, y + 8, 4, 2);
 }
 
 function drawBed(x, y) {
