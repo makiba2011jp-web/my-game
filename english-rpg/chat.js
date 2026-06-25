@@ -100,8 +100,10 @@ const SCHEMA = {
       additionalProperties: false,
     },
     quest_flag: { type: "boolean" },
+    meaningful: { type: "boolean" },
+    fluent: { type: "boolean" },
   },
-  required: ["reply", "reply_ja", "correction", "quest_flag"],
+  required: ["reply", "reply_ja", "correction", "quest_flag", "meaningful", "fluent"],
   additionalProperties: false,
 };
 // 勉強机(コトハの和文英訳ドリル)用スキーマ
@@ -146,7 +148,9 @@ You MUST answer using the required JSON structure:
 - "correction.corrected": the most natural English way to say what the traveler meant (use this to show them the English even when they wrote in Japanese). If their English was already natural, repeat their sentence as-is.
 - "correction.note_ja": a short Japanese explanation (in Japanese). If they wrote in Japanese instead of English, explain that the people of this world only understand English and encourage them to try the English line in "corrected". If their English was just unnatural, explain what to fix. If it was already natural, give brief Japanese praise.
 - "quest_flag": ${questLine}
-Always write "reply_ja" and "note_ja" in Japanese.${questHook && questHook.tone ? "\n\n" + questHook.tone : ""}`;
+- "meaningful": true if the traveler's latest message is a coherent, relevant contribution that makes sense in the flow of THIS conversation. Set it to false if the message is off-topic, nonsensical, or contradictory given the context, or if it is just a repetitive/monotonous filler that barely advances the conversation.
+- "fluent": true if the traveler's latest message is advanced, fluent English (rich vocabulary, correct and complex grammar, natural phrasing). false for simple or broken English, or if it is not English.
+Always write "reply_ja" and "note_ja" in Japanese.${questHook && questHook.tone ? "\n\n" + questHook.tone : ""}${(window.getAffectionTone && window.getAffectionTone(npc.id)) ? "\n\n" + window.getAffectionTone(npc.id) : ""}`;
 }
 
 // ===== Claude 呼び出し（mode により接続先を切り替え）=====
@@ -216,7 +220,7 @@ async function callClaude(npc, level, messages) {
   const oc = outputConfig(true); if (oc) body.output_config = oc;
   const data = await postClaude(body);
   if (data.stop_reason === "refusal") {
-    return { reply: "...", reply_ja: "（うまく答えられないようだ）", correction: { natural: true, corrected: "", note_ja: "" }, quest_flag: false };
+    return { reply: "...", reply_ja: "（うまく答えられないようだ）", correction: { natural: true, corrected: "", note_ja: "" }, quest_flag: false, meaningful: true, fluent: false };
   }
   const block = (data.content || []).find((b) => b.type === "text");
   if (!block) throw { code: "no_text" };
@@ -683,8 +687,13 @@ const Chat = (() => {
         if (!isOpening) addCorrection(data.correction);
         addNpcLine(data.reply, data.reply_ja || "");
         history.push({ role: "assistant", content: data.reply });
-        // 毎ターンのフック(花屋の好感度など。開始の挨拶ターンは除く)
+        // 毎ターンのフック(開始の挨拶ターンは除く)
         if (!isOpening && questHook && questHook.onReply) questHook.onReply(data, userText);
+        // 全NPC共通の好感度(英語の質で上昇・口調が親しくなる)。文脈外/単調は無効点。
+        if (!isOpening && window.npcAffectionReply) {
+          const r = window.npcAffectionReply(npc.id, npc.name, data, userText);
+          if (r && r.lines) r.lines.forEach((ln) => addInfo(ln));
+        }
         // クエストフラグ判定(会話の中で条件を満たしたら発火。persist指定のフックは消さない)
         if (questHook && data.quest_flag === true && !questHook.persist) {
           const h = questHook; questHook = null;
@@ -745,6 +754,7 @@ const Chat = (() => {
     // 面識判定 → 今回の会話で「会ったことがある」状態にする
     travelerKnown = !!(window.npcKnowsName && window.npcKnowsName(npcObj.id));
     if (window.markNPCMet) window.markNPCMet(npcObj.id);
+    if (window.affectionOpen) window.affectionOpen(npcObj.id); // 好感度: 会話ごとの単調判定をリセット
     inputEl.placeholder = "英語で話す… (Enterで送信)";
     beginSession(npcObj.name);
   }
