@@ -360,8 +360,12 @@ function buildCookSystem(level, ingredients) {
 - 使える食材は次のものだけ: ${list}。このリストにない食材は使えません。リストにない物を指示されたら reply_ja で「それは持ってないよ」とやさしく伝え、done=false にします。
 - 数ターンやりとりして、主人公が「完成/できた/これで終わり(I'm done など)」と示すか、十分な手順がそろったら done=true にして料理を完成させます。
 - done=true のとき: dish_name_ja に料理名(日本語)、score(0-100)に出来栄え、ingredients_used に実際に使った食材(渡したリストの表記そのまま。例「マグロ×1」なら「マグロ」)、comment_ja に短い採点コメント(日本語)を入れる。
-  - 出来栄えscoreは「手順の丁寧さ・食材の活かし方・英語の指示の明確さ」で評価する。英語が雑/手順が少ないと低め、丁寧で具体的だと高め。
+  - 出来栄えscoreは「手順の丁寧さ・食材の活かし方」に加えて、特に【英語で調理指示できたか】を重視して評価する。
+  - 調理の手順を英語で言えていない場合(日本語やローマ字、単語の羅列だけなど)は score を大きく下げる。ほとんど英語を使っていなければ 30点以下にする。
+  - 英語が自然で流暢なほど score を上げる(語彙が豊か・文法が正確・調理動詞 chop/boil/grill/season などを的確に使えている)。とても流暢なら 85点以上もありえる。
+  - comment_ja では、英語の良かった点や次に英語でどう言うとよいかも一言そえる。
 - done=false のとき: dish_name_ja="", score=0, ingredients_used=[], comment_ja="" にする。
+- 主人公が日本語で指示してきたら、reply_ja でやさしく「英語で手順を教えてね」と促す。
 - reply_ja は必ず日本語で書く。`;
 }
 async function callClaudeCook(level, messages, ingredients) {
