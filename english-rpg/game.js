@@ -133,9 +133,6 @@ const BUILDING_DEFS = {
   smith:      { name: "鍛冶屋", npc: { id: "smith",      name: "鍛冶屋 Borin",      color: "#9098b0" }, decor: "smith" },
   salon:      { name: "美容院", npc: { id: "salon",      name: "美容師 Coco",       color: "#d07ab0" }, decor: "salon" },
   police:     { name: "警察署", npc: { id: "police",     name: "警官 Bruno",        color: "#3a5a8a" }, decor: "police" },
-  fish:       { name: "魚屋",   npc: { id: "fish",       name: "魚屋 Finn",         color: "#5a8ab0", shop: "fish" }, decor: "fish" },
-  green:      { name: "八百屋", npc: { id: "green",      name: "八百屋 Vera",       color: "#6aa84a", shop: "green" }, decor: "green" },
-  meat:       { name: "肉屋",   npc: { id: "meat",       name: "肉屋 Otto",         color: "#b05a4a", shop: "meat" }, decor: "meat" },
   florist:    { name: "花屋",   npc: { id: "florist",    name: "花屋 リリィ",       color: "#e57aa0" }, decor: "florist" },
   realestate: { name: "不動産屋", npc: { id: "realestate", name: "不動産屋 Estelle",   color: "#b0884a" }, decor: "realestate" },
 };
@@ -177,7 +174,8 @@ const TOWN_BUILDINGS = [
   { id: "bank", col: 14, row: 2 }, { id: "school", col: 18, row: 2 }, { id: "hospital", col: 22, row: 2 }, { id: "church", col: 26, row: 2 },
   { id: "weapon", col: 2, row: 6 }, { id: "material", col: 6, row: 6 }, { id: "smith", col: 10, row: 6 },
   { id: "guild", col: 14, row: 6, w: 5, h: 3 }, { id: "salon", col: 20, row: 6 }, { id: "police", col: 24, row: 6 },
-  { id: "fish", col: 6, row: 10 }, { id: "green", col: 12, row: 10 }, { id: "meat", col: 18, row: 10 }, { id: "florist", col: 24, row: 10 },
+  // 食料品店(大きめ): 中に魚屋・八百屋・肉屋＋食料品店員がいる
+  { id: "market", col: 8, row: 10, w: 7, h: 3 }, { id: "florist", col: 24, row: 10 },
   { id: "realestate", col: 2, row: 10 },
   // マイホームは町の離れ(下部)に庭付きの大きな建物として配置(5×3)
   { id: "home", col: 3, row: 18, w: 5, h: 3 },
@@ -213,7 +211,7 @@ const _town = (function buildTown() {
     for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) g[b.row + dy][b.col + dx] = "#";
     const doorX = b.col + (w >> 1), doorY = b.row + h - 1;
     g[doorY][doorX] = "D";
-    const spawn = b.id === "guild" ? { tx: 6, ty: 6 } : b.id === "home" ? { tx: 6, ty: 8 } : { tx: 5, ty: 5 };
+    const spawn = b.id === "guild" ? { tx: 6, ty: 6 } : b.id === "home" ? { tx: 6, ty: 8 } : b.id === "market" ? { tx: 6, ty: 7 } : { tx: 5, ty: 5 };
     doors.push({ tx: doorX, ty: doorY, to: b.id, spawn, ret: { tx: doorX, ty: doorY + 1 } });
   }
   const exX = TOWN_COLS >> 1, exY = TOWN_ROWS - 2;
@@ -270,6 +268,34 @@ AREAS.home = {
   id: "home", indoor: true, name: "売り家", map: HOME_MAP, cols: 13, rows: 11,
   npcs: [], decor: [],
   doors: [{ tx: 6, ty: 9, to: "town", spawn: townReturnOf("home") }],
+};
+// 食料品店(13×10)。魚屋・八百屋・肉屋＋食料品店員が並ぶ。下中央 D が出入口。
+const MARKET_MAP = [
+  "#############",
+  "#...........#",
+  "#...........#",
+  "#...........#",
+  "#...........#",
+  "#...........#",
+  "#...........#",
+  "#...........#",
+  "#.....D.....#",
+  "#############",
+];
+const MARKET_NPCS = [
+  { id: "fish",    name: "魚屋 Finn",       tx: 2,  ty: 2, color: "#5a8ab0", shop: "fish" },
+  { id: "green",   name: "八百屋 Vera",     tx: 5,  ty: 2, color: "#6aa84a", shop: "green" },
+  { id: "meat",    name: "肉屋 Otto",       tx: 8,  ty: 2, color: "#b05a4a", shop: "meat" },
+  { id: "grocery", name: "食料品店 マルコ", tx: 11, ty: 2, color: "#caa46a", shop: "grocery" },
+];
+const MARKET_DECOR = [
+  { tx: 2, ty: 3, kind: "counter" }, { tx: 5, ty: 3, kind: "counter" }, { tx: 8, ty: 3, kind: "counter" }, { tx: 11, ty: 3, kind: "counter" },
+  { tx: 1, ty: 1, kind: "crate" }, { tx: 11, ty: 1, kind: "crate" }, { tx: 1, ty: 7, kind: "barrel" }, { tx: 11, ty: 7, kind: "shelf" },
+];
+AREAS.market = {
+  id: "market", indoor: true, name: "食料品店", map: MARKET_MAP, cols: 13, rows: 10,
+  npcs: MARKET_NPCS, decor: MARKET_DECOR,
+  doors: [{ tx: 6, ty: 8, to: "town", spawn: townReturnOf("market") }],
 };
 // ===== ダンジョン(フィールドの入口 X から入る) =====
 // #=岩壁 .=床 D=出口。柱(##)を散らした開けた洞窟。歩くとエンカウント。
@@ -484,11 +510,12 @@ let wordList = null;         // 習得リスト表示中の状態 { page }
 let wordListBack = STATE.FIELD; // 習得リストを閉じたあとに戻る状態
 // 食料品店の品ぞろえ(買うと bag に入る)
 const FOOD_SHOPS = {
-  fish:  [{ name: "マグロ", price: 20 }, { name: "イワシ", price: 8 }],
-  green: [{ name: "キャベツ", price: 6 }, { name: "トマト", price: 8 }],
-  meat:  [{ name: "とり肉", price: 14 }, { name: "ぶた肉", price: 18 }],
+  fish:    [{ name: "マグロ", price: 20 }, { name: "イワシ", price: 8 }, { name: "サーモン", price: 18 }, { name: "えび", price: 14 }, { name: "たこ", price: 12 }, { name: "あさり", price: 10 }],
+  green:   [{ name: "キャベツ", price: 6 }, { name: "トマト", price: 8 }, { name: "にんじん", price: 6 }, { name: "たまねぎ", price: 6 }, { name: "じゃがいも", price: 7 }, { name: "なす", price: 8 }],
+  meat:    [{ name: "とり肉", price: 14 }, { name: "ぶた肉", price: 18 }, { name: "牛肉", price: 26 }, { name: "ベーコン", price: 16 }, { name: "ソーセージ", price: 14 }],
+  grocery: [{ name: "ライス", price: 8 }, { name: "麺", price: 8 }, { name: "パン", price: 7 }, { name: "卵", price: 6 }, { name: "油", price: 8 }, { name: "塩", price: 4 }, { name: "しょうゆ", price: 8 }, { name: "さとう", price: 6 }, { name: "バター", price: 12 }],
 };
-const SHOP_TITLE = { material: "素材屋", weapon: "武器屋", fish: "魚屋", green: "八百屋", meat: "肉屋", home: "不動産屋 〜 物件リスト" };
+const SHOP_TITLE = { material: "素材屋", weapon: "武器屋", fish: "魚屋", green: "八百屋", meat: "肉屋", grocery: "食料品店", home: "不動産屋 〜 物件リスト" };
 // 料理に使える食材(食材ショップの品)。台所の調理で消費する。
 const INGREDIENT_NAMES = [].concat(...Object.values(FOOD_SHOPS).map((a) => a.map((x) => x.name)));
 function buyItem(name) { bag[name] = (bag[name] || 0) + 1; }
@@ -579,6 +606,11 @@ function shopSelect(row) {
   const rows = shopRows();
   if (shop.sel >= rows.length) shop.sel = rows.length - 1;
 }
+// ショップ行のレイアウト(行数が多いと自動で詰める)
+function shopRowLayout(n) {
+  const top = 90, rh = Math.min(44, Math.floor((H - top - 36) / Math.max(1, n)));
+  return { top, rh, h: rh - 4 };
+}
 function drawShop() {
   ctx.fillStyle = "#06122b"; ctx.fillRect(0, 0, W, H);
   ctx.textAlign = "center";
@@ -587,13 +619,14 @@ function drawShop() {
   ctx.fillStyle = "#ffe082"; ctx.font = "15px 'MS Gothic', monospace";
   ctx.fillText(`所持金 ${player.gold}G`, W / 2, 72);
   const rows = shopRows();
+  const { top, rh, h } = shopRowLayout(rows.length);
   for (let i = 0; i < rows.length; i++) {
-    const y = 92 + i * 44;
-    drawWindow(40, y, 400, 40, shop.sel === i);
+    const y = top + i * rh;
+    drawWindow(40, y, 400, h, shop.sel === i);
     ctx.textAlign = "left";
     ctx.fillStyle = (rows[i].enabled || rows[i].kind === "exit") ? "#fff" : "#7a8aa8";
     ctx.font = "15px 'MS Gothic', monospace";
-    ctx.fillText(rows[i].label, 70, y + 26);
+    ctx.fillText(rows[i].label, 70, y + h - 13);
   }
   if (shop.msgT > 0) {
     ctx.textAlign = "center"; ctx.fillStyle = "#9fe0c0"; ctx.font = "13px 'MS Gothic', monospace";
@@ -680,7 +713,7 @@ function questLines() {
   if (quest.stage === 7) return ["⑧ 美容院の人に話を聞く", "迷いネコの特徴を聞き出そう"];
   if (quest.stage === 8) return ["⑨ 町の人に迷いネコのことを聞く", "目撃情報をあつめよう"];
   if (quest.stage === 9) return ["⑩ 迷いネコをとらえる", "教会の裏にネコがいるみたい"];
-  if (quest.stage === 10) return ["⑪ ネコの好きな食べ物を手に入れる", "魚屋でマグロを買おう"];
+  if (quest.stage === 10) return ["⑪ ネコの好きな食べ物を手に入れる", "食料品店の魚屋でマグロを買おう"];
   if (quest.stage === 11) return ["⑫ マグロで迷いネコをとらえる", "教会の裏のネコに近づこう"];
   if (quest.stage === 12) return ["⑬ 迷いネコを美容院の人に届ける", "美容師Cocoに話しかけよう"];
   if (quest.stage === 13) return ["⑭ ギルドに報告する", "ギルド受付に達成を報告しよう"];
@@ -930,9 +963,10 @@ function onTap(x, y) {
   }
   if (state === STATE.SHOP && shop) {
     const rows = shopRows();
+    const { top, rh, h } = shopRowLayout(rows.length);
     for (let i = 0; i < rows.length; i++) {
-      const ry = 92 + i * 44;
-      if (x >= 40 && x <= 440 && y >= ry && y <= ry + 40) { shop.sel = i; shopSelect(rows[i]); return; }
+      const ry = top + i * rh;
+      if (x >= 40 && x <= 440 && y >= ry && y <= ry + h) { shop.sel = i; shopSelect(rows[i]); return; }
     }
     return;
   }
@@ -1753,12 +1787,12 @@ function catFleeCutscene(first) {
         "あっ、ネコが逃げちゃった！ すばしっこいね…。",
         "このままじゃ捕まえられないよ。",
         "そうだ、ネコの好きな『マグロ』でおびき寄せてみよう！",
-        "町に魚屋があるはず。マグロを買いに行こう！",
+        "町に食料品店があるはず。中の魚屋でマグロを買おう！",
       ]
     : [
         "わっ、また逃げられちゃった！",
         "やっぱり好物の『マグロ』がないとダメみたい。",
-        "魚屋でマグロを買ってこよう！",
+        "食料品店の魚屋でマグロを買ってこよう！",
       ];
   if (first && quest) quest.stage = 10;
   playTownCutscene([{ who: "コトハ", lines }]);
