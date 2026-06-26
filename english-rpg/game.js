@@ -8,7 +8,7 @@ const TILE = 32, MAP_N = 15;
 ctx.imageSmoothingEnabled = false;
 
 // ===== ゲーム状態 =====
-const STATE = { TITLE: "title", NAME: "name", FIELD: "field", TOWN: "town", BATTLE: "battle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", BOARD: "board", QUESTLOG: "questlog", WORDLIST: "wordlist", GAMEOVER: "gameover", CLEAR: "clear" };
+const STATE = { TITLE: "title", NAME: "name", FIELD: "field", TOWN: "town", BATTLE: "battle", BOSSBATTLE: "bossbattle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", BOARD: "board", QUESTLOG: "questlog", WORDLIST: "wordlist", GAMEOVER: "gameover", CLEAR: "clear" };
 let state = STATE.TITLE;
 
 // プレイヤー
@@ -456,6 +456,8 @@ function doorAt(tx, ty) {
 let messageLines = [];     // 表示中メッセージ
 let messageAfter = null;   // メッセージ確定後に呼ぶ関数
 let battle = null;         // 現在の戦闘オブジェクト
+let fieldBoss = null;      // フィールドに出現中のエリアボス {tx,ty,boss,questId}
+let bossBattle = null;     // ボス戦(コマンドバトル)の状態
 let menuSel = 0;           // 選択カーソル
 let flash = 0;             // ダメージ点滅用
 let messageSpeaker = null; // メッセージの話者名(カットシーン用)
@@ -871,6 +873,12 @@ function onInput(k) {
     if (k === "confirm" || k === "cancel") advanceMessage();
     return;
   }
+  if (state === STATE.BOSSBATTLE && bossBattle && bossBattle.phase === "menu") {
+    if (k === "up") bossBattle.sel = (bossBattle.sel + 2) % 3;
+    else if (k === "down") bossBattle.sel = (bossBattle.sel + 1) % 3;
+    else if (k === "confirm") bossCommand(["attack", "guard", "flee"][bossBattle.sel]);
+    return;
+  }
   if (state === STATE.QUIZ && quiz) {
     if (k === "up") quiz.sel = (quiz.sel + 3) % 4;
     else if (k === "down") quiz.sel = (quiz.sel + 1) % 4;
@@ -996,6 +1004,13 @@ function onTap(x, y) {
     wlToggleAt(x, y); // 行タップで習得/未習得を切替
     return;
   }
+  if (state === STATE.BOSSBATTLE && bossBattle && bossBattle.phase === "menu") {
+    for (let i = 0; i < 3; i++) {
+      const bx = 16, by = 312 + i * 48;
+      if (x >= bx && x <= bx + 200 && y >= by && y <= by + 42) { bossBattle.sel = i; bossCommand(["attack", "guard", "flee"][i]); return; }
+    }
+    return;
+  }
   if (state === STATE.BATTLE && battle.phase === "select") {
     // 🔊 単語読み上げボタン
     if (window.Voice && inRect(x, y, BATTLE_SPK)) { Voice.speak(battle.word.en, "en"); return; }
@@ -1032,7 +1047,7 @@ function saveGame() {
     materials: { ...materials }, bag: { ...bag }, boughtItems: [...boughtItems],
     sideQuests: sideQuests.map((q) => ({ ...q })), sideQuestId,
     wordCorrect: { ...wordCorrect }, npcAffection: { ...npcAffection }, metNPCs: [...metNPCs], ownedHome,
-    dishes: dishes.map((d) => ({ ...d })), mealBuff: { ...mealBuff },
+    dishes: dishes.map((d) => ({ ...d })), mealBuff: { ...mealBuff }, fieldBoss: fieldBoss ? { ...fieldBoss } : null,
     savedOverworld: { ...savedOverworld }, catSpot,
   };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); return true; }
@@ -1058,6 +1073,7 @@ function loadGame() {
   dishes = data.dishes || [];
   mealBuff = data.mealBuff || { atk: 0, def: 0 };
   battleBuff = { atk: 0, def: 0 };
+  fieldBoss = data.fieldBoss || null; bossBattle = null;
   savedOverworld = data.savedOverworld || { tx: 2, ty: 12 };
   catSpot = Math.min(data.catSpot || 0, CAT_SPOTS.length - 1);
   CAT.tx = CAT_SPOTS[catSpot][0]; CAT.ty = CAT_SPOTS[catSpot][1];
@@ -1092,6 +1108,7 @@ function startGame(level) {
   board = null; boardCache = null; sideQuests = []; questLog = null;
   wordCorrect = {}; zone = ""; npcAffection = {}; affectionRecent = {}; metNPCs = new Set(); ownedHome = null; refreshHome();
   dishes = []; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
+  fieldBoss = null; bossBattle = null;
   resetEncounter();
   startOpening();
 }
@@ -1121,6 +1138,7 @@ function devJump(stage) {
   board = null; boardCache = null; sideQuests = []; questLog = null;
   wordCorrect = {}; metNPCs = new Set(); npcAffection = {}; affectionRecent = {}; ownedHome = null; refreshHome();
   dishes = []; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
+  fieldBoss = null; bossBattle = null;
   resetEncounter();
   if (stage <= 1) {
     curArea = AREAS.town;
@@ -1144,6 +1162,8 @@ function tryMove(dir) {
   let nx = player.tx, ny = player.ty;
   if (dir === "up") ny--; else if (dir === "down") ny++;
   else if (dir === "left") nx--; else if (dir === "right") nx++;
+  // フィールドのボスにぶつかる → ボス戦開始(マスには乗らない)
+  if (state === STATE.FIELD && fieldBoss && nx === fieldBoss.tx && ny === fieldBoss.ty) { startBossBattle(); return; }
   const ok = state === STATE.TOWN ? areaWalkable(nx, ny) : walkable(nx, ny);
   if (!ok) return;
   player.moving = true;
@@ -1294,6 +1314,9 @@ function talkGuild(n) {
     Chat.open(n, toeicLevel, () => {});
     return;
   }
+  // エリアボス討伐の報告(討伐済み=progress>=1)
+  const doneBoss = sideQuests.find((q) => q.type === "areaboss" && q.status === "active" && q.progress >= 1);
+  if (doneBoss) { reportAreaBoss(doneBoss); return; }
   // 目的⑦: 依頼を受ける
   if (quest && quest.stage === 6) {
     if (!Chat.aiReady()) { proposeRequest(); return; }
@@ -1357,6 +1380,7 @@ function completeRequest() {
 // 報酬はバランスのためゲーム側で決める
 function rewardFor(type, count) {
   const lv = toeicLevel === 900 ? 3 : toeicLevel === 700 ? 2 : 1;
+  if (type === "areaboss") return { gold: 150 + 40 * lv, gp: 40 }; // ボス討伐は高報酬
   if (type === "hunt") return { gold: 30 + 15 * count + 10 * lv, gp: 12 + 4 * count };
   if (type === "fetch") return { gold: 50 + 10 * lv, gp: 14 };
   return { gold: 45 + 15 * lv, gp: 22 }; // talk: 英語チャレンジはGP高め
@@ -1376,6 +1400,7 @@ function instantiateQuest(def) {
   if (def.type === "hunt") { q.enemy = def.enemy; q.count = count; }
   else if (def.type === "fetch") { q.item = def.item; q.deliverTo = def.deliverTo; }
   else if (def.type === "talk") { q.npcId = def.npcId; q.goal_en = def.goal_en; q.goal_ja = def.goal_ja; q.note_en = buildTalkNote(def.goal_en); }
+  else if (def.type === "areaboss") { q.boss = def.boss; q.zone = def.zone || "field"; q.bossName = (AREA_BOSSES[def.boss] || {}).name || "ボス"; }
   return q;
 }
 // 依頼プール(QUEST_POOL)からランダムにn件(重複なし)選んで実体化
@@ -1403,7 +1428,7 @@ function boardRows() {
   rows.push({ kind: "exit", label: "ボードを閉じる" });
   return rows;
 }
-function questIcon(type) { return type === "hunt" ? "⚔" : type === "fetch" ? "📦" : "💬"; }
+function questIcon(type) { return type === "areaboss" ? "👹" : type === "hunt" ? "⚔" : type === "fetch" ? "📦" : "💬"; }
 function boardSelect(row) {
   if (!row || board.loading) return;
   if (row.kind === "exit") { board = null; state = STATE.TOWN; return; }
@@ -1411,9 +1436,14 @@ function boardSelect(row) {
   if (row.kind === "quest") {
     if (sideQuests.length >= 3) { board.msg = "受注中の依頼が多すぎるよ(最大3件)"; board.msgT = 220; return; }
     const q = boardCache[row.idx];
+    if (q.type === "areaboss" && sideQuests.some((s) => s.type === "areaboss")) {
+      board.msg = "討伐依頼は同時に1件までだよ"; board.msgT = 240; return;
+    }
     boardCache.splice(row.idx, 1);
     sideQuests.push(q);
-    board.msg = `依頼『${q.title_ja}』を受けた！`; board.msgT = 240;
+    if (q.type === "areaboss") { spawnFieldBoss(q); board.msg = `『${q.title_ja}』受注！ フィールドにボスが出現！`; }
+    else board.msg = `依頼『${q.title_ja}』を受けた！`;
+    board.msgT = 260;
     if (board.sel >= boardRows().length) board.sel = boardRows().length - 1;
   }
 }
@@ -1432,7 +1462,8 @@ function questLogRows() {
 // 依頼1件の詳細テキスト行
 function questDetailLines(q) {
   const lines = [q.desc_ja];
-  if (q.type === "hunt") lines.push(`進行: ${q.enemy} ${q.progress}/${q.count} 体`);
+  if (q.type === "areaboss") lines.push(q.progress >= 1 ? "討伐完了！ ギルド受付に報告しよう" : `${q.bossName || "ボス"}がフィールドに出現中。会いに行ってたおそう！`);
+  else if (q.type === "hunt") lines.push(`進行: ${q.enemy} ${q.progress}/${q.count} 体`);
   else if (q.type === "fetch") lines.push("※アイテムを持って対象の人に話しかけよう");
   else if (q.type === "talk") lines.push(`お題: ${q.goal_ja || "英語で話す"}（英語で伝えよう）`);
   lines.push(`報酬: ${q.gold}G ＋ ギルドポイント${q.gp}`);
@@ -2257,6 +2288,134 @@ function loseBattle() {
   showMessage([`${battle.name}に やられてしまった…`], () => { battle = null; state = STATE.GAMEOVER; });
 }
 
+// ===== エリアボス(コマンド式ボスバトル。コトハが魔法使いとして参戦) =====
+const AREA_BOSSES = {
+  ogre:   { name: "オーガ将軍",       color: "#7a4a2a", hp: 120, atk: 15, exp: 40 },
+  golem:  { name: "ストーンゴーレム", color: "#7a7a86", hp: 165, atk: 13, exp: 46 },
+  wyvern: { name: "ワイバーン",       color: "#3a7a4a", hp: 140, atk: 18, exp: 52 },
+};
+// 受注時: フィールドにボスを出現させる(草地の固定マス)
+function spawnFieldBoss(q) { fieldBoss = { tx: 7, ty: 11, boss: q.boss, questId: q.id }; }
+// 討伐済みをギルド受付に報告→達成
+function reportAreaBoss(q) {
+  for (const k in keys) keys[k] = false;
+  const lines = grantSideReward(q);
+  playTownCutscene([{ who: "コトハ", lines: ["ボス討伐の報告だね！", ...lines, "また依頼ボードを見てみよう！"] }]);
+}
+// ボス戦中の演出メッセージ(背景にボス戦シーンを出したまま送る)
+function bossSay(lines, after) { showMessage(lines, after); }
+function bossMenu() { bossBattle.phase = "menu"; bossBattle.sel = 0; state = STATE.BOSSBATTLE; }
+function startBossBattle() {
+  const b = AREA_BOSSES[fieldBoss.boss] || AREA_BOSSES.ogre;
+  for (const k in keys) keys[k] = false;
+  battleBuff = { atk: mealBuff.atk, def: mealBuff.def }; // 料理バフを適用
+  const bl = (mealBuff.atk || mealBuff.def) ? [`料理の効果！ ${mealBuff.atk ? `こうげき+${mealBuff.atk} ` : ""}${mealBuff.def ? `ぼうぎょ+${mealBuff.def}` : ""}`] : [];
+  mealBuff = { atk: 0, def: 0 };
+  bossBattle = {
+    name: b.name, color: b.color, ehp: b.hp, emaxhp: b.hp, eatk: b.atk, exp: b.exp,
+    questId: fieldBoss.questId, sel: 0, phase: "resolve", guard: false,
+    khp: 30, kmaxhp: 30, kmp: 14, shake: 0, ehurt: 0, phurt: 0, khurt: 0,
+  };
+  cutsceneDraw = drawBossScene;
+  bossSay([`${b.name} が あらわれた！`, "コトハ「私も魔法で戦うよ、相棒！」", ...bl], () => bossMenu());
+}
+function bossCommand(cmd) {
+  if (!bossBattle || bossBattle.phase !== "menu") return;
+  bossBattle.phase = "resolve";
+  const bb = bossBattle; bb.guard = false;
+  if (cmd === "flee") {
+    if (rnd() < 0.5) { cutsceneDraw = null; bossBattle = null; battleBuff = { atk: 0, def: 0 }; showMessage([`${player.name}は うまく にげだした！`], () => { state = STATE.FIELD; }); return; }
+    bossSay([`${player.name}は にげようとした… でも回りこまれた！`], () => bossEnemyPhase());
+    return;
+  }
+  if (cmd === "guard") { bb.guard = true; bossSay([`${player.name}は 身をまもっている。`], () => bossKotohaPhase()); return; }
+  // attack
+  const dmg = player.atk + battleBuff.atk + Math.floor(rnd() * 4);
+  bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 8;
+  bossSay([`${player.name}の こうげき！ ${bb.name}に ${dmg} のダメージ！`], () => { if (bb.ehp <= 0) return bossWin(); bossKotohaPhase(); });
+}
+function bossKotohaPhase() {
+  const bb = bossBattle; if (!bb) return;
+  if (bb.khp <= 0) { return bossEnemyPhase(); } // コトハ気絶中
+  const lowPlayer = player.hp <= player.maxhp * 0.4;
+  const lowKotoha = bb.khp <= bb.kmaxhp * 0.45;
+  if ((lowPlayer || lowKotoha) && bb.kmp >= 4) {
+    bb.kmp -= 4; const heal = 18 + Math.floor(rnd() * 8);
+    if (lowPlayer && player.hp <= bb.khp) { player.hp = Math.min(player.maxhp, player.hp + heal); bossSay([`コトハは ヒールを となえた！ ${player.name}の HPが ${heal} 回復！`], () => bossEnemyPhase()); }
+    else { bb.khp = Math.min(bb.kmaxhp, bb.khp + heal); bossSay([`コトハは ヒールを となえた！ コトハの HPが ${heal} 回復！`], () => bossEnemyPhase()); }
+    return;
+  }
+  if (bb.kmp >= 3) {
+    bb.kmp -= 3; const dmg = 12 + Math.floor(rnd() * 8);
+    bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 6;
+    bossSay([`コトハは フレイムを となえた！ ${bb.name}に ${dmg} のダメージ！`], () => { if (bb.ehp <= 0) return bossWin(); bossEnemyPhase(); });
+    return;
+  }
+  const dmg = 4 + Math.floor(rnd() * 4); // MP切れ→杖でなぐる
+  bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12;
+  bossSay([`コトハは つえで たたいた！ ${bb.name}に ${dmg} のダメージ！`], () => { if (bb.ehp <= 0) return bossWin(); bossEnemyPhase(); });
+}
+function bossEnemyPhase() {
+  const bb = bossBattle; if (!bb) return;
+  const targetKotoha = bb.khp > 0 && rnd() < 0.4;
+  let dmg = bb.eatk + Math.floor(rnd() * 5);
+  if (targetKotoha) {
+    dmg = Math.max(1, dmg - 2); bb.khp = Math.max(0, bb.khp - dmg); bb.khurt = 12;
+    const ko = bb.khp <= 0 ? ["コトハは たおれてしまった…！"] : [];
+    bossSay([`${bb.name}の こうげき！ コトハに ${dmg} のダメージ！`, ...ko], () => bossMenu());
+  } else {
+    dmg = Math.max(1, dmg - (player.def + battleBuff.def) - (bb.guard ? 6 : 0));
+    player.hp = Math.max(0, player.hp - dmg); bb.phurt = 12;
+    bossSay([`${bb.name}の こうげき！ ${player.name}に ${dmg} のダメージ！`], () => { if (player.hp <= 0) return bossLose(); bossMenu(); });
+  }
+}
+function bossWin() {
+  const bb = bossBattle; cutsceneDraw = null;
+  const leveled = gainExp(bb.exp);
+  const q = sideQuests.find((s) => s.id === bb.questId); if (q) q.progress = 1; // 討伐済み(報告待ち)
+  fieldBoss = null; bossBattle = null; battleBuff = { atk: 0, def: 0 };
+  if (canSave()) saveGame();
+  showMessage([`${bb.name}を 討伐した！`, `けいけんち ${bb.exp} を かくとく！`, ...leveled, "コトハ「やったね相棒！ ギルドに報告しよう。」"], () => { state = STATE.FIELD; });
+}
+function bossLose() {
+  const bb = bossBattle; cutsceneDraw = null; bossBattle = null; battleBuff = { atk: 0, def: 0 };
+  showMessage([`${bb.name}に やられてしまった…`], () => { state = STATE.GAMEOVER; });
+}
+function drawBossScene() {
+  ctx.fillStyle = "#0b2e13"; ctx.fillRect(0, 0, W, H / 2 + 20);
+  ctx.fillStyle = "#06121f"; ctx.fillRect(0, H / 2 + 20, W, H / 2);
+  const bb = bossBattle; if (!bb) return;
+  const sx = (bb.shake > 0) ? (Math.floor(rnd() * 7) - 3) : 0;
+  const flashE = bb.ehurt > 0 && Math.floor(bb.ehurt) % 2 === 0;
+  drawEnemy(W / 2 + sx, 140, bb.color, true, flashE);
+  drawWindow(120, 34, 240, 46, false);
+  ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.font = "14px 'MS Gothic', monospace";
+  ctx.fillText(bb.name, 134, 54); drawBar(134, 60, 212, 9, bb.ehp / bb.emaxhp, "#e74c3c");
+  // 味方ステータス
+  drawWindow(16, 236, 448, 56, false);
+  ctx.fillStyle = "#fff"; ctx.font = "13px 'MS Gothic', monospace"; ctx.textAlign = "left";
+  ctx.fillText(player.name, 30, 256); drawBar(30, 262, 150, 8, player.hp / player.maxhp, "#3fa05a");
+  ctx.fillText(`HP ${player.hp}/${player.maxhp}`, 188, 259);
+  ctx.fillStyle = "#cfe0ff"; ctx.fillText("コトハ", 30, 282);
+  if (bb.khp > 0) { drawBar(30, 287, 150, 8, bb.khp / bb.kmaxhp, "#7be0d2"); ctx.fillStyle = "#fff"; ctx.fillText(`HP ${bb.khp}/${bb.kmaxhp} MP ${bb.kmp}`, 188, 284); }
+  else { ctx.fillStyle = "#8aa"; ctx.fillText("たおれている…", 188, 284); }
+  ctx.textAlign = "center";
+  if (bb.phurt > 0 && Math.floor(bb.phurt) % 2 === 0) { ctx.fillStyle = "rgba(200,0,0,0.22)"; ctx.fillRect(0, 0, W, H); }
+}
+function drawBossBattle() {
+  drawBossScene();
+  const cmds = ["たたかう", "ぼうぎょ", "にげる"];
+  for (let i = 0; i < 3; i++) {
+    const bx = 16, by = 312 + i * 48;
+    drawWindow(bx, by, 200, 42, bossBattle.sel === i);
+    ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.font = "16px 'MS Gothic', monospace";
+    ctx.fillText(cmds[i], bx + 24, by + 27);
+  }
+  ctx.fillStyle = "#9fd6ff"; ctx.font = "12px 'MS Gothic', monospace"; ctx.textAlign = "left";
+  ctx.fillText("コトハは自動で魔法を使うよ", 232, 336);
+  ctx.textAlign = "center";
+}
+
 // resolve用: メッセージ後にコールバック
 function queueResolve(lines, after) { showMessage(lines, after); }
 
@@ -2357,6 +2516,12 @@ function update(dt) {
     if (battle.ehurt > 0) battle.ehurt -= dt * 0.05;
     if (battle.phurt > 0) battle.phurt -= dt * 0.05;
   }
+  if (bossBattle) {
+    if (bossBattle.shake > 0) bossBattle.shake -= dt * 0.05;
+    if (bossBattle.ehurt > 0) bossBattle.ehurt -= dt * 0.05;
+    if (bossBattle.phurt > 0) bossBattle.phurt -= dt * 0.05;
+    if (bossBattle.khurt > 0) bossBattle.khurt -= dt * 0.05;
+  }
 }
 
 // ===== 描画 =====
@@ -2380,6 +2545,7 @@ function render() {
     case STATE.QUESTLOG: drawQuestLog(); break;
     case STATE.WORDLIST: drawWordList(); break;
     case STATE.BATTLE: drawBattleScene(); drawBattleUI(); break;
+    case STATE.BOSSBATTLE: drawBossBattle(); break;
     case STATE.GAMEOVER: drawEnd("ゲームオーバー", "#c0392b"); break;
     case STATE.CLEAR: drawEnd("魔王をたおした！ クリア！", "#f1c40f"); break;
   }
@@ -2405,7 +2571,7 @@ function drawTitle() {
   ctx.fillText("異世界英語", W / 2, 110);
   ctx.font = "16px 'MS Gothic', monospace";
   ctx.fillStyle = "#9fd6ff";
-  ctx.fillText("〜 ドラクエ風 英語学習RPG 〜", W / 2, 150);
+  ctx.fillText("〜 王道ファンタジー英語学習RPG 〜", W / 2, 150);
   ctx.fillStyle = "#fff";
   ctx.font = "15px 'MS Gothic', monospace";
   ctx.fillText(hasSave() ? "つづきから / 新しくはじめる" : "難易度(TOEICレベル)を えらんでね", W / 2, 212);
@@ -2481,12 +2647,29 @@ function drawField() {
       drawTile(MAP[y][x], x * TILE, y * TILE);
     }
   }
+  // フィールドのボス(出現中)
+  if (fieldBoss) drawFieldBossMarker(fieldBoss.tx * TILE, fieldBoss.ty * TILE);
   // プレイヤー
   drawHero(player.px - camX, player.py - camY, player.dir, player.anim);
   drawKotoha(player.px - camX + 30, player.py - camY + 8, 0.6); // 相棒コトハが隣を飛ぶ
   // HUD
   drawHud();
   drawCtrlHint();
+}
+// フィールド上のボス目印(角つきの威圧的なシルエット＋「ボス」ラベル)
+function drawFieldBossMarker(px, py) {
+  const b = AREA_BOSSES[fieldBoss.boss] || AREA_BOSSES.ogre;
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.beginPath(); ctx.ellipse(px + 16, py + 28, 12, 5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = b.color; ctx.beginPath(); ctx.ellipse(px + 16, py + 17, 12, 12, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#000";
+  ctx.beginPath(); ctx.moveTo(px + 6, py + 8); ctx.lineTo(px + 1, py - 3); ctx.lineTo(px + 11, py + 5); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(px + 26, py + 8); ctx.lineTo(px + 31, py - 3); ctx.lineTo(px + 21, py + 5); ctx.fill();
+  ctx.fillStyle = "#ff5050"; ctx.fillRect(px + 10, py + 14, 4, 4); ctx.fillRect(px + 18, py + 14, 4, 4);
+  ctx.restore();
+  ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(px - 2, py - 14, 36, 12);
+  ctx.fillStyle = "#ff9b9b"; ctx.font = "9px 'MS Gothic', monospace"; ctx.textAlign = "center";
+  ctx.fillText("ボス", px + 16, py - 5); ctx.textAlign = "center";
 }
 
 // 情報パネルが隠れているときに出すヒント(下部)

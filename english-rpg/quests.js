@@ -6,6 +6,11 @@
 // 共通: title_ja(一覧の見出し), desc_ja(詳細説明), flavor_en(受付Fiaの一言)
 // ※報酬(ゴールド/GP)はゲーム側(rewardFor)で自動計算するのでここには書かない。
 const QUEST_POOL = [
+  // ===== エリアボス討伐(areaboss) ===== 受けるとフィールドにボスが出現。普通のコマンドバトル(コトハ参戦)。
+  { type: "areaboss", boss: "ogre",   zone: "field", title_ja: "オーガ将軍の討伐",   desc_ja: "フィールドに現れたオーガ将軍を討伐しよう。受けるとフィールドに出現する。", flavor_en: "A brutish ogre general is rampaging in the fields. Take it down!" },
+  { type: "areaboss", boss: "golem",  zone: "field", title_ja: "石巨人の討伐",       desc_ja: "フィールドをさまよう石巨人ゴーレムを討伐しよう。受けるとフィールドに出現する。", flavor_en: "A stone golem blocks the road. Smash it to pieces!" },
+  { type: "areaboss", boss: "wyvern", zone: "field", title_ja: "ワイバーンの討伐",   desc_ja: "フィールドの空を舞うワイバーンを討伐しよう。受けるとフィールドに出現する。", flavor_en: "A fierce wyvern hunts travelers from the sky. Bring it down!" },
+
   // ===== 討伐(hunt) =====
   { type: "hunt", enemy: "スライム",   count: 3, title_ja: "スライム退治",   desc_ja: "フィールドでスライムを3体たおそう。",   flavor_en: "Slimes are everywhere lately. Can you thin them out?" },
   { type: "hunt", enemy: "おおコウモリ", count: 3, title_ja: "おおコウモリ退治", desc_ja: "フィールドでおおコウモリを3体たおそう。", flavor_en: "Bats are scaring travelers. Please drive them off!" },

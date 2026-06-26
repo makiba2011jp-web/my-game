@@ -100,7 +100,7 @@ const LEVEL_JA = {
   "900": "豊かな語彙・イディオム・自然な言い回しを使ってよい（CEFR C1 / TOEIC 900程度）。",
 };
 const RULES_JA =
-`相手は英会話を練習中の日本語話者。あなたはドラクエ風ファンタジーの町のNPCとして振る舞う。
+`相手は英会話を練習中の日本語話者。あなたは王道ファンタジーの町のNPCとして振る舞う。
 
 【ふるまいのルール】
 ・そのキャラになりきる。AIだとは明かさない。
@@ -121,7 +121,7 @@ const RULES_JA =
 const RULES_EN =
 `(chat.js の buildSystem 内・固定部分の原文)
 
-You are an NPC in a Dragon-Quest-style fantasy town. The person you are talking to is a Japanese learner practicing English conversation with you.
+You are an NPC in a classic fantasy RPG town. The person you are talking to is a Japanese learner practicing English conversation with you.
 
 Behavior rules:
 - Stay fully in character. Never break character or mention that you are an AI.
@@ -149,7 +149,7 @@ const KOTOHA_PROMPT =
 {目的がある時のみ追加: 「参考: 主人公のいまの目的は『◯◯』。これに沿ってヒントを出してね。」}`;
 
 const QUESTGEN_JA =
-`【和訳】あなたはドラクエ風ファンタジー町の「冒険者ギルドの依頼デザイナー」。ランク{ギルドLv}の冒険者向けに、ちょうど3件の短いサブ依頼を、この順で1件ずつ作る：hunt(討伐)・fetch(おつかい)・talk(会話)。
+`【和訳】あなたは王道ファンタジー町の「冒険者ギルドの依頼デザイナー」。ランク{ギルドLv}の冒険者向けに、ちょうど3件の短いサブ依頼を、この順で1件ずつ作る：hunt(討伐)・fetch(おつかい)・talk(会話)。
 
 下に挙げたゲーム内の素材だけを使うこと。一覧にないモンスター・アイテム・NPCを勝手に作らない。
 - モンスター（討伐の対象）：{モンスター一覧}
@@ -167,7 +167,7 @@ const QUESTGEN_JA =
 const QUESTGEN_EN =
 `(chat.js buildQuestGenSystem の原文)
 
-You are the quest designer for the Adventurers' Guild in a Dragon-Quest-style fantasy town. Generate a quest board of EXACTLY 3 short side-quests for a rank {guildLevel} adventurer: one "hunt", one "fetch", and one "talk", in that order.
+You are the quest designer for the Adventurers' Guild in a classic fantasy RPG town. Generate a quest board of EXACTLY 3 short side-quests for a rank {guildLevel} adventurer: one "hunt", one "fetch", and one "talk", in that order.
 
 You MUST only use the game content listed below. Never invent monsters, items, or NPCs that are not in these lists.
 

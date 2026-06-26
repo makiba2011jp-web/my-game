@@ -146,7 +146,7 @@ function buildSystem(npc, level, questNote) {
     : `Always set "quest_flag" to false.`;
   return `${persona}
 
-You are an NPC in a Dragon-Quest-style fantasy town. The person you are talking to is a Japanese learner practicing English conversation with you.
+You are an NPC in a classic fantasy RPG town. The person you are talking to is a Japanese learner practicing English conversation with you.
 
 Behavior rules:
 - Stay fully in character as ${shortName}. Never break character or mention that you are an AI.${nameLine}
