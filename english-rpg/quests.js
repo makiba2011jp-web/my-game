@@ -19,12 +19,12 @@ const QUEST_POOL = [
   { type: "hunt", enemy: "スライム",   count: 5, title_ja: "大量発生のスライム", desc_ja: "フィールドでスライムを5体たおそう。", flavor_en: "There's a slime outbreak! Five should do it." },
 
   // ===== おつかい(fetch) =====
-  { type: "fetch", item: "マグロ",   deliverTo: "bar",        title_ja: "マグロをバーへ",     desc_ja: "魚屋でマグロを買って、バーのSalに届けよう。",       flavor_en: "Sal at the bar needs fresh tuna for tonight." },
-  { type: "fetch", item: "とり肉",   deliverTo: "restaurant", title_ja: "とり肉を飲食店へ",   desc_ja: "肉屋でとり肉を買って、飲食店のTomに届けよう。",     flavor_en: "The cook ran out of chicken. Could you bring some?" },
-  { type: "fetch", item: "トマト",   deliverTo: "hospital",   title_ja: "トマトを病院へ",     desc_ja: "八百屋でトマトを買って、病院のHaleに届けよう。",   flavor_en: "The doctor wants fresh tomatoes for a patient." },
-  { type: "fetch", item: "イワシ",   deliverTo: "church",     title_ja: "イワシを教会へ",     desc_ja: "魚屋でイワシを買って、教会のClaraに届けよう。",     flavor_en: "Sister Clara is preparing a meal for the needy." },
-  { type: "fetch", item: "キャベツ", deliverTo: "school",     title_ja: "キャベツを学校へ",   desc_ja: "八百屋でキャベツを買って、学校のEdwinに届けよう。", flavor_en: "The school's cooking class needs some cabbage." },
-  { type: "fetch", item: "ぶた肉",   deliverTo: "smith",      title_ja: "ぶた肉を鍛冶屋へ",   desc_ja: "肉屋でぶた肉を買って、鍛冶屋のBorinに届けよう。",   flavor_en: "Borin's starving after a long day at the forge!" },
+  { type: "fetch", item: "Tuna",    deliverTo: "bar",        title_ja: "Tunaをバーへ",     desc_ja: "魚屋でTuna(マグロ)を買って、バーのSalに届けよう。",       flavor_en: "Sal at the bar needs fresh tuna for tonight." },
+  { type: "fetch", item: "Chicken", deliverTo: "restaurant", title_ja: "Chickenを飲食店へ", desc_ja: "肉屋でChicken(とり肉)を買って、飲食店のTomに届けよう。",   flavor_en: "The cook ran out of chicken. Could you bring some?" },
+  { type: "fetch", item: "Tomato",  deliverTo: "hospital",   title_ja: "Tomatoを病院へ",   desc_ja: "八百屋でTomato(トマト)を買って、病院のHaleに届けよう。",   flavor_en: "The doctor wants fresh tomatoes for a patient." },
+  { type: "fetch", item: "Sardine", deliverTo: "church",     title_ja: "Sardineを教会へ",   desc_ja: "魚屋でSardine(イワシ)を買って、教会のClaraに届けよう。",   flavor_en: "Sister Clara is preparing a meal for the needy." },
+  { type: "fetch", item: "Cabbage", deliverTo: "school",     title_ja: "Cabbageを学校へ",   desc_ja: "八百屋でCabbage(キャベツ)を買って、学校のEdwinに届けよう。", flavor_en: "The school's cooking class needs some cabbage." },
+  { type: "fetch", item: "Pork",    deliverTo: "smith",      title_ja: "Porkを鍛冶屋へ",   desc_ja: "肉屋でPork(ぶた肉)を買って、鍛冶屋のBorinに届けよう。",     flavor_en: "Borin's starving after a long day at the forge!" },
 
   // ===== 会話チャレンジ(talk) =====
   { type: "talk", npcId: "hospital",   goal_en: "ask the doctor for advice about a headache",      goal_ja: "医者に頭痛の相談をする",     title_ja: "医者に相談する", desc_ja: "病院のHaleに英語で話しかけて「頭痛の相談」をしよう。",       flavor_en: "A patient is shy. Show them how to ask the doctor!" },

@@ -124,13 +124,23 @@ const COOK_SCHEMA = {
   type: "object",
   properties: {
     reply_ja: { type: "string" },        // コトハの反応・誘導(日本語・タメ口)
+    correction: {                        // 直前のプレイヤー発言の英語添削
+      type: "object",
+      properties: {
+        natural: { type: "boolean" },
+        corrected: { type: "string" },
+        note_ja: { type: "string" },
+      },
+      required: ["natural", "corrected", "note_ja"],
+      additionalProperties: false,
+    },
     done: { type: "boolean" },           // 料理が完成したか
     dish_name_ja: { type: "string" },    // 完成した料理名(done時。それ以外は"")
     score: { type: "integer" },          // 出来栄え0-100(done時。それ以外は0)
     ingredients_used: { type: "array", items: { type: "string" } }, // 使った食材(渡したリストの表記)
     comment_ja: { type: "string" },      // 採点コメント(done時)
   },
-  required: ["reply_ja", "done", "dish_name_ja", "score", "ingredients_used", "comment_ja"],
+  required: ["reply_ja", "correction", "done", "dish_name_ja", "score", "ingredients_used", "comment_ja"],
   additionalProperties: false,
 };
 function buildSystem(npc, level, questNote) {
@@ -366,7 +376,13 @@ function buildCookSystem(level, ingredients) {
   - comment_ja では、英語の良かった点や次に英語でどう言うとよいかも一言そえる。
 - done=false のとき: dish_name_ja="", score=0, ingredients_used=[], comment_ja="" にする。
 - 主人公が日本語で指示してきたら、reply_ja でやさしく「英語で手順を教えてね」と促す。
-- reply_ja は必ず日本語で書く。`;
+- reply_ja は必ず日本語で書く。
+
+毎ターン、直前の主人公の発言の英語を添削して correction に入れる:
+- correction.natural: 自然で正しい英語なら true。英語が不自然/間違い、または英語でない場合は false。
+- correction.corrected: 主人公が言いたかったことの最も自然な英語の言い方。すでに自然ならその文をそのまま。日本語で言ってきた場合も、その内容を英語にした文を入れる。
+- correction.note_ja: 短い日本語の説明。日本語で言ってきたら英語で言うよう促し corrected の英文を勧める。英語が不自然なら直し方を、自然なら短くほめる。
+（挨拶や合図だけの最初のターンなど英訳が不要なときは natural=true, corrected="", note_ja="" でよい）`;
 }
 async function callClaudeCook(level, messages, ingredients) {
   const body = {
@@ -378,7 +394,7 @@ async function callClaudeCook(level, messages, ingredients) {
   const oc = outputConfigWith(COOK_SCHEMA); if (oc) body.output_config = oc;
   const data = await postClaude(body);
   if (data.stop_reason === "refusal") {
-    return { reply_ja: "（…うまく作れないみたい。ごめんね）", done: false, dish_name_ja: "", score: 0, ingredients_used: [], comment_ja: "" };
+    return { reply_ja: "（…うまく作れないみたい。ごめんね）", correction: { natural: true, corrected: "", note_ja: "" }, done: false, dish_name_ja: "", score: 0, ingredients_used: [], comment_ja: "" };
   }
   const block = (data.content || []).find((b) => b.type === "text");
   if (!block) throw { code: "no_text" };
@@ -735,6 +751,7 @@ const Chat = (() => {
         const data = await callClaudeCook(level, history, cookIngredients);
         typing.remove();
         if (!data || typeof data.reply_ja !== "string") throw { code: "no_text" };
+        if (!isOpening) addCorrection(data.correction); // 英語の添削
         addKotohaLine(data.reply_ja);
         history.push({ role: "assistant", content: JSON.stringify({ reply_ja: data.reply_ja, done: data.done }) });
         if (data.done && !cookDone) {

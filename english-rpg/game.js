@@ -484,12 +484,12 @@ const MATERIAL_PRICE = {
   "スライムのゼリー": 8, "こうもりの羽": 10, "れいきのかけら": 14, "こわれた鎧の破片": 18,
 };
 const SHOP_ITEMS = [
-  { name: "どうの剣", kind: "atk", value: 4, price: 30 },
-  { name: "はがねの剣", kind: "atk", value: 10, price: 120 },
-  { name: "木の盾", kind: "def", value: 3, price: 25 },
-  { name: "鉄の盾", kind: "def", value: 8, price: 100 },
-  { name: "たびびとの服", kind: "hp", value: 15, price: 40 },
-  { name: "くさりかたびら", kind: "hp", value: 40, price: 150 },
+  { name: "Copper Sword", kind: "atk", value: 4, price: 30 },
+  { name: "Steel Sword", kind: "atk", value: 10, price: 120 },
+  { name: "Wooden Shield", kind: "def", value: 3, price: 25 },
+  { name: "Iron Shield", kind: "def", value: 8, price: 100 },
+  { name: "Traveler's Clothes", kind: "hp", value: 15, price: 40 },
+  { name: "Chain Mail", kind: "hp", value: 40, price: 150 },
 ];
 let shop = null;             // { sel, msg, msgT }
 let boughtItems = new Set(); // 購入済み装備のindex
@@ -512,10 +512,10 @@ let wordList = null;         // 習得リスト表示中の状態 { page }
 let wordListBack = STATE.FIELD; // 習得リストを閉じたあとに戻る状態
 // 食料品店の品ぞろえ(買うと bag に入る)
 const FOOD_SHOPS = {
-  fish:    [{ name: "マグロ", price: 20 }, { name: "イワシ", price: 8 }, { name: "サーモン", price: 18 }, { name: "えび", price: 14 }, { name: "たこ", price: 12 }, { name: "あさり", price: 10 }],
-  green:   [{ name: "キャベツ", price: 6 }, { name: "トマト", price: 8 }, { name: "にんじん", price: 6 }, { name: "たまねぎ", price: 6 }, { name: "じゃがいも", price: 7 }, { name: "なす", price: 8 }],
-  meat:    [{ name: "とり肉", price: 14 }, { name: "ぶた肉", price: 18 }, { name: "牛肉", price: 26 }, { name: "ベーコン", price: 16 }, { name: "ソーセージ", price: 14 }],
-  grocery: [{ name: "ライス", price: 8 }, { name: "麺", price: 8 }, { name: "パン", price: 7 }, { name: "卵", price: 6 }, { name: "油", price: 8 }, { name: "塩", price: 4 }, { name: "しょうゆ", price: 8 }, { name: "さとう", price: 6 }, { name: "バター", price: 12 }],
+  fish:    [{ name: "Tuna", price: 20 }, { name: "Sardine", price: 8 }, { name: "Salmon", price: 18 }, { name: "Shrimp", price: 14 }, { name: "Octopus", price: 12 }, { name: "Clam", price: 10 }],
+  green:   [{ name: "Cabbage", price: 6 }, { name: "Tomato", price: 8 }, { name: "Carrot", price: 6 }, { name: "Onion", price: 6 }, { name: "Potato", price: 7 }, { name: "Eggplant", price: 8 }],
+  meat:    [{ name: "Chicken", price: 14 }, { name: "Pork", price: 18 }, { name: "Beef", price: 26 }, { name: "Bacon", price: 16 }, { name: "Sausage", price: 14 }],
+  grocery: [{ name: "Rice", price: 8 }, { name: "Noodles", price: 8 }, { name: "Bread", price: 7 }, { name: "Egg", price: 6 }, { name: "Oil", price: 8 }, { name: "Salt", price: 4 }, { name: "Soy Sauce", price: 8 }, { name: "Sugar", price: 6 }, { name: "Butter", price: 12 }],
 };
 const SHOP_TITLE = { material: "素材屋", weapon: "武器屋", fish: "魚屋", green: "八百屋", meat: "肉屋", grocery: "食料品店", home: "不動産屋 〜 物件リスト" };
 // 料理に使える食材(食材ショップの品)。台所の調理で消費する。
@@ -598,9 +598,9 @@ function shopSelect(row) {
   } else if (row.kind === "buyfood") {
     const it = FOOD_SHOPS[shop.type][row.idx];
     player.gold -= it.price; buyItem(it.name);
-    if (quest && quest.stage === 10 && it.name === "マグロ") {
-      quest.stage = 11; // マグロを手に入れた→迷いネコを捕まえに
-      shop.msg = `マグロを買った！ コトハ「これで迷いネコをおびき寄せよう」`; shop.msgT = 300;
+    if (quest && quest.stage === 10 && it.name === "Tuna") {
+      quest.stage = 11; // マグロ(Tuna)を手に入れた→迷いネコを捕まえに
+      shop.msg = `Tuna（マグロ）を買った！ コトハ「これで迷いネコをおびき寄せよう」`; shop.msgT = 300;
     } else {
       shop.msg = `${it.name}を 買った！`; shop.msgT = 200;
     }
@@ -715,8 +715,8 @@ function questLines() {
   if (quest.stage === 7) return ["⑧ 美容院の人に話を聞く", "迷いネコの特徴を聞き出そう"];
   if (quest.stage === 8) return ["⑨ 町の人に迷いネコのことを聞く", "目撃情報をあつめよう"];
   if (quest.stage === 9) return ["⑩ 迷いネコをとらえる", "教会の裏にネコがいるみたい"];
-  if (quest.stage === 10) return ["⑪ ネコの好きな食べ物を手に入れる", "食料品店の魚屋でマグロを買おう"];
-  if (quest.stage === 11) return ["⑫ マグロで迷いネコをとらえる", "教会の裏のネコに近づこう"];
+  if (quest.stage === 10) return ["⑪ ネコの好きな食べ物を手に入れる", "食料品店の魚屋でTuna（マグロ）を買おう"];
+  if (quest.stage === 11) return ["⑫ Tuna（マグロ）で迷いネコをとらえる", "教会の裏のネコに近づこう"];
   if (quest.stage === 12) return ["⑬ 迷いネコを美容院の人に届ける", "美容師Cocoに話しかけよう"];
   if (quest.stage === 13) return ["⑭ ギルドに報告する", "ギルド受付に達成を報告しよう"];
   return ["クエスト達成！ つづきは準備中…"];
@@ -1132,7 +1132,7 @@ function devJump(stage) {
   player.gold = stage >= 4 ? 80 : 0;
   // 迷いネコクエストの持ち物・ネコ位置を段階に合わせて用意
   bag = {};
-  if (stage === 11) bag["マグロ"] = 1;          // ⑫: マグロ所持済みで開始(捕獲を試せる)
+  if (stage === 11) bag["Tuna"] = 1;          // ⑫: Tuna(マグロ)所持済みで開始(捕獲を試せる)
   if (stage === 12) bag["迷いネコ"] = 1;        // ⑬: 捕獲済みのネコを所持(届けられる)
   catSpot = 0; CAT.tx = CAT_SPOTS[0][0]; CAT.ty = CAT_SPOTS[0][1];
   board = null; boardCache = null; sideQuests = []; questLog = null;
@@ -1205,7 +1205,7 @@ function cookFinish(name, score, used) {
   score = Math.max(0, Math.min(100, Math.round(score || 0)));
   let consumedNames = [];
   for (const ing of (used || [])) {
-    const key = INGREDIENT_NAMES.find((n) => ing && String(ing).indexOf(n) >= 0); // 「マグロ×1」等の表記ゆれ吸収
+    const key = INGREDIENT_NAMES.find((n) => ing && String(ing).indexOf(n) >= 0); // 「Tuna×1」等の表記ゆれ吸収
     if (key && bag[key] > 0) { useItem(key); consumedNames.push(key); }
   }
   const consumed = consumedNames.length;
@@ -1711,7 +1711,7 @@ function talkSalon(n) {
   if (quest && quest.stage === 7) {
     if (!Chat.aiReady()) { learnCatFeatures(); return; }
     Chat.setQuest({
-      note: "the traveler asks about the lost cat — what it looks like, its features, or its favorite food (e.g. \"What does your cat look like?\", \"Can you describe the cat?\", \"What does it like to eat?\"). When they do, describe your cat: it has a black coat and blue eyes, it's a little old, and its favorite food is tuna (マグロ).",
+      note: "the traveler asks about the lost cat — what it looks like, its features, or its favorite food (e.g. \"What does your cat look like?\", \"Can you describe the cat?\", \"What does it like to eat?\"). When they do, describe your cat: it has a black coat and blue eyes, it's a little old, and its favorite food is Tuna.",
       flagMessage: "コトハ「ネコの特徴がわかったよ！ × でとじよう」",
       onClose: () => learnCatFeatures(),
     });
@@ -1730,7 +1730,7 @@ function learnCatFeatures() {
     lines: [
       "ネコの特徴を聞き出せたね！ メモしておくよ。",
       "・黒の毛並み　・青い瞳　・少し年老いている",
-      "・好きな食べ物は『マグロ』",
+      "・好きな食べ物は『Tuna（マグロ）』",
       "次は町の人に聞き込みして、ネコの目撃情報をあつめよう！",
     ],
   }]);
@@ -1782,14 +1782,14 @@ function catInteract() {
   for (const k in keys) keys[k] = false;
   // 目的⑫: マグロを持っていれば捕獲
   if (quest && quest.stage === 11) {
-    if (hasItem("マグロ")) {
-      useItem("マグロ");
+    if (hasItem("Tuna")) {
+      useItem("Tuna");
       bag["迷いネコ"] = (bag["迷いネコ"] || 0) + 1;
       quest.stage = 12;
       playTownCutscene([{
         who: "コトハ",
         lines: [
-          "マグロのにおいにつられて、ネコが寄ってきた…！",
+          "Tuna（マグロ）のにおいにつられて、ネコが寄ってきた…！",
           "そーっと…つかまえた！ 迷いネコを保護したよ！",
           "美容師のCocoさんのところに届けてあげよう。",
         ],
@@ -1817,13 +1817,13 @@ function catFleeCutscene(first) {
     ? [
         "あっ、ネコが逃げちゃった！ すばしっこいね…。",
         "このままじゃ捕まえられないよ。",
-        "そうだ、ネコの好きな『マグロ』でおびき寄せてみよう！",
-        "町に食料品店があるはず。中の魚屋でマグロを買おう！",
+        "そうだ、ネコの好きな『Tuna（マグロ）』でおびき寄せてみよう！",
+        "町に食料品店があるはず。中の魚屋でTunaを買おう！",
       ]
     : [
         "わっ、また逃げられちゃった！",
-        "やっぱり好物の『マグロ』がないとダメみたい。",
-        "食料品店の魚屋でマグロを買ってこよう！",
+        "やっぱり好物の『Tuna（マグロ）』がないとダメみたい。",
+        "食料品店の魚屋でTunaを買ってこよう！",
       ];
   if (first && quest) quest.stage = 10;
   playTownCutscene([{ who: "コトハ", lines }]);
