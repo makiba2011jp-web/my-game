@@ -873,10 +873,25 @@ function onInput(k) {
     if (k === "confirm" || k === "cancel") advanceMessage();
     return;
   }
-  if (state === STATE.BOSSBATTLE && bossBattle && bossBattle.phase === "menu") {
-    if (k === "up") bossBattle.sel = (bossBattle.sel + 2) % 3;
-    else if (k === "down") bossBattle.sel = (bossBattle.sel + 1) % 3;
-    else if (k === "confirm") bossCommand(["attack", "guard", "flee"][bossBattle.sel]);
+  if (state === STATE.BOSSBATTLE && bossBattle) {
+    const bb = bossBattle;
+    if (bb.phase === "menu") {
+      const n = 5; // たたかう/必殺技/ぼうぎょ/道具/にげる(2列)
+      if (k === "up" && bb.sel - 2 >= 0) bb.sel -= 2;
+      else if (k === "down" && bb.sel + 2 < n) bb.sel += 2;
+      else if (k === "left" && bb.sel % 2 === 1) bb.sel--;
+      else if (k === "right" && bb.sel % 2 === 0 && bb.sel + 1 < n) bb.sel++;
+      else if (k === "confirm") bossCommand(["attack", "special", "guard", "item", "flee"][bb.sel]);
+      return;
+    }
+    if (bb.phase === "item") {
+      const n = Math.min(dishes.length, 6) + 1; // 料理(最大6)＋もどる
+      if (k === "up") bb.itemSel = (bb.itemSel - 1 + n) % n;
+      else if (k === "down") bb.itemSel = (bb.itemSel + 1) % n;
+      else if (k === "confirm") { if (bb.itemSel >= Math.min(dishes.length, 6)) bossMenu(); else useDishInBattle(bb.itemSel); }
+      else if (k === "cancel") bossMenu();
+      return;
+    }
     return;
   }
   if (state === STATE.QUIZ && quiz) {
@@ -1004,10 +1019,22 @@ function onTap(x, y) {
     wlToggleAt(x, y); // 行タップで習得/未習得を切替
     return;
   }
-  if (state === STATE.BOSSBATTLE && bossBattle && bossBattle.phase === "menu") {
-    for (let i = 0; i < 3; i++) {
-      const bx = 16, by = 312 + i * 48;
-      if (x >= bx && x <= bx + 200 && y >= by && y <= by + 42) { bossBattle.sel = i; bossCommand(["attack", "guard", "flee"][i]); return; }
+  if (state === STATE.BOSSBATTLE && bossBattle) {
+    const bb = bossBattle;
+    if (bb.phase === "menu") {
+      for (let i = 0; i < 5; i++) {
+        const bx = 16 + (i % 2) * 232, by = 312 + ((i / 2) | 0) * 46;
+        if (x >= bx && x <= bx + 216 && y >= by && y <= by + 40) { bb.sel = i; bossCommand(["attack", "special", "guard", "item", "flee"][i]); return; }
+      }
+      return;
+    }
+    if (bb.phase === "item") {
+      const m = Math.min(dishes.length, 6);
+      for (let i = 0; i <= m; i++) {
+        const ry = 304 + i * 24;
+        if (x >= 16 && x <= 464 && y >= ry && y <= ry + 22) { if (i >= m) bossMenu(); else useDishInBattle(i); return; }
+      }
+      return;
     }
     return;
   }
@@ -2313,7 +2340,8 @@ function startBossBattle() {
   mealBuff = { atk: 0, def: 0 };
   bossBattle = {
     name: b.name, color: b.color, ehp: b.hp, emaxhp: b.hp, eatk: b.atk, exp: b.exp,
-    questId: fieldBoss.questId, sel: 0, phase: "resolve", guard: false,
+    questId: fieldBoss.questId, sel: 0, itemSel: 0, phase: "resolve", guard: false,
+    sp: 0, spMax: 3, // 必殺技ゲージ(気合)
     khp: 30, kmaxhp: 30, kmp: 14, shake: 0, ehurt: 0, phurt: 0, khurt: 0,
   };
   cutsceneDraw = drawBossScene;
@@ -2321,18 +2349,50 @@ function startBossBattle() {
 }
 function bossCommand(cmd) {
   if (!bossBattle || bossBattle.phase !== "menu") return;
-  bossBattle.phase = "resolve";
-  const bb = bossBattle; bb.guard = false;
+  const bb = bossBattle;
+  // 道具: 料理を選ぶサブメニューへ(ターンは消費しない)
+  if (cmd === "item") {
+    if (!dishes.length) { bb.phase = "resolve"; bossSay(["道具(料理)を持っていない！"], () => bossMenu()); return; }
+    bb.phase = "item"; bb.itemSel = 0; return;
+  }
+  // 必殺技: 気合が満タンのときだけ
+  if (cmd === "special" && bb.sp < bb.spMax) {
+    bb.phase = "resolve"; bossSay(["まだ必殺技は使えない！（気合をためよう）"], () => bossMenu()); return;
+  }
+  bb.phase = "resolve"; bb.guard = false;
   if (cmd === "flee") {
     if (rnd() < 0.5) { cutsceneDraw = null; bossBattle = null; battleBuff = { atk: 0, def: 0 }; showMessage([`${player.name}は うまく にげだした！`], () => { state = STATE.FIELD; }); return; }
     bossSay([`${player.name}は にげようとした… でも回りこまれた！`], () => bossEnemyPhase());
     return;
   }
-  if (cmd === "guard") { bb.guard = true; bossSay([`${player.name}は 身をまもっている。`], () => bossKotohaPhase()); return; }
-  // attack
+  if (cmd === "guard") { bb.sp = Math.min(bb.spMax, bb.sp + 1); bb.guard = true; bossSay([`${player.name}は 身をまもっている。`], () => bossKotohaPhase()); return; }
+  if (cmd === "special") {
+    bb.sp = 0;
+    const dmg = Math.floor((player.atk + battleBuff.atk) * 2.2) + 6 + Math.floor(rnd() * 6);
+    bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 12;
+    bossSay([`${player.name}の必殺技！ こんしんの一撃！`, `${bb.name}に ${dmg} の大ダメージ！`], () => { if (bb.ehp <= 0) return bossWin(); bossKotohaPhase(); });
+    return;
+  }
+  // たたかう
+  bb.sp = Math.min(bb.spMax, bb.sp + 1);
   const dmg = player.atk + battleBuff.atk + Math.floor(rnd() * 4);
   bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 8;
   bossSay([`${player.name}の こうげき！ ${bb.name}に ${dmg} のダメージ！`], () => { if (bb.ehp <= 0) return bossWin(); bossKotohaPhase(); });
+}
+// 道具(料理)を戦闘中に使う: HP回復＋この戦闘のバフを即適用
+function useDishInBattle(i) {
+  const bb = bossBattle; if (!bb) return;
+  const d = dishes[i];
+  if (!d) { bossMenu(); return; }
+  bb.phase = "resolve";
+  const before = player.hp;
+  player.hp = Math.min(player.maxhp, player.hp + d.heal);
+  const healed = player.hp - before;
+  battleBuff.atk += d.atk; battleBuff.def += d.def;
+  dishes.splice(i, 1);
+  bb.sp = Math.min(bb.spMax, bb.sp + 1);
+  const buffLine = (d.atk || d.def) ? ` ${d.atk ? `こうげき+${d.atk} ` : ""}${d.def ? `ぼうぎょ+${d.def}` : ""}！` : "";
+  bossSay([`${player.name}は ${d.name}を 食べた！ HP+${healed}${buffLine}`], () => bossKotohaPhase());
 }
 function bossKotohaPhase() {
   const bb = bossBattle; if (!bb) return;
@@ -2396,6 +2456,7 @@ function drawBossScene() {
   ctx.fillStyle = "#fff"; ctx.font = "13px 'MS Gothic', monospace"; ctx.textAlign = "left";
   ctx.fillText(player.name, 30, 256); drawBar(30, 262, 150, 8, player.hp / player.maxhp, "#3fa05a");
   ctx.fillText(`HP ${player.hp}/${player.maxhp}`, 188, 259);
+  ctx.fillStyle = "#ffd24a"; ctx.fillText(`気合 ${"★".repeat(bb.sp)}${"・".repeat(bb.spMax - bb.sp)}`, 320, 259);
   ctx.fillStyle = "#cfe0ff"; ctx.fillText("コトハ", 30, 282);
   if (bb.khp > 0) { drawBar(30, 287, 150, 8, bb.khp / bb.kmaxhp, "#7be0d2"); ctx.fillStyle = "#fff"; ctx.fillText(`HP ${bb.khp}/${bb.kmaxhp} MP ${bb.kmp}`, 188, 284); }
   else { ctx.fillStyle = "#8aa"; ctx.fillText("たおれている…", 188, 284); }
@@ -2404,15 +2465,35 @@ function drawBossScene() {
 }
 function drawBossBattle() {
   drawBossScene();
-  const cmds = ["たたかう", "ぼうぎょ", "にげる"];
-  for (let i = 0; i < 3; i++) {
-    const bx = 16, by = 312 + i * 48;
-    drawWindow(bx, by, 200, 42, bossBattle.sel === i);
-    ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.font = "16px 'MS Gothic', monospace";
-    ctx.fillText(cmds[i], bx + 24, by + 27);
+  const bb = bossBattle;
+  if (bb.phase === "item") { drawBossItemMenu(); return; }
+  const cmds = ["たたかう", "必殺技", "ぼうぎょ", "道具", "にげる"];
+  for (let i = 0; i < 5; i++) {
+    const bx = 16 + (i % 2) * 232, by = 312 + ((i / 2) | 0) * 46;
+    drawWindow(bx, by, 216, 40, bb.sel === i);
+    // 必殺技は気合が満タンでないとグレー、道具は料理がないとグレー
+    const dim = (i === 1 && bb.sp < bb.spMax) || (i === 3 && !dishes.length);
+    ctx.fillStyle = dim ? "#7a8aa8" : "#fff"; ctx.textAlign = "left"; ctx.font = "16px 'MS Gothic', monospace";
+    ctx.fillText(cmds[i], bx + 20, by + 26);
   }
-  ctx.fillStyle = "#9fd6ff"; ctx.font = "12px 'MS Gothic', monospace"; ctx.textAlign = "left";
-  ctx.fillText("コトハは自動で魔法を使うよ", 232, 336);
+  ctx.textAlign = "center";
+}
+// 道具(料理)サブメニュー
+function drawBossItemMenu() {
+  const bb = bossBattle;
+  const m = Math.min(dishes.length, 6);
+  drawWindow(16, 298, 448, 24 + (m + 1) * 24, false);
+  ctx.textAlign = "left"; ctx.font = "13px 'MS Gothic', monospace";
+  for (let i = 0; i < m; i++) {
+    const ry = 304 + i * 24; const d = dishes[i];
+    if (bb.itemSel === i) { ctx.fillStyle = "rgba(255,224,130,0.18)"; ctx.fillRect(20, ry, 440, 22); }
+    ctx.fillStyle = "#fff";
+    const eff = `HP+${d.heal}${d.atk ? ` 攻+${d.atk}` : ""}${d.def ? ` 防+${d.def}` : ""}`;
+    ctx.fillText(`🍳${d.name}（${eff}）`, 28, ry + 16);
+  }
+  const by = 304 + m * 24;
+  if (bb.itemSel >= m) { ctx.fillStyle = "rgba(255,224,130,0.18)"; ctx.fillRect(20, by, 440, 22); }
+  ctx.fillStyle = "#9fd6ff"; ctx.fillText("← もどる", 28, by + 16);
   ctx.textAlign = "center";
 }
 
