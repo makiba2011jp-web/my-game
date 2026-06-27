@@ -2567,8 +2567,8 @@ function drawTitle() {
   // 背景
   ctx.fillStyle = "#06122b"; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = "#fff"; ctx.textAlign = "center";
-  ctx.font = "bold 42px 'MS Gothic', monospace";
-  ctx.fillText("異世界英語", W / 2, 110);
+  ctx.font = "bold 36px 'MS Gothic', monospace";
+  ctx.fillText("異世界英語クエスト", W / 2, 110);
   ctx.font = "16px 'MS Gothic', monospace";
   ctx.fillStyle = "#9fd6ff";
   ctx.fillText("〜 王道ファンタジー英語学習RPG 〜", W / 2, 150);
@@ -2632,8 +2632,8 @@ function confirmName() {
 function drawNameScene() {
   ctx.fillStyle = "#06122b"; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = "#fff"; ctx.textAlign = "center";
-  ctx.font = "bold 36px 'MS Gothic', monospace";
-  ctx.fillText("異世界英語", W / 2, 130);
+  ctx.font = "bold 30px 'MS Gothic', monospace";
+  ctx.fillText("異世界英語クエスト", W / 2, 130);
   ctx.font = "15px 'MS Gothic', monospace";
   ctx.fillStyle = "#9fd6ff";
   ctx.fillText("〜 あたらしい たびのはじまり 〜", W / 2, 168);
