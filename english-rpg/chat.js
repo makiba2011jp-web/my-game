@@ -384,17 +384,87 @@ function buildCookSystem(level, ingredients) {
 - correction.note_ja: 短い日本語の説明。日本語で言ってきたら英語で言うよう促し corrected の英文を勧める。英語が不自然なら直し方を、自然なら短くほめる。
 （挨拶や合図だけの最初のターンなど英訳が不要なときは natural=true, corrected="", note_ja="" でよい）`;
 }
-async function callClaudeCook(level, messages, ingredients) {
+// 召喚料理: モンスターの素材で「架空の料理(貢物)」を作る
+function buildSummonCookSystem(level, ingredients) {
+  const pname = (window.getPlayerName && window.getPlayerName()) || "";
+  const list = (ingredients && ingredients.length) ? ingredients.join("、") : "(手持ちの素材なし)";
+  return `あなたは「コトハ」。幼い女の子の姿をした言葉の精霊で、主人公${pname ? `(${pname})` : ""}の相棒です。いまは大きな邸宅の「召喚料理のキッチン」で、モンスターから得た素材を使って、召喚儀式の“貢物(そなえもの)”となる料理を一緒に作っています。
+
+進め方:
+- 使える素材は次のものだけ: ${list}。リストにない素材は使えません。リストにない物を言われたら reply_ja で「それは持ってないよ」と伝え done=false にします。
+- 主人公は英語で調理手順を指示します。reply_ja には日本語(幼い女の子のタメ口)で反応・誘導を2〜4文。
+- 数ターンで主人公が「完成(I'm done など)」と示すか十分な手順が揃ったら done=true。
+- done=true のとき: dish_name_ja に、その素材と手順から想像した“架空の料理名(かっこいい/おいしそう/少し不気味など創作OK)”を日本語で命名。score(0-100)は出来栄え。ingredients_used に使った素材(リストの表記そのまま)。comment_ja に短い講評。
+  - score は「英語で調理指示できたか」を重視。ほとんど英語でなければ30点以下、自然で流暢なほど高く(とても流暢なら85点以上)。
+- done=false のとき: dish_name_ja="", score=0, ingredients_used=[], comment_ja="" 。
+- reply_ja は必ず日本語。
+毎ターン、直前の主人公の英語を correction に添削(natural / corrected / note_ja)。合図だけのターンは natural=true, corrected="", note_ja="" 。`;
+}
+async function callClaudeCook(level, messages, ingredients, variant) {
   const body = {
     model: AI_CONFIG.model,
     max_tokens: AI_CONFIG.maxTokens,
-    system: buildCookSystem(level, ingredients),
+    system: (variant === "summon" ? buildSummonCookSystem : buildCookSystem)(level, ingredients),
     messages,
   };
   const oc = outputConfigWith(COOK_SCHEMA); if (oc) body.output_config = oc;
   const data = await postClaude(body);
   if (data.stop_reason === "refusal") {
     return { reply_ja: "（…うまく作れないみたい。ごめんね）", correction: { natural: true, corrected: "", note_ja: "" }, done: false, dish_name_ja: "", score: 0, ingredients_used: [], comment_ja: "" };
+  }
+  const block = (data.content || []).find((b) => b.type === "text");
+  if (!block) throw { code: "no_text" };
+  return JSON.parse(block.text);
+}
+
+// ===== 召喚魔法陣: 貢物を捧げ、英語の詠唱で召喚獣カードを得る =====
+const CAST_SCHEMA = {
+  type: "object",
+  properties: {
+    reply_ja: { type: "string" },
+    correction: {
+      type: "object",
+      properties: { natural: { type: "boolean" }, corrected: { type: "string" }, note_ja: { type: "string" } },
+      required: ["natural", "corrected", "note_ja"], additionalProperties: false,
+    },
+    done: { type: "boolean" },                 // 召喚が成立したか
+    beast_name_ja: { type: "string" },         // 架空の召喚獣名(done時)
+    element: { type: "string", enum: ["fire", "water", "wind", "earth", "light", "dark"] }, // 属性
+    incantation_quality: { type: "integer" },  // 詠唱(英語)の出来 0-100
+    flavor_ja: { type: "string" },             // 召喚獣の一言説明(done時)
+  },
+  required: ["reply_ja", "correction", "done", "beast_name_ja", "element", "incantation_quality", "flavor_ja"],
+  additionalProperties: false,
+};
+function buildCastSystem(level, tributeName) {
+  const pname = (window.getPlayerName && window.getPlayerName()) || "";
+  return `あなたは「コトハ」。幼い女の子の姿をした言葉の精霊で、主人公${pname ? `(${pname})` : ""}の相棒です。いまは大きな邸宅の「召喚魔法陣」の前。主人公は貢物「${tributeName || "料理"}」を捧げ、英語で召喚の“詠唱(呪文)”を唱えて召喚獣を呼び出そうとしています。
+
+進め方:
+- reply_ja には日本語(幼い女の子のタメ口)で、儀式の様子や励ましを2〜4文。
+- 主人公が英語で召喚の呼びかけを唱えます。難しく考えず、簡単な英語でOK。
+- 判定はやさしめに: 召喚を呼ぶ意図の英語であれば done=true にして成立させる。短くてもよい(例 "Come, dragon!" / "I summon you!" / "Appear, water spirit!" など1〜数語でもOK)。1回の発言で成立させてあげる。
+  - 英語がまったく無い(日本語だけ)、または召喚と無関係な内容のときだけ done=false にして、reply_ja でやさしく「英語でひとこと呼びかけてみて！(例: Come, dragon!)」と促す。
+- done=true のとき:
+  - beast_name_ja: 架空の召喚獣の名前を日本語で創作(貢物や詠唱の雰囲気に合わせる)。
+  - element: 貢物「${tributeName}」や詠唱の言葉から連想される属性を fire/water/wind/earth/light/dark から1つ。
+  - incantation_quality(0-100): 詠唱の英語の出来。簡単でも成立はするが、短い/簡単なら低め、語彙豊かで流暢・雰囲気があるほど高い(とても良ければ85以上)。※これはレアリティに影響するだけで、成立の可否には関係しない。
+  - flavor_ja: その召喚獣の短い一言説明。
+- done=false のとき: beast_name_ja="", element="fire", incantation_quality=0, flavor_ja="" 。
+- reply_ja は必ず日本語。
+毎ターン、直前の主人公の英語を correction に添削(natural / corrected / note_ja)。合図だけのターンは natural=true, corrected="", note_ja="" 。`;
+}
+async function callClaudeCast(level, messages, tributeName) {
+  const body = {
+    model: AI_CONFIG.model,
+    max_tokens: AI_CONFIG.maxTokens,
+    system: buildCastSystem(level, tributeName),
+    messages,
+  };
+  const oc = outputConfigWith(CAST_SCHEMA); if (oc) body.output_config = oc;
+  const data = await postClaude(body);
+  if (data.stop_reason === "refusal") {
+    return { reply_ja: "（…うまく召喚できないみたい）", correction: { natural: true, corrected: "", note_ja: "" }, done: false, beast_name_ja: "", element: "fire", incantation_quality: 0, flavor_ja: "" };
   }
   const block = (data.content || []).find((b) => b.type === "text");
   if (!block) throw { code: "no_text" };
@@ -419,6 +489,10 @@ const Chat = (() => {
   let cookIngredients = []; // 料理で使える手持ち食材
   let cookOnResult = null;  // 料理完成時のコールバック(game.js)
   let cookDone = false;     // 料理が完成済みか
+  let cookVariant = "normal"; // "normal"(食料品) | "summon"(召喚料理)
+  let castTribute = "";     // 召喚で捧げた貢物の名前
+  let castOnResult = null;  // 召喚成立時のコールバック(game.js)
+  let castDone = false;     // 召喚が成立済みか
   let sendLabel = "話す";
   let suspended = null;     // NPC会話を退避してコトハに切替えた時の保存先
 
@@ -748,7 +822,7 @@ const Chat = (() => {
         addStudyProblem(data.next_ja); // 次の問題
         history.push({ role: "assistant", content: JSON.stringify({ model_en: data.model_en, next_ja: data.next_ja }) });
       } else if (convMode === "cook") {
-        const data = await callClaudeCook(level, history, cookIngredients);
+        const data = await callClaudeCook(level, history, cookIngredients, cookVariant);
         typing.remove();
         if (!data || typeof data.reply_ja !== "string") throw { code: "no_text" };
         if (!isOpening) addCorrection(data.correction); // 英語の添削
@@ -756,13 +830,29 @@ const Chat = (() => {
         history.push({ role: "assistant", content: JSON.stringify({ reply_ja: data.reply_ja, done: data.done }) });
         if (data.done && !cookDone) {
           cookDone = true;
-          addInfo(`🍽 ${data.dish_name_ja || "料理"} が完成！ 出来栄え ${data.score}点`);
+          const noun = cookVariant === "summon" ? "貢物" : "料理";
+          addInfo(`🍽 ${data.dish_name_ja || noun} が完成！ 出来栄え ${data.score}点`);
           if (data.comment_ja) addKotohaLine(data.comment_ja);
           if (cookOnResult) {
             const r = cookOnResult(data.dish_name_ja, data.score, data.ingredients_used || []);
             if (r && r.lines) r.lines.forEach((ln) => addInfo(ln));
           }
-          addInfo("（× でとじる。料理は「もちもの」からタップで食べられるよ）");
+          addInfo(cookVariant === "summon" ? "（× でとじる。貢物は召喚魔法陣で使えるよ）" : "（× でとじる。料理は「もちもの」からタップで食べられるよ）");
+        }
+      } else if (convMode === "cast") {
+        const data = await callClaudeCast(level, history, castTribute);
+        typing.remove();
+        if (!data || typeof data.reply_ja !== "string") throw { code: "no_text" };
+        if (!isOpening) addCorrection(data.correction); // 英語の添削
+        addKotohaLine(data.reply_ja);
+        history.push({ role: "assistant", content: JSON.stringify({ reply_ja: data.reply_ja, done: data.done }) });
+        if (data.done && !castDone) {
+          castDone = true;
+          if (castOnResult) {
+            const r = castOnResult(data.beast_name_ja, data.element, data.incantation_quality);
+            if (r && r.lines) r.lines.forEach((ln) => addInfo(ln));
+          }
+          addInfo("（× でとじる。召喚獣カードは戦闘中に「しょうかん」で使えるよ）");
         }
       } else {
         // 直前のプレイヤー発言(好感度判定などに使う)
@@ -811,9 +901,21 @@ const Chat = (() => {
       return;
     }
     if (convMode === "cook") {
-      addInfo("🍳 コトハ「料理しよう！ 英語で手順を教えてね。できあがったら『I'm done』って言ってね。」");
-      addInfo(cookIngredients.length ? ("食材: " + cookIngredients.join("、")) : "（食材がないみたい。魚屋・八百屋・肉屋で買ってこよう！）");
+      if (cookVariant === "summon") {
+        addInfo("🔮 コトハ「召喚料理を作ろう！ モンスターの素材を使って、英語で手順を教えてね。」");
+        addInfo(cookIngredients.length ? ("素材: " + cookIngredients.join("、")) : "（素材がないみたい。モンスターをたおして素材を集めよう！）");
+      } else {
+        addInfo("🍳 コトハ「料理しよう！ 英語で手順を教えてね。できあがったら『I'm done』って言ってね。」");
+        addInfo(cookIngredients.length ? ("食材: " + cookIngredients.join("、")) : "（食材がないみたい。食料品店で買ってこよう！）");
+      }
       history.push({ role: "user", content: "(料理を始めるよ。何を作るか提案して。)" });
+      turn(true);
+      return;
+    }
+    if (convMode === "cast") {
+      addInfo("🔮 コトハ「召喚魔法陣に貢物『" + (castTribute || "料理") + "』を捧げたよ。英語で召喚の詠唱を唱えて！」");
+      addInfo("（かんたんでOK！ 例: \"Come, dragon!\" \"I summon you!\" 上手な英語ほど良い召喚獣が出やすいよ）");
+      history.push({ role: "user", content: "(儀式を始めるよ。詠唱をうながして。)" });
       turn(true);
       return;
     }
@@ -828,6 +930,7 @@ const Chat = (() => {
     if (AI_CONFIG.mode === "browser" && !getApiKey()) { showKeyPanel(); return; }
     if (convMode === "study" && !studyTheme) { addInfo("コトハ「まずは上のボタンから今日のテーマを選んでね！」"); return; }
     if (convMode === "cook" && cookDone) { addInfo("コトハ「もう完成したよ！ × でとじてね。」"); return; }
+    if (convMode === "cast" && castDone) { addInfo("コトハ「もう召喚できたよ！ × でとじてね。」"); return; }
     const text = inputEl.value.trim();
     if (!text) return;
     inputEl.value = "";
@@ -872,11 +975,27 @@ const Chat = (() => {
 
   // 台所: コトハと料理。ingredients=使える手持ち食材, onResult(name,score,used)=完成時
   function openCooking(toeicLevel, ingredients, onResult) {
-    convMode = "cook"; kotohaContext = null; sendLabel = "指示する";
+    convMode = "cook"; cookVariant = "normal"; kotohaContext = null; sendLabel = "指示する";
     cookIngredients = ingredients || []; cookOnResult = onResult || null; cookDone = false;
     npc = { id: "kotoha", name: "コトハ" }; level = toeicLevel; onCloseCb = null;
     inputEl.placeholder = "英語で手順を指示… (Enterで送信)";
     beginSession("コトハ（料理）");
+  }
+  // 召喚料理: モンスター素材で貢物を作る
+  function openSummonCook(toeicLevel, materials, onResult) {
+    convMode = "cook"; cookVariant = "summon"; kotohaContext = null; sendLabel = "指示する";
+    cookIngredients = materials || []; cookOnResult = onResult || null; cookDone = false;
+    npc = { id: "kotoha", name: "コトハ" }; level = toeicLevel; onCloseCb = null;
+    inputEl.placeholder = "英語で手順を指示… (Enterで送信)";
+    beginSession("コトハ（召喚料理）");
+  }
+  // 召喚魔法陣: 貢物を捧げて英語詠唱→召喚獣カード
+  function openSummonCast(toeicLevel, tributeName, onResult) {
+    convMode = "cast"; kotohaContext = null; sendLabel = "となえる";
+    castTribute = tributeName || ""; castOnResult = onResult || null; castDone = false;
+    npc = { id: "kotoha", name: "コトハ" }; level = toeicLevel; onCloseCb = null;
+    inputEl.placeholder = "英語で詠唱をとなえる… (Enterで送信)";
+    beginSession("召喚魔法陣");
   }
 
   function beginSession(title) {
@@ -911,7 +1030,7 @@ const Chat = (() => {
     if (after) after(); // 「売りたい/泊まりたい」など、閉じた後の動作
   }
 
-  return { open, openKotoha, openStudy, openCooking, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; }, info: (t) => addInfo(t) };
+  return { open, openKotoha, openStudy, openCooking, openSummonCook, openSummonCast, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; }, info: (t) => addInfo(t) };
 })();
 
 window.Chat = Chat;

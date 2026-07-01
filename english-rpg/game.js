@@ -38,11 +38,15 @@ const HOME_PROPERTIES = [
   { id: "stone",   name: "石造りの家",   price: 2000, decor: "home_stone" },
   { id: "manor",   name: "大きな邸宅",   price: 8000, decor: "home_manor" },
 ];
+// 大きな邸宅だけの設備: 召喚魔法陣＋召喚料理の大鍋
+const HOME_SUMMON_DECOR = [{ tx: 3, ty: 6, kind: "summoncircle" }, { tx: 9, ty: 6, kind: "cauldron" }];
 // 所有グレードに応じてマイホームの内装と表示名を更新
 function refreshHome() {
   const p = ownedHome && HOME_PROPERTIES.find((x) => x.id === ownedHome);
   AREAS.home.name = p ? "マイホーム" : "売り家";
-  AREAS.home.decor = p ? (DECOR_TEMPLATES[p.decor] || []).concat(HOME_GARDEN_DECOR) : [];
+  let decor = p ? (DECOR_TEMPLATES[p.decor] || []).concat(HOME_GARDEN_DECOR) : [];
+  if (p && p.id === "manor") decor = decor.concat(HOME_SUMMON_DECOR); // 邸宅のみ召喚設備
+  AREAS.home.decor = decor;
 }
 
 // chat.js から参照: 主人公名 / NPCが面識ありか / 面識を記録
@@ -507,6 +511,13 @@ let dishes = [];             // 作った料理 [{name,score,heal,atk,def}]
 let dishRowRects = [];       // 料理パネルの各行タップ判定用
 let mealBuff = { atk: 0, def: 0 }; // 料理を食べて得た「次の戦闘」バフ(保留中)
 let battleBuff = { atk: 0, def: 0 }; // 現在の戦闘中に効いているバフ
+let tributes = [];           // 召喚料理(貢物) [{name,quality}]
+let summonCards = [];        // 召喚獣カード [{name,element,rarity,atk,turns}]
+let pendingTribute = null;   // 召喚で捧げ中の貢物
+// 召喚獣: レアリティ別の性能 / 属性の日本語
+const SUMMON_ATK = { 1: 6, 2: 9, 3: 13, 4: 18, 5: 24 };
+const SUMMON_TURNS = { 1: 2, 2: 2, 3: 3, 4: 3, 5: 4 };
+const ELEMENT_JA = { fire: "炎", water: "水", wind: "風", earth: "土", light: "光", dark: "闇" };
 let rateBoxRect = null;      // 「習得」バーのタップ判定用矩形
 let wordList = null;         // 習得リスト表示中の状態 { page }
 let wordListBack = STATE.FIELD; // 習得リストを閉じたあとに戻る状態
@@ -876,12 +887,12 @@ function onInput(k) {
   if (state === STATE.BOSSBATTLE && bossBattle) {
     const bb = bossBattle;
     if (bb.phase === "menu") {
-      const n = 5; // たたかう/必殺技/ぼうぎょ/道具/にげる(2列)
+      const n = 6; // たたかう/必殺技/しょうかん/道具/ぼうぎょ/にげる(2列×3)
       if (k === "up" && bb.sel - 2 >= 0) bb.sel -= 2;
       else if (k === "down" && bb.sel + 2 < n) bb.sel += 2;
       else if (k === "left" && bb.sel % 2 === 1) bb.sel--;
       else if (k === "right" && bb.sel % 2 === 0 && bb.sel + 1 < n) bb.sel++;
-      else if (k === "confirm") bossCommand(["attack", "special", "guard", "item", "flee"][bb.sel]);
+      else if (k === "confirm") bossCommand(["attack", "special", "summon", "item", "guard", "flee"][bb.sel]);
       return;
     }
     if (bb.phase === "item") {
@@ -889,6 +900,14 @@ function onInput(k) {
       if (k === "up") bb.itemSel = (bb.itemSel - 1 + n) % n;
       else if (k === "down") bb.itemSel = (bb.itemSel + 1) % n;
       else if (k === "confirm") { if (bb.itemSel >= Math.min(dishes.length, 6)) bossMenu(); else useDishInBattle(bb.itemSel); }
+      else if (k === "cancel") bossMenu();
+      return;
+    }
+    if (bb.phase === "summon") {
+      const n = Math.min(summonCards.length, 6) + 1; // カード(最大6)＋もどる
+      if (k === "up") bb.summonSel = (bb.summonSel - 1 + n) % n;
+      else if (k === "down") bb.summonSel = (bb.summonSel + 1) % n;
+      else if (k === "confirm") { if (bb.summonSel >= Math.min(summonCards.length, 6)) bossMenu(); else useSummonInBattle(bb.summonSel); }
       else if (k === "cancel") bossMenu();
       return;
     }
@@ -964,6 +983,8 @@ function onTap(x, y) {
     if (n) { interactNPC(n); return; }
     if (deskAt(tx, ty)) { startDeskStudy(); return; } // 勉強机タップ→英訳ドリル
     if (kitchenAt(tx, ty)) { startCooking(); return; } // 台所タップ→料理
+    if (summonKitchenAt(tx, ty)) { startSummonCook(); return; } // 大鍋タップ→召喚料理
+    if (summonCircleAt(tx, ty)) { startSummonCast(); return; } // 召喚魔法陣タップ→召喚
     if (!hudShown) { setHud(true); return; } // 何もない所をタップ → 情報パネルを表示
     return;
   }
@@ -1022,9 +1043,9 @@ function onTap(x, y) {
   if (state === STATE.BOSSBATTLE && bossBattle) {
     const bb = bossBattle;
     if (bb.phase === "menu") {
-      for (let i = 0; i < 5; i++) {
-        const bx = 16 + (i % 2) * 232, by = 312 + ((i / 2) | 0) * 46;
-        if (x >= bx && x <= bx + 216 && y >= by && y <= by + 40) { bb.sel = i; bossCommand(["attack", "special", "guard", "item", "flee"][i]); return; }
+      for (let i = 0; i < 6; i++) {
+        const bx = 16 + (i % 2) * 232, by = 306 + ((i / 2) | 0) * 44;
+        if (x >= bx && x <= bx + 216 && y >= by && y <= by + 38) { bb.sel = i; bossCommand(["attack", "special", "summon", "item", "guard", "flee"][i]); return; }
       }
       return;
     }
@@ -1033,6 +1054,14 @@ function onTap(x, y) {
       for (let i = 0; i <= m; i++) {
         const ry = 304 + i * 24;
         if (x >= 16 && x <= 464 && y >= ry && y <= ry + 22) { if (i >= m) bossMenu(); else useDishInBattle(i); return; }
+      }
+      return;
+    }
+    if (bb.phase === "summon") {
+      const m = Math.min(summonCards.length, 6);
+      for (let i = 0; i <= m; i++) {
+        const ry = 304 + i * 24;
+        if (x >= 16 && x <= 464 && y >= ry && y <= ry + 22) { if (i >= m) bossMenu(); else useSummonInBattle(i); return; }
       }
       return;
     }
@@ -1075,6 +1104,7 @@ function saveGame() {
     sideQuests: sideQuests.map((q) => ({ ...q })), sideQuestId,
     wordCorrect: { ...wordCorrect }, npcAffection: { ...npcAffection }, metNPCs: [...metNPCs], ownedHome,
     dishes: dishes.map((d) => ({ ...d })), mealBuff: { ...mealBuff }, fieldBoss: fieldBoss ? { ...fieldBoss } : null,
+    tributes: tributes.map((t) => ({ ...t })), summonCards: summonCards.map((c) => ({ ...c })),
     savedOverworld: { ...savedOverworld }, catSpot,
   };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); return true; }
@@ -1098,6 +1128,9 @@ function loadGame() {
   metNPCs = new Set(data.metNPCs || []);
   ownedHome = data.ownedHome || null; refreshHome();
   dishes = data.dishes || [];
+  tributes = data.tributes || [];
+  summonCards = data.summonCards || [];
+  pendingTribute = null;
   mealBuff = data.mealBuff || { atk: 0, def: 0 };
   battleBuff = { atk: 0, def: 0 };
   fieldBoss = data.fieldBoss || null; bossBattle = null;
@@ -1134,7 +1167,7 @@ function startGame(level) {
   bag = {}; catSpot = 0; CAT.tx = CAT_SPOTS[0][0]; CAT.ty = CAT_SPOTS[0][1];
   board = null; boardCache = null; sideQuests = []; questLog = null;
   wordCorrect = {}; zone = ""; npcAffection = {}; affectionRecent = {}; metNPCs = new Set(); ownedHome = null; refreshHome();
-  dishes = []; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
+  dishes = []; tributes = []; summonCards = []; pendingTribute = null; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
   fieldBoss = null; bossBattle = null;
   resetEncounter();
   startOpening();
@@ -1164,7 +1197,7 @@ function devJump(stage) {
   catSpot = 0; CAT.tx = CAT_SPOTS[0][0]; CAT.ty = CAT_SPOTS[0][1];
   board = null; boardCache = null; sideQuests = []; questLog = null;
   wordCorrect = {}; metNPCs = new Set(); npcAffection = {}; affectionRecent = {}; ownedHome = null; refreshHome();
-  dishes = []; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
+  dishes = []; tributes = []; summonCards = []; pendingTribute = null; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
   fieldBoss = null; bossBattle = null;
   resetEncounter();
   if (stage <= 1) {
@@ -1206,6 +1239,8 @@ function tryTalk() {
   if (n) { interactNPC(n); return; }
   if (deskAt(fx, fy)) { startDeskStudy(); return; } // マイホームの勉強机→英訳ドリル
   if (kitchenAt(fx, fy)) { startCooking(); return; } // マイホームの台所→料理
+  if (summonKitchenAt(fx, fy)) { startSummonCook(); return; } // 邸宅の大鍋→召喚料理
+  if (summonCircleAt(fx, fy)) { startSummonCast(); return; } // 邸宅の召喚魔法陣→召喚
 }
 // マイホームの勉強机が指定マスにあるか
 function deskAt(tx, ty) {
@@ -1226,6 +1261,68 @@ function startCooking() {
   for (const k in keys) keys[k] = false;
   const ings = INGREDIENT_NAMES.filter((n) => bag[n] > 0).map((n) => `${n}×${bag[n]}`);
   Chat.openCooking(toeicLevel, ings, (name, score, used) => cookFinish(name, score, used));
+}
+// ===== 大きな邸宅の召喚設備(邸宅のみ) =====
+function summonKitchenAt(tx, ty) {
+  return curArea.id === "home" && ownedHome === "manor" && (curArea.decor || []).some((d) => d.kind === "cauldron" && d.tx === tx && d.ty === ty);
+}
+function summonCircleAt(tx, ty) {
+  return curArea.id === "home" && ownedHome === "manor" && (curArea.decor || []).some((d) => d.kind === "summoncircle" && d.tx === tx && d.ty === ty);
+}
+// 召喚料理の大鍋: モンスター素材で貢物を作る
+function startSummonCook() {
+  for (const k in keys) keys[k] = false;
+  const mats = Object.keys(materials).filter((n) => materials[n] > 0).map((n) => `${n}×${materials[n]}`);
+  Chat.openSummonCook(toeicLevel, mats, (name, score, used) => summonCookFinish(name, score, used));
+}
+// 召喚料理 完成: 素材を消費し、出来栄えつきの貢物を得る
+function summonCookFinish(name, quality, used) {
+  quality = Math.max(0, Math.min(100, Math.round(quality || 0)));
+  const consumed = [];
+  for (const ing of (used || [])) {
+    const key = Object.keys(materials).find((n) => ing && String(ing).indexOf(n) >= 0);
+    if (key && materials[key] > 0) { materials[key]--; if (materials[key] <= 0) delete materials[key]; consumed.push(key); }
+  }
+  const dishName = name || "謎の貢物";
+  tributes.push({ name: dishName, quality });
+  if (tributes.length > 12) tributes.shift();
+  if (canSave()) saveGame();
+  return { lines: [
+    consumed.length ? `使った素材: ${consumed.join("、")}（消費）` : "（素材は使わなかった）",
+    `貢物「${dishName}」を手に入れた！（出来${quality}）召喚魔法陣で使えるよ。`,
+  ] };
+}
+// 召喚魔法陣: 貢物を捧げて英語詠唱→召喚獣カード
+function startSummonCast() {
+  for (const k in keys) keys[k] = false;
+  if (!tributes.length) {
+    playTownCutscene([{ who: "コトハ", lines: ["召喚には『貢物(召喚料理)』が必要だよ。", "召喚料理の大鍋で、モンスターの素材から作ろう！"] }]);
+    return;
+  }
+  pendingTribute = tributes[tributes.length - 1]; // 一番新しい貢物を捧げる
+  Chat.openSummonCast(toeicLevel, pendingTribute.name, (bn, el, iq) => summonCastFinish(bn, el, iq));
+}
+// 出来栄え(貢物)＋詠唱の英語 の平均が高いほど高レアが出やすい
+function rollRarity(avg) {
+  const r = avg * 0.7 + rnd() * 50;
+  if (r >= 95) return 5; if (r >= 78) return 4; if (r >= 58) return 3; if (r >= 35) return 2; return 1;
+}
+function summonCastFinish(beastName, element, iq) {
+  const trib = pendingTribute; pendingTribute = null;
+  const q = trib ? trib.quality : 40;
+  const avg = (q + Math.max(0, Math.min(100, iq || 0))) / 2;
+  const rarity = rollRarity(avg);
+  if (trib) { const idx = tributes.indexOf(trib); if (idx >= 0) tributes.splice(idx, 1); } // 貢物を消費
+  const el = ELEMENT_JA[element] ? element : "fire";
+  const card = { name: beastName || "謎の召喚獣", element: el, rarity, atk: SUMMON_ATK[rarity], turns: SUMMON_TURNS[rarity] };
+  summonCards.push(card);
+  if (summonCards.length > 20) summonCards.shift();
+  if (canSave()) saveGame();
+  return { lines: [
+    `✨ 召喚成功！ ${"★".repeat(rarity)} 【${ELEMENT_JA[el]}属性】${card.name}`,
+    `攻撃${card.atk} ／ 味方でいる ${card.turns}ターン`,
+    "召喚獣カードを手に入れた！（戦闘中に「しょうかん」で使えるよ）",
+  ] };
 }
 // 料理完成: 使った食材を消費し、出来栄えに応じた効果の料理を作る。返り値 { lines }。
 function cookFinish(name, score, used) {
@@ -2340,8 +2437,9 @@ function startBossBattle() {
   mealBuff = { atk: 0, def: 0 };
   bossBattle = {
     name: b.name, color: b.color, ehp: b.hp, emaxhp: b.hp, eatk: b.atk, exp: b.exp,
-    questId: fieldBoss.questId, sel: 0, itemSel: 0, phase: "resolve", guard: false,
+    questId: fieldBoss.questId, sel: 0, itemSel: 0, summonSel: 0, phase: "resolve", guard: false,
     sp: 0, spMax: 3, // 必殺技ゲージ(気合)
+    beast: null, // 召喚中の召喚獣 {name,atk,turnsLeft,element}
     khp: 30, kmaxhp: 30, kmp: 14, shake: 0, ehurt: 0, phurt: 0, khurt: 0,
   };
   cutsceneDraw = drawBossScene;
@@ -2355,6 +2453,11 @@ function bossCommand(cmd) {
     if (!dishes.length) { bb.phase = "resolve"; bossSay(["道具(料理)を持っていない！"], () => bossMenu()); return; }
     bb.phase = "item"; bb.itemSel = 0; return;
   }
+  // しょうかん: 召喚獣カードを選ぶサブメニューへ(ターンは消費しない)
+  if (cmd === "summon") {
+    if (!summonCards.length) { bb.phase = "resolve"; bossSay(["召喚獣カードを持っていない！（邸宅の召喚魔法陣で手に入れよう）"], () => bossMenu()); return; }
+    bb.phase = "summon"; bb.summonSel = 0; return;
+  }
   // 必殺技: 気合が満タンのときだけ
   if (cmd === "special" && bb.sp < bb.spMax) {
     bb.phase = "resolve"; bossSay(["まだ必殺技は使えない！（気合をためよう）"], () => bossMenu()); return;
@@ -2362,22 +2465,48 @@ function bossCommand(cmd) {
   bb.phase = "resolve"; bb.guard = false;
   if (cmd === "flee") {
     if (rnd() < 0.5) { cutsceneDraw = null; bossBattle = null; battleBuff = { atk: 0, def: 0 }; showMessage([`${player.name}は うまく にげだした！`], () => { state = STATE.FIELD; }); return; }
-    bossSay([`${player.name}は にげようとした… でも回りこまれた！`], () => bossEnemyPhase());
+    bossSay([`${player.name}は にげようとした… でも回りこまれた！`], () => bossBeastPhase());
     return;
   }
-  if (cmd === "guard") { bb.sp = Math.min(bb.spMax, bb.sp + 1); bb.guard = true; bossSay([`${player.name}は 身をまもっている。`], () => bossKotohaPhase()); return; }
+  if (cmd === "guard") { bb.sp = Math.min(bb.spMax, bb.sp + 1); bb.guard = true; bossSay([`${player.name}は 身をまもっている。`], () => bossBeastPhase()); return; }
   if (cmd === "special") {
     bb.sp = 0;
     const dmg = Math.floor((player.atk + battleBuff.atk) * 2.2) + 6 + Math.floor(rnd() * 6);
     bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 12;
-    bossSay([`${player.name}の必殺技！ こんしんの一撃！`, `${bb.name}に ${dmg} の大ダメージ！`], () => { if (bb.ehp <= 0) return bossWin(); bossKotohaPhase(); });
+    bossSay([`${player.name}の必殺技！ こんしんの一撃！`, `${bb.name}に ${dmg} の大ダメージ！`], () => { if (bb.ehp <= 0) return bossWin(); bossBeastPhase(); });
     return;
   }
   // たたかう
   bb.sp = Math.min(bb.spMax, bb.sp + 1);
   const dmg = player.atk + battleBuff.atk + Math.floor(rnd() * 4);
   bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 8;
-  bossSay([`${player.name}の こうげき！ ${bb.name}に ${dmg} のダメージ！`], () => { if (bb.ehp <= 0) return bossWin(); bossKotohaPhase(); });
+  bossSay([`${player.name}の こうげき！ ${bb.name}に ${dmg} のダメージ！`], () => { if (bb.ehp <= 0) return bossWin(); bossBeastPhase(); });
+}
+// 召喚獣カードを戦闘中に使う: 召喚獣が味方として登場(数ターン自動攻撃)
+function useSummonInBattle(i) {
+  const bb = bossBattle; if (!bb) return;
+  const c = summonCards[i];
+  if (!c) { bossMenu(); return; }
+  bb.phase = "resolve";
+  bb.beast = { name: c.name, atk: c.atk, turnsLeft: c.turns, element: c.element };
+  summonCards.splice(i, 1);
+  if (canSave()) saveGame();
+  bossSay([`召喚！ 【${ELEMENT_JA[c.element] || "無"}】${c.name}が あらわれた！（${c.turns}ターン味方）`], () => bossBeastPhase());
+}
+// 召喚獣のターン: 生きていれば自動でボスを攻撃し、残りターンを減らす
+function bossBeastPhase() {
+  const bb = bossBattle; if (!bb) return;
+  const be = bb.beast;
+  if (!be || be.turnsLeft <= 0) { return bossKotohaPhase(); }
+  const dmg = be.atk + Math.floor(rnd() * 4);
+  bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 6;
+  be.turnsLeft--;
+  const gone = be.turnsLeft <= 0 ? [`${be.name}は 力を使い果たして 去っていった…`] : [];
+  bossSay([`召喚獣 ${be.name}の こうげき！ ${bb.name}に ${dmg} のダメージ！`, ...gone], () => {
+    if (be.turnsLeft <= 0) bb.beast = null;
+    if (bb.ehp <= 0) return bossWin();
+    bossKotohaPhase();
+  });
 }
 // 道具(料理)を戦闘中に使う: HP回復＋この戦闘のバフを即適用
 function useDishInBattle(i) {
@@ -2392,7 +2521,7 @@ function useDishInBattle(i) {
   dishes.splice(i, 1);
   bb.sp = Math.min(bb.spMax, bb.sp + 1);
   const buffLine = (d.atk || d.def) ? ` ${d.atk ? `こうげき+${d.atk} ` : ""}${d.def ? `ぼうぎょ+${d.def}` : ""}！` : "";
-  bossSay([`${player.name}は ${d.name}を 食べた！ HP+${healed}${buffLine}`], () => bossKotohaPhase());
+  bossSay([`${player.name}は ${d.name}を 食べた！ HP+${healed}${buffLine}`], () => bossBeastPhase());
 }
 function bossKotohaPhase() {
   const bb = bossBattle; if (!bb) return;
@@ -2460,39 +2589,48 @@ function drawBossScene() {
   ctx.fillStyle = "#cfe0ff"; ctx.fillText("コトハ", 30, 282);
   if (bb.khp > 0) { drawBar(30, 287, 150, 8, bb.khp / bb.kmaxhp, "#7be0d2"); ctx.fillStyle = "#fff"; ctx.fillText(`HP ${bb.khp}/${bb.kmaxhp} MP ${bb.kmp}`, 188, 284); }
   else { ctx.fillStyle = "#8aa"; ctx.fillText("たおれている…", 188, 284); }
+  if (bb.beast) { ctx.fillStyle = "#d8b0ff"; ctx.fillText(`召喚 ${bb.beast.name}(残${bb.beast.turnsLeft})`, 300, 284); }
   ctx.textAlign = "center";
   if (bb.phurt > 0 && Math.floor(bb.phurt) % 2 === 0) { ctx.fillStyle = "rgba(200,0,0,0.22)"; ctx.fillRect(0, 0, W, H); }
 }
+const BOSS_CMDS = ["たたかう", "必殺技", "しょうかん", "道具", "ぼうぎょ", "にげる"]; // 6コマンド(2列×3)
 function drawBossBattle() {
   drawBossScene();
   const bb = bossBattle;
-  if (bb.phase === "item") { drawBossItemMenu(); return; }
-  const cmds = ["たたかう", "必殺技", "ぼうぎょ", "道具", "にげる"];
-  for (let i = 0; i < 5; i++) {
-    const bx = 16 + (i % 2) * 232, by = 312 + ((i / 2) | 0) * 46;
-    drawWindow(bx, by, 216, 40, bb.sel === i);
-    // 必殺技は気合が満タンでないとグレー、道具は料理がないとグレー
-    const dim = (i === 1 && bb.sp < bb.spMax) || (i === 3 && !dishes.length);
+  if (bb.phase === "item") { drawBossListMenu("item"); return; }
+  if (bb.phase === "summon") { drawBossListMenu("summon"); return; }
+  for (let i = 0; i < BOSS_CMDS.length; i++) {
+    const bx = 16 + (i % 2) * 232, by = 306 + ((i / 2) | 0) * 44;
+    drawWindow(bx, by, 216, 38, bb.sel === i);
+    // 必殺技=気合満タン必要 / しょうかん=カード必要 / 道具=料理必要 のとき灰色
+    const dim = (i === 1 && bb.sp < bb.spMax) || (i === 2 && !summonCards.length) || (i === 3 && !dishes.length);
     ctx.fillStyle = dim ? "#7a8aa8" : "#fff"; ctx.textAlign = "left"; ctx.font = "16px 'MS Gothic', monospace";
-    ctx.fillText(cmds[i], bx + 20, by + 26);
+    ctx.fillText(BOSS_CMDS[i], bx + 20, by + 25);
   }
   ctx.textAlign = "center";
 }
-// 道具(料理)サブメニュー
-function drawBossItemMenu() {
+// 道具/しょうかん のサブメニュー(共通)
+function drawBossListMenu(kind) {
   const bb = bossBattle;
-  const m = Math.min(dishes.length, 6);
+  const isItem = kind === "item";
+  const list = isItem ? dishes : summonCards;
+  const sel = isItem ? bb.itemSel : bb.summonSel;
+  const m = Math.min(list.length, 6);
   drawWindow(16, 298, 448, 24 + (m + 1) * 24, false);
   ctx.textAlign = "left"; ctx.font = "13px 'MS Gothic', monospace";
   for (let i = 0; i < m; i++) {
-    const ry = 304 + i * 24; const d = dishes[i];
-    if (bb.itemSel === i) { ctx.fillStyle = "rgba(255,224,130,0.18)"; ctx.fillRect(20, ry, 440, 22); }
+    const ry = 304 + i * 24; const it = list[i];
+    if (sel === i) { ctx.fillStyle = "rgba(255,224,130,0.18)"; ctx.fillRect(20, ry, 440, 22); }
     ctx.fillStyle = "#fff";
-    const eff = `HP+${d.heal}${d.atk ? ` 攻+${d.atk}` : ""}${d.def ? ` 防+${d.def}` : ""}`;
-    ctx.fillText(`🍳${d.name}（${eff}）`, 28, ry + 16);
+    if (isItem) {
+      const eff = `HP+${it.heal}${it.atk ? ` 攻+${it.atk}` : ""}${it.def ? ` 防+${it.def}` : ""}`;
+      ctx.fillText(`🍳${it.name}（${eff}）`, 28, ry + 16);
+    } else {
+      ctx.fillText(`✨${"★".repeat(it.rarity)}【${ELEMENT_JA[it.element] || "無"}】${it.name}（攻${it.atk}/${it.turns}T）`, 28, ry + 16);
+    }
   }
   const by = 304 + m * 24;
-  if (bb.itemSel >= m) { ctx.fillStyle = "rgba(255,224,130,0.18)"; ctx.fillRect(20, by, 440, 22); }
+  if (sel >= m) { ctx.fillStyle = "rgba(255,224,130,0.18)"; ctx.fillRect(20, by, 440, 22); }
   ctx.fillStyle = "#9fd6ff"; ctx.fillText("← もどる", 28, by + 16);
   ctx.textAlign = "center";
 }
@@ -2900,6 +3038,15 @@ function drawRightPanel() {
     }
     y += bh + 6;
   }
+  // 召喚(貢物・召喚獣カード)の所持状況(読み取り専用)
+  if (tributes.length || summonCards.length) {
+    const bh = 26;
+    drawWindow(bx, y, bw, bh, false);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#d8b0ff"; ctx.font = "11px 'MS Gothic', monospace";
+    ctx.fillText(`🔮 召喚獣カード ${summonCards.length} ／ 貢物 ${tributes.length}`, bx + 10, y + 17);
+    y += bh + 6;
+  }
   // ギルド依頼(受注中サブクエスト)
   if (sideQuests.length) {
     const sq = sideQuests.slice(0, 3);
@@ -3107,6 +3254,8 @@ function drawDecor(kind, x, y) {
     case "desk": drawDesk(x, y); break;
     case "stove": drawStove(x, y); break;
     case "sink": drawSink(x, y); break;
+    case "summoncircle": drawSummonCircle(x, y); break;
+    case "cauldron": drawCauldron(x, y); break;
   }
 }
 // 台所: コンロ(鍋つき)
@@ -3147,6 +3296,35 @@ function drawDesk(x, y) {
   // 卓上ランプ
   ctx.fillStyle = "#caa030"; ctx.fillRect(x + 25, y + 6, 2, 6);
   ctx.fillStyle = "#ffe082"; ctx.beginPath(); ctx.arc(x + 26, y + 5, 3, 0, Math.PI * 2); ctx.fill();
+}
+// 召喚魔法陣(床に光る紫の魔法陣)
+function drawSummonCircle(x, y) {
+  ctx.save();
+  ctx.strokeStyle = "#b06adf"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x + 16, y + 18, 13, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = "#7a3ab0"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(x + 16, y + 18, 9, 0, Math.PI * 2); ctx.stroke();
+  // 五芒星
+  ctx.strokeStyle = "#e0a8ff"; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + i * (Math.PI * 4 / 5);
+    const px2 = x + 16 + Math.cos(a) * 11, py2 = y + 18 + Math.sin(a) * 11;
+    i ? ctx.lineTo(px2, py2) : ctx.moveTo(px2, py2);
+  }
+  ctx.closePath(); ctx.stroke();
+  // ほのかな光
+  ctx.fillStyle = "rgba(176,106,223,0.18)"; ctx.beginPath(); ctx.arc(x + 16, y + 18, 13, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+// 召喚料理の大鍋(紫の煮汁がぐつぐつ)
+function drawCauldron(x, y) {
+  ctx.fillStyle = "#3a3a44"; ctx.beginPath(); ctx.ellipse(x + 16, y + 22, 13, 10, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#2a2a32"; ctx.fillRect(x + 3, y + 14, 26, 8);
+  ctx.fillStyle = "#8a4ad0"; ctx.beginPath(); ctx.ellipse(x + 16, y + 15, 11, 4, 0, 0, Math.PI * 2); ctx.fill(); // 煮汁
+  ctx.fillStyle = "#b06adf"; ctx.beginPath(); ctx.arc(x + 12, y + 14, 1.6, 0, Math.PI * 2); ctx.arc(x + 20, y + 15, 1.3, 0, Math.PI * 2); ctx.fill(); // 泡
+  ctx.fillStyle = "#5a3a1e"; ctx.fillRect(x + 6, y + 28, 4, 4); ctx.fillRect(x + 22, y + 28, 4, 4); // 脚
+  ctx.fillStyle = "#e0a020"; ctx.fillRect(x + 4, y + 30, 24, 2); // 炎の名残
 }
 // 花壇(歩ける飾り)。カラフルな花を数輪。
 function drawFlower(x, y) {
