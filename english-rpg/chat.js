@@ -79,6 +79,7 @@ const NPC_PERSONA = {
   meat: "You are Otto, the hearty owner of the butcher shop (肉屋). You sell meat of all kinds and love a good barbecue. You do NOT run an inn and do not offer rooms.",
   grocery: "You are Marco, the friendly clerk at the grocery stall (食料品店) inside the town's food market. You sell pantry goods — eggs, cooking oil, salt, soy sauce, sugar, butter and the like — and love giving little cooking tips. You do NOT run an inn and do not offer rooms.",
   realestate: "You are Estelle, the polished and friendly owner of the town's real estate agency (不動産屋). You sell houses and properties to travelers who want a home of their own — a small cottage, a stone house, or a grand manor. You love talking about rooms, gardens, and the perfect place to live. You do NOT run an inn and do NOT offer rooms for the night or food; you sell houses to OWN.",
+  appliance: "You are Den, the cheerful owner of the town's appliance shop (家電屋). You sell home appliances — refrigerators and televisions — and love explaining their features. A fridge keeps food fresh; a TV shows news, anime and variety programs. You do NOT run an inn and do not offer rooms or food.",
 };
 const LEVEL_GUIDE = {
   500: "Use very simple words and short sentences (around CEFR A2 / TOEIC 500). Avoid difficult vocabulary and complex grammar.",
@@ -471,6 +472,39 @@ async function callClaudeCast(level, messages, tributeName) {
   return JSON.parse(block.text);
 }
 
+// ===== テレビ: AI放送(ニュース/アニメ/バラエティ)。一方通行・チャンネル変更のみ =====
+const TV_CHANNELS = { news: "ニュース", anime: "アニメ", variety: "バラエティ" };
+const TV_SCHEMA = {
+  type: "object",
+  properties: { title_ja: { type: "string" }, program_en: { type: "string" }, program_ja: { type: "string" } },
+  required: ["title_ja", "program_en", "program_ja"],
+  additionalProperties: false,
+};
+function buildTvSystem(level, channel) {
+  const guide = LEVEL_GUIDE[level] || LEVEL_GUIDE[500];
+  const kind = channel === "anime" ? "a lively, dramatic scene or line from a fantasy anime show"
+    : channel === "variety" ? "a cheerful segment from a fun variety/quiz show (a host speaking to the audience)"
+    : "a short news report about the fantasy world (adventurers, towns, monsters, weather)";
+  return `You are a TV broadcast in a fantasy world (the "${TV_CHANNELS[channel] || "ニュース"}" channel). Produce ${kind}.
+- ${guide}
+- Write 2-4 short natural English sentences as the broadcast (program_en). It is a ONE-WAY broadcast: never address the viewer directly, never ask the viewer questions.
+- Give a short Japanese program title (title_ja) and a natural Japanese translation of the broadcast (program_ja).
+- Make each broadcast fresh and different.`;
+}
+async function callClaudeTv(level, channel) {
+  const body = {
+    model: AI_CONFIG.model, max_tokens: AI_CONFIG.maxTokens,
+    system: buildTvSystem(level, channel),
+    messages: [{ role: "user", content: `Broadcast the ${channel} channel now.` }],
+  };
+  const oc = outputConfigWith(TV_SCHEMA); if (oc) body.output_config = oc;
+  const data = await postClaude(body);
+  if (data.stop_reason === "refusal") return { title_ja: "放送休止", program_en: "We are having some technical difficulties.", program_ja: "（ただいま放送を休止しています）" };
+  const block = (data.content || []).find((b) => b.type === "text");
+  if (!block) throw { code: "no_text" };
+  return JSON.parse(block.text);
+}
+
 // ※ ギルド依頼はAI自動生成を廃止し、事前定義リスト(quests.js の QUEST_POOL)から
 //    ランダム出題する方式に変更しました(game.js の pickQuestsFromPool)。
 
@@ -643,6 +677,37 @@ const Chat = (() => {
     }
     box.appendChild(grid);
     logEl.appendChild(box); scrollBottom();
+  }
+
+  // テレビ: チャンネル選択ボタン
+  function addTvChannels() {
+    const box = el("div", "theme-pick");
+    box.appendChild(el("div", "theme-pick-title", "📺 チャンネルを選んでね"));
+    const grid = el("div", "theme-grid");
+    for (const key of Object.keys(TV_CHANNELS)) {
+      const b = el("button", "theme-btn", TV_CHANNELS[key]);
+      b.addEventListener("click", () => { if (!busy) tvWatch(key); });
+      grid.appendChild(b);
+    }
+    box.appendChild(grid);
+    logEl.appendChild(box); scrollBottom();
+  }
+  // テレビ: 選んだチャンネルの番組をAIが放送
+  async function tvWatch(channel) {
+    setBusy(true);
+    addInfo(`📺 チャンネル: ${TV_CHANNELS[channel]}`);
+    const typing = el("div", "chat-info", "…📡 受信中…"); logEl.appendChild(typing); scrollBottom();
+    try {
+      const data = await callClaudeTv(level, channel);
+      typing.remove();
+      addInfo(`【${data.title_ja || TV_CHANNELS[channel]}】`);
+      addNpcLine(data.program_en, data.program_ja || ""); // 英語＋和訳＋🔊(リスニング)
+      addTvChannels(); // またチャンネルを変えられる
+    } catch (err) {
+      typing.remove();
+      addInfo("⚠ " + errorMessage(err));
+      addTvChannels();
+    } finally { setBusy(false); }
   }
 
   // 勉強机: 出題(日本語の問題)を表示。💡ヒントボタンつき。
@@ -912,6 +977,11 @@ const Chat = (() => {
       turn(true);
       return;
     }
+    if (convMode === "tv") {
+      addInfo("📺 テレビをつけた。見たいチャンネルを選んでね（テレビだから話しかけても反応しないよ）。");
+      addTvChannels();
+      return;
+    }
     if (convMode === "cast") {
       addInfo("🔮 コトハ「召喚魔法陣に貢物『" + (castTribute || "料理") + "』を捧げたよ。英語で召喚の詠唱を唱えて！」");
       addInfo("（かんたんでOK！ 例: \"Come, dragon!\" \"I summon you!\" 上手な英語ほど良い召喚獣が出やすいよ）");
@@ -931,6 +1001,7 @@ const Chat = (() => {
     if (convMode === "study" && !studyTheme) { addInfo("コトハ「まずは上のボタンから今日のテーマを選んでね！」"); return; }
     if (convMode === "cook" && cookDone) { addInfo("コトハ「もう完成したよ！ × でとじてね。」"); return; }
     if (convMode === "cast" && castDone) { addInfo("コトハ「もう召喚できたよ！ × でとじてね。」"); return; }
+    if (convMode === "tv") { addInfo("📺 テレビは見るだけ！ 下のチャンネルボタンで切り替えてね。"); return; }
     const text = inputEl.value.trim();
     if (!text) return;
     inputEl.value = "";
@@ -997,6 +1068,13 @@ const Chat = (() => {
     inputEl.placeholder = "英語で詠唱をとなえる… (Enterで送信)";
     beginSession("召喚魔法陣");
   }
+  // テレビ: AI放送(チャンネル選択のみ・一方通行)
+  function openTV(toeicLevel) {
+    convMode = "tv"; kotohaContext = null; sendLabel = "－";
+    npc = { id: "tv", name: "テレビ" }; level = toeicLevel; onCloseCb = null;
+    inputEl.placeholder = "テレビは見るだけ（チャンネルを選んでね）";
+    beginSession("テレビ");
+  }
 
   function beginSession(title) {
     suspended = null;
@@ -1030,7 +1108,7 @@ const Chat = (() => {
     if (after) after(); // 「売りたい/泊まりたい」など、閉じた後の動作
   }
 
-  return { open, openKotoha, openStudy, openCooking, openSummonCook, openSummonCast, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; }, info: (t) => addInfo(t) };
+  return { open, openKotoha, openStudy, openCooking, openSummonCook, openSummonCast, openTV, close, isOpen: () => opened, aiReady, setQuest: (h) => { questHook = h; }, info: (t) => addInfo(t) };
 })();
 
 window.Chat = Chat;

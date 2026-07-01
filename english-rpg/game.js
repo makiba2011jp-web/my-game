@@ -8,7 +8,7 @@ const TILE = 32, MAP_N = 15;
 ctx.imageSmoothingEnabled = false;
 
 // ===== ゲーム状態 =====
-const STATE = { TITLE: "title", NAME: "name", FIELD: "field", TOWN: "town", BATTLE: "battle", BOSSBATTLE: "bossbattle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", BOARD: "board", QUESTLOG: "questlog", WORDLIST: "wordlist", GAMEOVER: "gameover", CLEAR: "clear" };
+const STATE = { TITLE: "title", NAME: "name", FIELD: "field", TOWN: "town", BATTLE: "battle", BOSSBATTLE: "bossbattle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", BOARD: "board", QUESTLOG: "questlog", WORDLIST: "wordlist", FRIDGE: "fridge", GAMEOVER: "gameover", CLEAR: "clear" };
 let state = STATE.TITLE;
 
 // プレイヤー
@@ -32,6 +32,12 @@ let npcAffection = {};    // NPCごとの好感度(id -> 0〜100)。良い英語
 let affectionRecent = {}; // NPCごとの直近発言(正規化)。単調/繰り返しの無効点判定用(会話ごとにリセット)
 let metNPCs = new Set();  // 一度会話したNPCのid。次から名前で呼んでくれる
 let ownedHome = null;     // 所有しているマイホームのid(null=未購入)
+let ownedFridge = false;  // 冷蔵庫を購入してマイホームに設置済みか
+let ownedTV = false;      // テレビを購入してマイホームに設置済みか
+let fridge = {};          // 冷蔵庫に保管中の食料品(生) 名前->個数
+let fridgeDishes = [];    // 冷蔵庫に保管中の料理 [{name,...}]
+let fridgeUI = null;      // 冷蔵庫UIの状態 { sel }
+let tvChannel = "";       // テレビの現在チャンネル(演出用)
 // 不動産屋で買える物件(安い順)。買うと町の「売り家」が「マイホーム」になる
 const HOME_PROPERTIES = [
   { id: "cottage", name: "ボロ小屋",     price: 500,  decor: "home_cottage" },
@@ -46,6 +52,8 @@ function refreshHome() {
   AREAS.home.name = p ? "マイホーム" : "売り家";
   let decor = p ? (DECOR_TEMPLATES[p.decor] || []).concat(HOME_GARDEN_DECOR) : [];
   if (p && p.id === "manor") decor = decor.concat(HOME_SUMMON_DECOR); // 邸宅のみ召喚設備
+  if (p && ownedFridge) decor = decor.concat([{ tx: 2, ty: 3, kind: "fridge" }]); // 購入した家電を設置
+  if (p && ownedTV) decor = decor.concat([{ tx: 5, ty: 3, kind: "tv" }]);
   AREAS.home.decor = decor;
 }
 
@@ -139,6 +147,7 @@ const BUILDING_DEFS = {
   police:     { name: "警察署", npc: { id: "police",     name: "警官 Bruno",        color: "#3a5a8a" }, decor: "police" },
   florist:    { name: "花屋",   npc: { id: "florist",    name: "花屋 リリィ",       color: "#e57aa0" }, decor: "florist" },
   realestate: { name: "不動産屋", npc: { id: "realestate", name: "不動産屋 Estelle",   color: "#b0884a" }, decor: "realestate" },
+  appliance:  { name: "家電屋", npc: { id: "appliance",  name: "家電屋 デン",       color: "#5a8a8a", shop: "appliance" }, decor: "appliance" },
 };
 // 内装(家具)テンプレ。中央列(列5の通路と店主(5,2))は空ける。
 const DECOR_TEMPLATES = {
@@ -159,6 +168,7 @@ const DECOR_TEMPLATES = {
   meat:       [{ tx: 3, ty: 3, kind: "counter" }, { tx: 4, ty: 3, kind: "counter" }, { tx: 7, ty: 3, kind: "counter" }, { tx: 8, ty: 3, kind: "counter" }, { tx: 1, ty: 1, kind: "shelf" }, { tx: 9, ty: 1, kind: "barrel" }],
   florist:    [{ tx: 1, ty: 1, kind: "plant" }, { tx: 9, ty: 1, kind: "plant" }, { tx: 1, ty: 4, kind: "plant" }, { tx: 9, ty: 4, kind: "plant" }, { tx: 2, ty: 3, kind: "plant" }, { tx: 8, ty: 3, kind: "plant" }, { tx: 3, ty: 5, kind: "plant" }, { tx: 7, ty: 5, kind: "plant" }],
   realestate: [{ tx: 1, ty: 1, kind: "shelf" }, { tx: 9, ty: 1, kind: "shelf" }, { tx: 2, ty: 3, kind: "table" }, { tx: 8, ty: 3, kind: "counter" }, { tx: 1, ty: 5, kind: "board" }, { tx: 9, ty: 5, kind: "plant" }],
+  appliance:  [{ tx: 1, ty: 1, kind: "fridge" }, { tx: 9, ty: 1, kind: "tv" }, { tx: 1, ty: 4, kind: "tv" }, { tx: 9, ty: 4, kind: "fridge" }, { tx: 2, ty: 5, kind: "crate" }, { tx: 8, ty: 5, kind: "crate" }],
   // マイホーム(購入グレード別の内装。マップは13×11のHOME_MAP)
   home_cottage: [{ tx: 1, ty: 5, kind: "bed" }, { tx: 1, ty: 7, kind: "barrel" }, { tx: 3, ty: 7, kind: "crate" }, { tx: 8, ty: 7, kind: "desk" }],
   home_stone:   [{ tx: 1, ty: 5, kind: "bed" }, { tx: 3, ty: 6, kind: "table" }, { tx: 1, ty: 7, kind: "shelf" }, { tx: 5, ty: 5, kind: "plant" }, { tx: 1, ty: 1, kind: "lamp" }, { tx: 5, ty: 1, kind: "lamp" }, { tx: 3, ty: 7, kind: "rug", solid: false }, { tx: 8, ty: 7, kind: "desk" }, { tx: 8, ty: 5, kind: "stove" }, { tx: 9, ty: 5, kind: "sink" }],
@@ -180,7 +190,7 @@ const TOWN_BUILDINGS = [
   { id: "guild", col: 14, row: 6, w: 5, h: 3 }, { id: "salon", col: 20, row: 6 }, { id: "police", col: 24, row: 6 },
   // 食料品店(大きめ): 中に魚屋・八百屋・肉屋＋食料品店員がいる
   { id: "market", col: 8, row: 10, w: 7, h: 3 }, { id: "florist", col: 24, row: 10 },
-  { id: "realestate", col: 2, row: 10 },
+  { id: "realestate", col: 2, row: 10 }, { id: "appliance", col: 16, row: 10 },
   // マイホームは町の離れ(下部)に庭付きの大きな建物として配置(5×3)
   { id: "home", col: 3, row: 18, w: 5, h: 3 },
 ];
@@ -495,6 +505,11 @@ const SHOP_ITEMS = [
   { name: "Traveler's Clothes", kind: "hp", value: 15, price: 40 },
   { name: "Chain Mail", kind: "hp", value: 40, price: 150 },
 ];
+// 家電屋の品(購入するとマイホームに設置)
+const APPLIANCE_ITEMS = [
+  { id: "fridge", name: "冷蔵庫", price: 300 },
+  { id: "tv", name: "テレビ", price: 400 },
+];
 let shop = null;             // { sel, msg, msgT }
 let boughtItems = new Set(); // 購入済み装備のindex
 let bag = {};                // 買った持ち物(食べ物など) 名前->個数
@@ -528,7 +543,7 @@ const FOOD_SHOPS = {
   meat:    [{ name: "Chicken", price: 14 }, { name: "Pork", price: 18 }, { name: "Beef", price: 26 }, { name: "Bacon", price: 16 }, { name: "Sausage", price: 14 }],
   grocery: [{ name: "Rice", price: 8 }, { name: "Noodles", price: 8 }, { name: "Bread", price: 7 }, { name: "Egg", price: 6 }, { name: "Oil", price: 8 }, { name: "Salt", price: 4 }, { name: "Soy Sauce", price: 8 }, { name: "Sugar", price: 6 }, { name: "Butter", price: 12 }],
 };
-const SHOP_TITLE = { material: "素材屋", weapon: "武器屋", fish: "魚屋", green: "八百屋", meat: "肉屋", grocery: "食料品店", home: "不動産屋 〜 物件リスト" };
+const SHOP_TITLE = { material: "素材屋", weapon: "武器屋", fish: "魚屋", green: "八百屋", meat: "肉屋", grocery: "食料品店", home: "不動産屋 〜 物件リスト", appliance: "家電屋" };
 // 料理に使える食材(食材ショップの品)。台所の調理で消費する。
 const INGREDIENT_NAMES = [].concat(...Object.values(FOOD_SHOPS).map((a) => a.map((x) => x.name)));
 function buyItem(name) { bag[name] = (bag[name] || 0) + 1; }
@@ -556,6 +571,14 @@ function shopRows() {
         label: owned ? `✓ ${p.name}（いま住んでいる）` : `${p.name}（${p.price}G）`,
       });
     });
+  } else if (shop.type === "appliance") {
+    APPLIANCE_ITEMS.forEach((it, i) => {
+      const owned = (it.id === "fridge" && ownedFridge) || (it.id === "tv" && ownedTV);
+      rows.push({
+        kind: "buyappliance", idx: i, enabled: !owned && player.gold >= it.price,
+        label: owned ? `✓ ${it.name}（設置ずみ）` : `${it.name}（${it.price}G）`,
+      });
+    });
   } else if (FOOD_SHOPS[shop.type]) {
     FOOD_SHOPS[shop.type].forEach((it, i) => {
       rows.push({ kind: "buyfood", idx: i, enabled: player.gold >= it.price, label: `${it.name}（${it.price}G）` });
@@ -576,6 +599,7 @@ function openShop(type) {
   shop = {
     type, sel: 0, msgT: 260,
     msg: type === "material" ? "コトハ「集めた素材をお金に換えよう！」"
+      : type === "appliance" ? "コトハ「マイホームに置く家電を買おう！」"
       : FOOD_SHOPS[type] ? "コトハ「ほしい食べ物を買おう！」"
       : "コトハ「武器や防具で強くなろう！」",
   };
@@ -614,6 +638,15 @@ function shopSelect(row) {
       shop.msg = `Tuna（マグロ）を買った！ コトハ「これで迷いネコをおびき寄せよう」`; shop.msgT = 300;
     } else {
       shop.msg = `${it.name}を 買った！`; shop.msgT = 200;
+    }
+  } else if (row.kind === "buyappliance") {
+    const it = APPLIANCE_ITEMS[row.idx];
+    if (!ownedHome) { shop.msg = "先にマイホームが必要だよ（不動産屋で購入）"; shop.msgT = 320; }
+    else {
+      player.gold -= it.price;
+      if (it.id === "fridge") ownedFridge = true; else if (it.id === "tv") ownedTV = true;
+      refreshHome();
+      shop.msg = `${it.name}を 買った！ マイホームに設置したよ。`; shop.msgT = 320;
     }
   }
   const rows = shopRows();
@@ -928,6 +961,14 @@ function onInput(k) {
     else if (k === "cancel") { shop = null; state = STATE.TOWN; }
     return;
   }
+  if (state === STATE.FRIDGE && fridgeUI) {
+    const rows = fridgeRows();
+    if (k === "up") fridgeUI.sel = (fridgeUI.sel - 1 + rows.length) % rows.length;
+    else if (k === "down") fridgeUI.sel = (fridgeUI.sel + 1) % rows.length;
+    else if (k === "confirm") fridgeSelect(rows[fridgeUI.sel]);
+    else if (k === "cancel") { fridgeUI = null; state = STATE.TOWN; if (canSave()) saveGame(); }
+    return;
+  }
   if (state === STATE.BOARD && board) {
     const rows = boardRows();
     if (k === "up") board.sel = (board.sel - 1 + rows.length) % rows.length;
@@ -985,6 +1026,8 @@ function onTap(x, y) {
     if (kitchenAt(tx, ty)) { startCooking(); return; } // 台所タップ→料理
     if (summonKitchenAt(tx, ty)) { startSummonCook(); return; } // 大鍋タップ→召喚料理
     if (summonCircleAt(tx, ty)) { startSummonCast(); return; } // 召喚魔法陣タップ→召喚
+    if (fridgeAt(tx, ty)) { openFridge(); return; } // 冷蔵庫タップ→食料保管
+    if (tvAt(tx, ty)) { startTV(); return; }        // テレビタップ→AI放送
     if (!hudShown) { setHud(true); return; } // 何もない所をタップ → 情報パネルを表示
     return;
   }
@@ -1011,6 +1054,15 @@ function onTap(x, y) {
     for (let i = 0; i < rows.length; i++) {
       const ry = top + i * rh;
       if (x >= 40 && x <= 440 && y >= ry && y <= ry + h) { shop.sel = i; shopSelect(rows[i]); return; }
+    }
+    return;
+  }
+  if (state === STATE.FRIDGE && fridgeUI) {
+    const rows = fridgeRows();
+    const { top, rh, h } = shopRowLayout(rows.length);
+    for (let i = 0; i < rows.length; i++) {
+      const ry = top + i * rh;
+      if (x >= 40 && x <= 440 && y >= ry && y <= ry + h) { fridgeUI.sel = i; fridgeSelect(rows[i]); return; }
     }
     return;
   }
@@ -1105,6 +1157,7 @@ function saveGame() {
     wordCorrect: { ...wordCorrect }, npcAffection: { ...npcAffection }, metNPCs: [...metNPCs], ownedHome,
     dishes: dishes.map((d) => ({ ...d })), mealBuff: { ...mealBuff }, fieldBoss: fieldBoss ? { ...fieldBoss } : null,
     tributes: tributes.map((t) => ({ ...t })), summonCards: summonCards.map((c) => ({ ...c })),
+    ownedFridge, ownedTV, fridge: { ...fridge }, fridgeDishes: fridgeDishes.map((d) => ({ ...d })),
     savedOverworld: { ...savedOverworld }, catSpot,
   };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); return true; }
@@ -1126,7 +1179,9 @@ function loadGame() {
   if (data.floristAffection) npcAffection.florist = data.floristAffection; // 旧セーブ互換
   affectionRecent = {};
   metNPCs = new Set(data.metNPCs || []);
-  ownedHome = data.ownedHome || null; refreshHome();
+  ownedHome = data.ownedHome || null;
+  ownedFridge = !!data.ownedFridge; ownedTV = !!data.ownedTV; fridge = data.fridge || {}; fridgeDishes = data.fridgeDishes || [];
+  refreshHome();
   dishes = data.dishes || [];
   tributes = data.tributes || [];
   summonCards = data.summonCards || [];
@@ -1168,6 +1223,7 @@ function startGame(level) {
   board = null; boardCache = null; sideQuests = []; questLog = null;
   wordCorrect = {}; zone = ""; npcAffection = {}; affectionRecent = {}; metNPCs = new Set(); ownedHome = null; refreshHome();
   dishes = []; tributes = []; summonCards = []; pendingTribute = null; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
+  ownedFridge = false; ownedTV = false; fridge = {}; fridgeDishes = []; fridgeUI = null;
   fieldBoss = null; bossBattle = null;
   resetEncounter();
   startOpening();
@@ -1198,6 +1254,7 @@ function devJump(stage) {
   board = null; boardCache = null; sideQuests = []; questLog = null;
   wordCorrect = {}; metNPCs = new Set(); npcAffection = {}; affectionRecent = {}; ownedHome = null; refreshHome();
   dishes = []; tributes = []; summonCards = []; pendingTribute = null; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
+  ownedFridge = false; ownedTV = false; fridge = {}; fridgeDishes = []; fridgeUI = null;
   fieldBoss = null; bossBattle = null;
   resetEncounter();
   if (stage <= 1) {
@@ -1241,6 +1298,8 @@ function tryTalk() {
   if (kitchenAt(fx, fy)) { startCooking(); return; } // マイホームの台所→料理
   if (summonKitchenAt(fx, fy)) { startSummonCook(); return; } // 邸宅の大鍋→召喚料理
   if (summonCircleAt(fx, fy)) { startSummonCast(); return; } // 邸宅の召喚魔法陣→召喚
+  if (fridgeAt(fx, fy)) { openFridge(); return; } // 冷蔵庫→食料保管
+  if (tvAt(fx, fy)) { startTV(); return; }        // テレビ→AI放送
 }
 // マイホームの勉強机が指定マスにあるか
 function deskAt(tx, ty) {
@@ -1268,6 +1327,53 @@ function summonKitchenAt(tx, ty) {
 }
 function summonCircleAt(tx, ty) {
   return curArea.id === "home" && ownedHome === "manor" && (curArea.decor || []).some((d) => d.kind === "summoncircle" && d.tx === tx && d.ty === ty);
+}
+// マイホームの家電
+function fridgeAt(tx, ty) { return curArea.id === "home" && (curArea.decor || []).some((d) => d.kind === "fridge" && d.tx === tx && d.ty === ty); }
+function tvAt(tx, ty) { return curArea.id === "home" && (curArea.decor || []).some((d) => d.kind === "tv" && d.tx === tx && d.ty === ty); }
+// 冷蔵庫: 食料品(食材)を保管/取り出し
+function openFridge() { for (const k in keys) keys[k] = false; fridgeUI = { sel: 0 }; state = STATE.FRIDGE; }
+function fridgeRows() {
+  const rows = [];
+  INGREDIENT_NAMES.filter((n) => bag[n] > 0).forEach((n) => rows.push({ kind: "store", name: n, label: `しまう ▶ ${n} ×${bag[n]}` }));
+  dishes.forEach((d, i) => rows.push({ kind: "storedish", di: i, label: `しまう ▶ 🍳${d.name}` }));
+  INGREDIENT_NAMES.filter((n) => fridge[n] > 0).forEach((n) => rows.push({ kind: "take", name: n, label: `◀ 取り出す ${n} ×${fridge[n]}（庫内）` }));
+  fridgeDishes.forEach((d, i) => rows.push({ kind: "takedish", di: i, label: `◀ 取り出す 🍳${d.name}（庫内）` }));
+  if (!rows.length) rows.push({ kind: "empty", label: "しまえる食料がないよ（食料品店で買おう）" });
+  rows.push({ kind: "close", label: "とじる" });
+  return rows;
+}
+function fridgeSelect(row) {
+  if (!row || row.kind === "empty") return;
+  if (row.kind === "close") { fridgeUI = null; state = STATE.TOWN; if (canSave()) saveGame(); return; }
+  if (row.kind === "store") { bag[row.name]--; if (bag[row.name] <= 0) delete bag[row.name]; fridge[row.name] = (fridge[row.name] || 0) + 1; }
+  else if (row.kind === "take") { fridge[row.name]--; if (fridge[row.name] <= 0) delete fridge[row.name]; bag[row.name] = (bag[row.name] || 0) + 1; }
+  else if (row.kind === "storedish") { const d = dishes.splice(row.di, 1)[0]; if (d) fridgeDishes.push(d); }
+  else if (row.kind === "takedish") { const d = fridgeDishes.splice(row.di, 1)[0]; if (d) { dishes.push(d); if (dishes.length > 12) dishes.shift(); } }
+  const rows = fridgeRows();
+  if (fridgeUI.sel >= rows.length) fridgeUI.sel = rows.length - 1;
+}
+function drawFridge() {
+  ctx.fillStyle = "#06122b"; ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = "center"; ctx.fillStyle = "#fff"; ctx.font = "bold 22px 'MS Gothic', monospace";
+  ctx.fillText("冷蔵庫", W / 2, 44);
+  ctx.fillStyle = "#9fd6ff"; ctx.font = "12px 'MS Gothic', monospace";
+  ctx.fillText("食料品をしまう / 取り出す", W / 2, 68);
+  const rows = fridgeRows();
+  const { top, rh, h } = shopRowLayout(rows.length);
+  for (let i = 0; i < rows.length; i++) {
+    const y = top + i * rh;
+    drawWindow(40, y, 400, h, fridgeUI.sel === i);
+    ctx.textAlign = "left"; ctx.fillStyle = rows[i].kind === "close" ? "#9fd6ff" : "#fff";
+    ctx.font = "14px 'MS Gothic', monospace";
+    ctx.fillText(rows[i].label, 62, y + h - 12);
+  }
+  ctx.textAlign = "center";
+}
+// テレビ: AI放送(ニュース/アニメ/バラエティ)。見るだけ・チャンネル変更のみ。
+function startTV() {
+  for (const k in keys) keys[k] = false;
+  Chat.openTV(toeicLevel);
 }
 // 召喚料理の大鍋: モンスター素材で貢物を作る
 function startSummonCook() {
@@ -1971,12 +2077,16 @@ function talkShop(n) {
   if (!Chat.aiReady()) { openShop(n.shop); return; }
   const isMat = n.shop === "material";
   const isFood = !!FOOD_SHOPS[n.shop];
+  const isAppliance = n.shop === "appliance";
   let note, flagMessage;
   if (isMat) {
     note = "the traveler says they want to sell their materials or items (e.g. \"I want to sell some materials\", \"Can I sell these?\", \"I'd like to sell my stuff\"). When they do, happily agree to take a look at their goods.";
     flagMessage = "コトハ「売れるよ！ × でとじて売却画面へ」";
   } else if (isFood) {
     note = "the traveler says they want to buy food from your shop (e.g. \"I want to buy some tuna\", \"Can I buy fish?\", \"I'd like to buy food\"). When they do, happily agree to show them what you have for sale.";
+    flagMessage = "コトハ「買えるよ！ × でとじて購入画面へ」";
+  } else if (isAppliance) {
+    note = "the traveler says they want to buy an appliance, or specifically a fridge/refrigerator or a TV/television (e.g. \"I want to buy a fridge\", \"Can I buy a TV?\", \"Show me your appliances\", \"I'd like to buy a refrigerator\"). When they do, happily agree to show your appliances.";
     flagMessage = "コトハ「買えるよ！ × でとじて購入画面へ」";
   } else {
     note = "the traveler says they want to buy a weapon, armor, or equipment (e.g. \"I want to buy a sword\", \"Show me your weapons\", \"I'd like to buy some armor\"). When they do, happily agree to show your wares.";
@@ -2763,6 +2873,7 @@ function render() {
     case STATE.BOARD: drawQuestBoard(); break;
     case STATE.QUESTLOG: drawQuestLog(); break;
     case STATE.WORDLIST: drawWordList(); break;
+    case STATE.FRIDGE: drawFridge(); break;
     case STATE.BATTLE: drawBattleScene(); drawBattleUI(); break;
     case STATE.BOSSBATTLE: drawBossBattle(); break;
     case STATE.GAMEOVER: drawEnd("ゲームオーバー", "#c0392b"); break;
@@ -3256,6 +3367,8 @@ function drawDecor(kind, x, y) {
     case "sink": drawSink(x, y); break;
     case "summoncircle": drawSummonCircle(x, y); break;
     case "cauldron": drawCauldron(x, y); break;
+    case "fridge": drawFridgeIcon(x, y); break;
+    case "tv": drawTV(x, y); break;
   }
 }
 // 台所: コンロ(鍋つき)
@@ -3316,6 +3429,21 @@ function drawSummonCircle(x, y) {
   // ほのかな光
   ctx.fillStyle = "rgba(176,106,223,0.18)"; ctx.beginPath(); ctx.arc(x + 16, y + 18, 13, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
+}
+// 冷蔵庫(2ドアの白い冷蔵庫)
+function drawFridgeIcon(x, y) {
+  ctx.fillStyle = "#e8eef2"; ctx.fillRect(x + 8, y + 3, 16, 27);
+  ctx.strokeStyle = "#b6c2cc"; ctx.lineWidth = 1; ctx.strokeRect(x + 8, y + 3, 16, 27);
+  ctx.strokeStyle = "#c9d3db"; ctx.beginPath(); ctx.moveTo(x + 8, y + 14); ctx.lineTo(x + 24, y + 14); ctx.stroke(); // 上下ドアの境
+  ctx.fillStyle = "#8fa0ac"; ctx.fillRect(x + 20, y + 6, 2, 6); ctx.fillRect(x + 20, y + 16, 2, 8); // 取っ手
+}
+// テレビ(薄型テレビ・画面が光る)
+function drawTV(x, y) {
+  ctx.fillStyle = "#2a2a30"; ctx.fillRect(x + 3, y + 6, 26, 18);          // 筐体
+  ctx.fillStyle = "#5ad0ff"; ctx.fillRect(x + 5, y + 8, 22, 14);          // 画面
+  ctx.fillStyle = "#bfeeff"; ctx.fillRect(x + 6, y + 9, 8, 5);           // 反射
+  ctx.fillStyle = "#3a3a44"; ctx.fillRect(x + 13, y + 24, 6, 3);          // スタンド
+  ctx.fillRect(x + 9, y + 27, 14, 2);
 }
 // 召喚料理の大鍋(紫の煮汁がぐつぐつ)
 function drawCauldron(x, y) {
