@@ -31,14 +31,37 @@ const Voice = (() => {
   function speak(text, lang) {
     if (!supported || !text) return;
     cancel(); // 前の発声を止めてから
+    try { synth.resume(); } catch (_) {} // モバイルで一時停止状態になることがある
     const u = new SpeechSynthesisUtterance(String(text));
     u.lang = lang === "ja" ? "ja-JP" : "en-US";
     const v = pickVoice(lang); if (v) u.voice = v;
     u.rate = lang === "ja" ? 1.0 : 0.95; // 英語は少しゆっくり(学習者向け)
-    u.pitch = 1.0;
+    u.pitch = 1.0; u.volume = 1.0;
     try { synth.speak(u); } catch (_) {}
   }
   function autoSpeak(text, lang) { if (autoOn) speak(text, lang); } // 自動ONの時だけ
+
+  // ===== モバイル対策: 最初のユーザー操作の中で無音発話して音声を「解錠」 =====
+  //   スマホ(特にiOS/Chrome)は、ユーザー操作外の speechSynthesis.speak を鳴らさない。
+  //   初回タップ時に空発話しておくと、以降の自動読み上げ/ボタンが鳴るようになる。
+  let unlocked = false;
+  function unlock() {
+    if (unlocked || !supported) return;
+    try {
+      loadVoices();
+      synth.resume();
+      const u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0; // 無音でウォームアップ
+      synth.speak(u);
+      unlocked = true; // 成功したら以後は解錠済み
+    } catch (_) {}
+  }
+  if (supported) {
+    const onFirst = () => { unlock(); };
+    // 一度解錠すれば十分だが、失敗しても次の操作で再試行できるよう複数種を購読
+    ["pointerdown", "touchend", "mousedown", "keydown"].forEach((ev) =>
+      window.addEventListener(ev, onFirst, { passive: true }));
+  }
 
   // ===== チャットヘッダの自動読み上げトグル =====
   let toggleBtn = null;
