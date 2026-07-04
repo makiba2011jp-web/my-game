@@ -619,8 +619,10 @@ function openShop(type) {
 }
 function shopSelect(row) {
   if (!row) return;
-  if (row.kind === "exit") { shop = null; state = STATE.TOWN; return; }
+  if (row.kind === "exit") { sfx("cancel"); shop = null; state = STATE.TOWN; return; }
+  if (row.kind === "prev" || row.kind === "next") { sfx("select"); }
   if (!row.enabled) { shop.msg = "コトハ「ゴールドが足りないみたい…」"; shop.msgT = 200; return; }
+  if (["sell", "buy", "buyhome", "buyfood", "buyappliance"].includes(row.kind)) sfx(row.kind === "buy" ? "item" : "coin");
   if (row.kind === "sell") {
     const v = materialsValue();
     player.gold += v; materials = {};
@@ -847,6 +849,15 @@ if (saveBtn) saveBtn.addEventListener("click", (e) => {
   e.preventDefault();
   showToast(saveGame() ? "💾 セーブしました" : "ここではセーブできません");
 });
+
+// 効果音のショートカット(モジュールが無くても無害)
+function sfx(name) { if (window.Sfx) Sfx.play(name); }
+const sfxBtn = document.getElementById("sfx-btn");
+function updateSfxBtn() { if (sfxBtn) sfxBtn.textContent = (window.Sfx && Sfx.isEnabled()) ? "🔔 効果音: ON" : "🔕 効果音: OFF"; }
+if (sfxBtn) {
+  updateSfxBtn();
+  sfxBtn.addEventListener("click", (e) => { e.preventDefault(); if (window.Sfx) { const on = Sfx.toggle(); if (on) Sfx.play("confirm"); } updateSfxBtn(); });
+}
 
 
 // 画面上の情報パネル(Lv/HP・いまの目的・もちもの・ギルド依頼)の表示/非表示
@@ -2445,6 +2456,7 @@ function startBattle(isBoss) {
     shake: 0, ehurt: 0, phurt: 0,
   };
   menuSel = 0;
+  sfx("encounter");
   // 料理で得た「次の戦闘」バフをこの戦闘に適用(1戦闘かぎり)
   battleBuff = { atk: mealBuff.atk, def: mealBuff.def };
   const buffLine = (mealBuff.atk || mealBuff.def)
@@ -2482,6 +2494,7 @@ function chooseAnswer(idx) {
     const dmg = player.atk + battleBuff.atk + Math.floor(rnd() * 4);
     battle.ehp = Math.max(0, battle.ehp - dmg);
     battle.ehurt = 12; battle.shake = 8;
+    sfx("correct"); sfx("hit");
     state = STATE.BATTLE;
     queueResolve([...okLines, `${battle.name}に ${dmg} のダメージ！`], () => {
       if (battle.ehp <= 0) return winBattle();
@@ -2491,6 +2504,7 @@ function chooseAnswer(idx) {
     const dmg = Math.max(1, battle.eatk + Math.floor(rnd() * 3) - (player.def + battleBuff.def));
     player.hp = Math.max(0, player.hp - dmg);
     battle.phurt = 12;
+    sfx("wrong"); sfx("hurt");
     state = STATE.BATTLE;
     queueResolve([...ngLines, `${battle.name}の こうげき！ ${dmg} のダメージ！`], () => {
       if (player.hp <= 0) return loseBattle();
@@ -2504,7 +2518,7 @@ function enemyTurnOrNext() {
   if (battle.isBoss && rnd() < 0.5) {
     const dmg = Math.max(1, battle.eatk + Math.floor(rnd() * 3) - (player.def + battleBuff.def));
     player.hp = Math.max(0, player.hp - dmg);
-    battle.phurt = 12;
+    battle.phurt = 12; sfx("hurt");
     queueResolve([`${battle.name}の はんげき！ ${dmg} のダメージ！`], () => {
       if (player.hp <= 0) return loseBattle();
       nextQuestion();
@@ -2568,6 +2582,7 @@ function winBattle() {
   let leveled = [];
   if (battle.isBoss) player.exp += battle.exp;
   else leveled = gainExp(battle.exp);
+  sfx("win"); if (leveled.length) setTimeout(() => sfx("levelup"), 550);
   const wasBoss = battle.isBoss;
   showMessage([...lines, ...leveled], () => {
     battle = null;
@@ -2579,6 +2594,7 @@ function winBattle() {
 }
 
 function loseBattle() {
+  sfx("lose");
   showMessage([`${battle.name}に やられてしまった…`], () => { battle = null; state = STATE.GAMEOVER; });
 }
 
@@ -2613,6 +2629,7 @@ function startBossBattle() {
     khp: 30, kmaxhp: 30, kmp: 14, shake: 0, ehurt: 0, phurt: 0, khurt: 0,
   };
   cutsceneDraw = drawBossScene;
+  sfx("encounter");
   bossSay([`${b.name} が あらわれた！`, "コトハ「私も魔法で戦うよ、相棒！」", ...bl], () => bossMenu());
 }
 function bossCommand(cmd) {
@@ -2638,18 +2655,18 @@ function bossCommand(cmd) {
     bossSay([`${player.name}は にげようとした… でも回りこまれた！`], () => bossBeastPhase());
     return;
   }
-  if (cmd === "guard") { bb.sp = Math.min(bb.spMax, bb.sp + 1); bb.guard = true; bossSay([`${player.name}は 身をまもっている。`], () => bossBeastPhase()); return; }
+  if (cmd === "guard") { bb.sp = Math.min(bb.spMax, bb.sp + 1); bb.guard = true; sfx("guard"); bossSay([`${player.name}は 身をまもっている。`], () => bossBeastPhase()); return; }
   if (cmd === "special") {
     bb.sp = 0;
     const dmg = Math.floor((player.atk + battleBuff.atk) * 2.2) + 6 + Math.floor(rnd() * 6);
-    bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 12;
+    bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 12; sfx("special");
     bossSay([`${player.name}の必殺技！ こんしんの一撃！`, `${bb.name}に ${dmg} の大ダメージ！`], () => { if (bb.ehp <= 0) return bossWin(); bossBeastPhase(); });
     return;
   }
   // たたかう
   bb.sp = Math.min(bb.spMax, bb.sp + 1);
   const dmg = player.atk + battleBuff.atk + Math.floor(rnd() * 4);
-  bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 8;
+  bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 8; sfx("hit");
   bossSay([`${player.name}の こうげき！ ${bb.name}に ${dmg} のダメージ！`], () => { if (bb.ehp <= 0) return bossWin(); bossBeastPhase(); });
 }
 // 召喚獣カードを戦闘中に使う: 召喚獣が味方として登場(数ターン自動攻撃)
@@ -2661,6 +2678,7 @@ function useSummonInBattle(i) {
   bb.beast = { name: c.name, atk: c.atk, turnsLeft: c.turns, element: c.element };
   summonCards.splice(i, 1);
   if (canSave()) saveGame();
+  sfx("summon");
   bossSay([`召喚！ 【${ELEMENT_JA[c.element] || "無"}】${c.name}が あらわれた！（${c.turns}ターン味方）`], () => bossBeastPhase());
 }
 // 召喚獣のターン: 生きていれば自動でボスを攻撃し、残りターンを減らす
@@ -2669,7 +2687,7 @@ function bossBeastPhase() {
   const be = bb.beast;
   if (!be || be.turnsLeft <= 0) { return bossKotohaPhase(); }
   const dmg = be.atk + Math.floor(rnd() * 4);
-  bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 6;
+  bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 6; sfx("hit");
   be.turnsLeft--;
   const gone = be.turnsLeft <= 0 ? [`${be.name}は 力を使い果たして 去っていった…`] : [];
   bossSay([`召喚獣 ${be.name}の こうげき！ ${bb.name}に ${dmg} のダメージ！`, ...gone], () => {
@@ -2689,7 +2707,7 @@ function useDishInBattle(i) {
   const healed = player.hp - before;
   battleBuff.atk += d.atk; battleBuff.def += d.def;
   dishes.splice(i, 1);
-  bb.sp = Math.min(bb.spMax, bb.sp + 1);
+  bb.sp = Math.min(bb.spMax, bb.sp + 1); sfx("heal");
   const buffLine = (d.atk || d.def) ? ` ${d.atk ? `こうげき+${d.atk} ` : ""}${d.def ? `ぼうぎょ+${d.def}` : ""}！` : "";
   bossSay([`${player.name}は ${d.name}を 食べた！ HP+${healed}${buffLine}`], () => bossBeastPhase());
 }
@@ -2699,14 +2717,14 @@ function bossKotohaPhase() {
   const lowPlayer = player.hp <= player.maxhp * 0.4;
   const lowKotoha = bb.khp <= bb.kmaxhp * 0.45;
   if ((lowPlayer || lowKotoha) && bb.kmp >= 4) {
-    bb.kmp -= 4; const heal = 18 + Math.floor(rnd() * 8);
+    bb.kmp -= 4; const heal = 18 + Math.floor(rnd() * 8); sfx("heal");
     if (lowPlayer && player.hp <= bb.khp) { player.hp = Math.min(player.maxhp, player.hp + heal); bossSay([`コトハは ヒールを となえた！ ${player.name}の HPが ${heal} 回復！`], () => bossEnemyPhase()); }
     else { bb.khp = Math.min(bb.kmaxhp, bb.khp + heal); bossSay([`コトハは ヒールを となえた！ コトハの HPが ${heal} 回復！`], () => bossEnemyPhase()); }
     return;
   }
   if (bb.kmp >= 3) {
     bb.kmp -= 3; const dmg = 12 + Math.floor(rnd() * 8);
-    bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 6;
+    bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 6; sfx("magic");
     bossSay([`コトハは フレイムを となえた！ ${bb.name}に ${dmg} のダメージ！`], () => { if (bb.ehp <= 0) return bossWin(); bossEnemyPhase(); });
     return;
   }
@@ -2718,6 +2736,7 @@ function bossEnemyPhase() {
   const bb = bossBattle; if (!bb) return;
   const targetKotoha = bb.khp > 0 && rnd() < 0.4;
   let dmg = bb.eatk + Math.floor(rnd() * 5);
+  sfx("hurt");
   if (targetKotoha) {
     dmg = Math.max(1, dmg - 2); bb.khp = Math.max(0, bb.khp - dmg); bb.khurt = 12;
     const ko = bb.khp <= 0 ? ["コトハは たおれてしまった…！"] : [];
@@ -2734,10 +2753,12 @@ function bossWin() {
   const q = sideQuests.find((s) => s.id === bb.questId); if (q) q.progress = 1; // 討伐済み(報告待ち)
   fieldBoss = null; bossBattle = null; battleBuff = { atk: 0, def: 0 };
   if (canSave()) saveGame();
+  sfx("win"); if (leveled.length) setTimeout(() => sfx("levelup"), 550);
   showMessage([`${bb.name}を 討伐した！`, `けいけんち ${bb.exp} を かくとく！`, ...leveled, "コトハ「やったね相棒！ ギルドに報告しよう。」"], () => { state = STATE.FIELD; });
 }
 function bossLose() {
   const bb = bossBattle; cutsceneDraw = null; bossBattle = null; battleBuff = { atk: 0, def: 0 };
+  sfx("lose");
   showMessage([`${bb.name}に やられてしまった…`], () => { state = STATE.GAMEOVER; });
 }
 function drawBossScene() {
