@@ -8,7 +8,7 @@ const TILE = 32, MAP_N = 15;
 ctx.imageSmoothingEnabled = false;
 
 // ===== ゲーム状態 =====
-const STATE = { TITLE: "title", NAME: "name", FIELD: "field", TOWN: "town", BATTLE: "battle", BOSSBATTLE: "bossbattle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", BOARD: "board", QUESTLOG: "questlog", WORDLIST: "wordlist", FRIDGE: "fridge", GAMEOVER: "gameover", CLEAR: "clear" };
+const STATE = { TITLE: "title", NAME: "name", FIELD: "field", TOWN: "town", BATTLE: "battle", BOSSBATTLE: "bossbattle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", BOARD: "board", QUESTLOG: "questlog", WORDLIST: "wordlist", STORAGE: "storage", GAMEOVER: "gameover", CLEAR: "clear" };
 let state = STATE.TITLE;
 
 // プレイヤー
@@ -36,7 +36,10 @@ let ownedFridge = false;  // 冷蔵庫を購入してマイホームに設置済
 let ownedTV = false;      // テレビを購入してマイホームに設置済みか
 let fridge = {};          // 冷蔵庫に保管中の食料品(生) 名前->個数
 let fridgeDishes = [];    // 冷蔵庫に保管中の料理 [{name,...}]
-let fridgeUI = null;      // 冷蔵庫UIの状態 { sel }
+let whBag = {};           // 倉庫に保管中の持ち物 名前->個数
+let whMat = {};           // 倉庫に保管中の素材 名前->個数
+let storageUI = null;     // 収納UIの状態 { kind:"fridge"|"warehouse", sel, page }
+const STORAGE_PER_PAGE = 10; // 1ページの表示件数
 let tvChannel = "";       // テレビの現在チャンネル(演出用)
 // 不動産屋で買える物件(安い順)。買うと町の「売り家」が「マイホーム」になる
 const HOME_PROPERTIES = [
@@ -51,6 +54,7 @@ function refreshHome() {
   const p = ownedHome && HOME_PROPERTIES.find((x) => x.id === ownedHome);
   AREAS.home.name = p ? "マイホーム" : "売り家";
   let decor = p ? (DECOR_TEMPLATES[p.decor] || []).concat(HOME_GARDEN_DECOR) : [];
+  if (p) decor = decor.concat([{ tx: 7, ty: 7, kind: "warehouse" }]); // 全マイホームに倉庫
   if (p && p.id === "manor") decor = decor.concat(HOME_SUMMON_DECOR); // 邸宅のみ召喚設備
   if (p && ownedFridge) decor = decor.concat([{ tx: 2, ty: 3, kind: "fridge" }]); // 購入した家電を設置
   if (p && ownedTV) decor = decor.concat([{ tx: 5, ty: 3, kind: "tv" }]);
@@ -522,6 +526,8 @@ let questLog = null;         // { sel } 受注依頼の詳細表示中の状態
 let sideQuestBoxRect = null; // HUDの「ギルド依頼」ボックスのタップ判定用矩形
 let bagOpen = false;         // もちもの一覧を展開表示しているか
 let bagBoxRect = null;       // 「もちもの」ボックスのタップ判定用矩形
+let bagPage = 0;             // もちもの一覧の表示ページ(8件/ページ)
+let bagNavRects = null;      // もちもの一覧の前/次ページのタップ判定
 let dishes = [];             // 作った料理 [{name,score,heal,atk,def}]
 let dishRowRects = [];       // 料理パネルの各行タップ判定用
 let mealBuff = { atk: 0, def: 0 }; // 料理を食べて得た「次の戦闘」バフ(保留中)
@@ -546,7 +552,13 @@ const FOOD_SHOPS = {
 const SHOP_TITLE = { material: "素材屋", weapon: "武器屋", fish: "魚屋", green: "八百屋", meat: "肉屋", grocery: "食料品店", home: "不動産屋 〜 物件リスト", appliance: "家電屋" };
 // 料理に使える食材(食材ショップの品)。台所の調理で消費する。
 const INGREDIENT_NAMES = [].concat(...Object.values(FOOD_SHOPS).map((a) => a.map((x) => x.name)));
-function buyItem(name) { bag[name] = (bag[name] || 0) + 1; }
+// 旧セーブの日本語食料名も「食料品」として扱う(冷蔵庫に保管・倉庫には入れない)
+const LEGACY_FOOD = ["マグロ", "イワシ", "サーモン", "えび", "たこ", "あさり", "キャベツ", "トマト", "にんじん", "たまねぎ", "じゃがいも", "なす", "とり肉", "ぶた肉", "牛肉", "ベーコン", "ソーセージ", "ライス", "麺", "パン", "卵", "油", "塩", "しょうゆ", "さとう", "バター"];
+function isFood(name) { return INGREDIENT_NAMES.includes(name) || LEGACY_FOOD.includes(name); }
+const BAG_MAX_TYPES = 32; // もちものは32種類まで
+const NO_STORE_ITEMS = ["迷いネコ"]; // 倉庫に預けられないクエスト用アイテム
+function bagFull(name) { return bag[name] === undefined && Object.keys(bag).length >= BAG_MAX_TYPES; }
+function buyItem(name) { if (bagFull(name)) return false; bag[name] = (bag[name] || 0) + 1; return true; }
 function hasItem(name) { return (bag[name] || 0) > 0; }
 function useItem(name) { if (bag[name] > 0) { bag[name]--; if (bag[name] <= 0) delete bag[name]; } }
 
@@ -632,6 +644,7 @@ function shopSelect(row) {
     shop.msg = `${p.name}を 買った！ 町に「マイホーム」ができたよ。休んでセーブできるよ!`; shop.msgT = 360;
   } else if (row.kind === "buyfood") {
     const it = FOOD_SHOPS[shop.type][row.idx];
+    if (bagFull(it.name)) { shop.msg = `もちものがいっぱい！（${BAG_MAX_TYPES}種類まで）冷蔵庫や倉庫にしまおう`; shop.msgT = 300; const rr = shopRows(); if (shop.sel >= rr.length) shop.sel = rr.length - 1; return; }
     player.gold -= it.price; buyItem(it.name);
     if (quest && quest.stage === 10 && it.name === "Tuna") {
       quest.stage = 11; // マグロ(Tuna)を手に入れた→迷いネコを捕まえに
@@ -961,12 +974,12 @@ function onInput(k) {
     else if (k === "cancel") { shop = null; state = STATE.TOWN; }
     return;
   }
-  if (state === STATE.FRIDGE && fridgeUI) {
-    const rows = fridgeRows();
-    if (k === "up") fridgeUI.sel = (fridgeUI.sel - 1 + rows.length) % rows.length;
-    else if (k === "down") fridgeUI.sel = (fridgeUI.sel + 1) % rows.length;
-    else if (k === "confirm") fridgeSelect(rows[fridgeUI.sel]);
-    else if (k === "cancel") { fridgeUI = null; state = STATE.TOWN; if (canSave()) saveGame(); }
+  if (state === STATE.STORAGE && storageUI) {
+    const rows = storageRows();
+    if (k === "up") storageUI.sel = (storageUI.sel - 1 + rows.length) % rows.length;
+    else if (k === "down") storageUI.sel = (storageUI.sel + 1) % rows.length;
+    else if (k === "confirm") storageSelect(rows[storageUI.sel]);
+    else if (k === "cancel") { storageUI = null; state = STATE.TOWN; if (canSave()) saveGame(); }
     return;
   }
   if (state === STATE.BOARD && board) {
@@ -1012,7 +1025,11 @@ function onTap(x, y) {
   // 探索中: HUD内のボックスのタップを先に判定
   if (state === STATE.TOWN || state === STATE.FIELD) {
     if (inRect(x, y, rateBoxRect)) { openWordList(); return; }          // 習得バー→ワードリスト
-    if (inRect(x, y, bagBoxRect)) { bagOpen = !bagOpen; return; }       // もちもの開閉
+    if (bagOpen && bagNavRects) { // もちもの一覧のページ送り
+      if (inRect(x, y, bagNavRects.prev)) { bagPage = Math.max(0, bagPage - 1); return; }
+      if (inRect(x, y, bagNavRects.next)) { bagPage++; return; }
+    }
+    if (inRect(x, y, bagBoxRect)) { bagOpen = !bagOpen; bagPage = 0; return; } // もちもの開閉
     for (const r of dishRowRects) if (inRect(x, y, r)) { eatDish(r.idx); return; } // 料理を食べる
     if (inRect(x, y, sideQuestBoxRect)) { openQuestLog(); return; }     // ギルド依頼の詳細
   }
@@ -1026,7 +1043,8 @@ function onTap(x, y) {
     if (kitchenAt(tx, ty)) { startCooking(); return; } // 台所タップ→料理
     if (summonKitchenAt(tx, ty)) { startSummonCook(); return; } // 大鍋タップ→召喚料理
     if (summonCircleAt(tx, ty)) { startSummonCast(); return; } // 召喚魔法陣タップ→召喚
-    if (fridgeAt(tx, ty)) { openFridge(); return; } // 冷蔵庫タップ→食料保管
+    if (fridgeAt(tx, ty)) { openStorage("fridge"); return; } // 冷蔵庫タップ→食料保管
+    if (warehouseAt(tx, ty)) { openStorage("warehouse"); return; } // 倉庫タップ→持ち物保管
     if (tvAt(tx, ty)) { startTV(); return; }        // テレビタップ→AI放送
     if (!hudShown) { setHud(true); return; } // 何もない所をタップ → 情報パネルを表示
     return;
@@ -1057,12 +1075,12 @@ function onTap(x, y) {
     }
     return;
   }
-  if (state === STATE.FRIDGE && fridgeUI) {
-    const rows = fridgeRows();
+  if (state === STATE.STORAGE && storageUI) {
+    const rows = storageRows();
     const { top, rh, h } = shopRowLayout(rows.length);
     for (let i = 0; i < rows.length; i++) {
       const ry = top + i * rh;
-      if (x >= 40 && x <= 440 && y >= ry && y <= ry + h) { fridgeUI.sel = i; fridgeSelect(rows[i]); return; }
+      if (x >= 40 && x <= 440 && y >= ry && y <= ry + h) { storageUI.sel = i; storageSelect(rows[i]); return; }
     }
     return;
   }
@@ -1157,7 +1175,7 @@ function saveGame() {
     wordCorrect: { ...wordCorrect }, npcAffection: { ...npcAffection }, metNPCs: [...metNPCs], ownedHome,
     dishes: dishes.map((d) => ({ ...d })), mealBuff: { ...mealBuff }, fieldBoss: fieldBoss ? { ...fieldBoss } : null,
     tributes: tributes.map((t) => ({ ...t })), summonCards: summonCards.map((c) => ({ ...c })),
-    ownedFridge, ownedTV, fridge: { ...fridge }, fridgeDishes: fridgeDishes.map((d) => ({ ...d })),
+    ownedFridge, ownedTV, fridge: { ...fridge }, fridgeDishes: fridgeDishes.map((d) => ({ ...d })), whBag: { ...whBag }, whMat: { ...whMat },
     savedOverworld: { ...savedOverworld }, catSpot,
   };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); return true; }
@@ -1181,6 +1199,7 @@ function loadGame() {
   metNPCs = new Set(data.metNPCs || []);
   ownedHome = data.ownedHome || null;
   ownedFridge = !!data.ownedFridge; ownedTV = !!data.ownedTV; fridge = data.fridge || {}; fridgeDishes = data.fridgeDishes || [];
+  whBag = data.whBag || {}; whMat = data.whMat || {}; storageUI = null;
   refreshHome();
   dishes = data.dishes || [];
   tributes = data.tributes || [];
@@ -1223,7 +1242,7 @@ function startGame(level) {
   board = null; boardCache = null; sideQuests = []; questLog = null;
   wordCorrect = {}; zone = ""; npcAffection = {}; affectionRecent = {}; metNPCs = new Set(); ownedHome = null; refreshHome();
   dishes = []; tributes = []; summonCards = []; pendingTribute = null; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
-  ownedFridge = false; ownedTV = false; fridge = {}; fridgeDishes = []; fridgeUI = null;
+  ownedFridge = false; ownedTV = false; fridge = {}; fridgeDishes = []; whBag = {}; whMat = {}; storageUI = null; bagPage = 0;
   fieldBoss = null; bossBattle = null;
   resetEncounter();
   startOpening();
@@ -1254,7 +1273,7 @@ function devJump(stage) {
   board = null; boardCache = null; sideQuests = []; questLog = null;
   wordCorrect = {}; metNPCs = new Set(); npcAffection = {}; affectionRecent = {}; ownedHome = null; refreshHome();
   dishes = []; tributes = []; summonCards = []; pendingTribute = null; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
-  ownedFridge = false; ownedTV = false; fridge = {}; fridgeDishes = []; fridgeUI = null;
+  ownedFridge = false; ownedTV = false; fridge = {}; fridgeDishes = []; whBag = {}; whMat = {}; storageUI = null; bagPage = 0;
   fieldBoss = null; bossBattle = null;
   resetEncounter();
   if (stage <= 1) {
@@ -1298,7 +1317,8 @@ function tryTalk() {
   if (kitchenAt(fx, fy)) { startCooking(); return; } // マイホームの台所→料理
   if (summonKitchenAt(fx, fy)) { startSummonCook(); return; } // 邸宅の大鍋→召喚料理
   if (summonCircleAt(fx, fy)) { startSummonCast(); return; } // 邸宅の召喚魔法陣→召喚
-  if (fridgeAt(fx, fy)) { openFridge(); return; } // 冷蔵庫→食料保管
+  if (fridgeAt(fx, fy)) { openStorage("fridge"); return; } // 冷蔵庫→食料保管
+  if (warehouseAt(fx, fy)) { openStorage("warehouse"); return; } // 倉庫→持ち物保管
   if (tvAt(fx, fy)) { startTV(); return; }        // テレビ→AI放送
 }
 // マイホームの勉強机が指定マスにあるか
@@ -1318,6 +1338,7 @@ function kitchenAt(tx, ty) {
 // 台所: コトハと料理。手持ち食材を渡して英語で調理→完成・採点→効果つき料理を入手
 function startCooking() {
   for (const k in keys) keys[k] = false;
+  // 手持ちの食材は全量を渡す(表示はプレイヤー向けに全部、AIプロンプトはchat.js側で上限要約)
   const ings = INGREDIENT_NAMES.filter((n) => bag[n] > 0).map((n) => `${n}×${bag[n]}`);
   Chat.openCooking(toeicLevel, ings, (name, score, used) => cookFinish(name, score, used));
 }
@@ -1328,48 +1349,87 @@ function summonKitchenAt(tx, ty) {
 function summonCircleAt(tx, ty) {
   return curArea.id === "home" && ownedHome === "manor" && (curArea.decor || []).some((d) => d.kind === "summoncircle" && d.tx === tx && d.ty === ty);
 }
-// マイホームの家電
+// マイホームの家電・倉庫
 function fridgeAt(tx, ty) { return curArea.id === "home" && (curArea.decor || []).some((d) => d.kind === "fridge" && d.tx === tx && d.ty === ty); }
 function tvAt(tx, ty) { return curArea.id === "home" && (curArea.decor || []).some((d) => d.kind === "tv" && d.tx === tx && d.ty === ty); }
-// 冷蔵庫: 食料品(食材)を保管/取り出し
-function openFridge() { for (const k in keys) keys[k] = false; fridgeUI = { sel: 0 }; state = STATE.FRIDGE; }
-function fridgeRows() {
-  const rows = [];
-  INGREDIENT_NAMES.filter((n) => bag[n] > 0).forEach((n) => rows.push({ kind: "store", name: n, label: `しまう ▶ ${n} ×${bag[n]}` }));
-  dishes.forEach((d, i) => rows.push({ kind: "storedish", di: i, label: `しまう ▶ 🍳${d.name}` }));
-  INGREDIENT_NAMES.filter((n) => fridge[n] > 0).forEach((n) => rows.push({ kind: "take", name: n, label: `◀ 取り出す ${n} ×${fridge[n]}（庫内）` }));
-  fridgeDishes.forEach((d, i) => rows.push({ kind: "takedish", di: i, label: `◀ 取り出す 🍳${d.name}（庫内）` }));
-  if (!rows.length) rows.push({ kind: "empty", label: "しまえる食料がないよ（食料品店で買おう）" });
+function warehouseAt(tx, ty) { return curArea.id === "home" && (curArea.decor || []).some((d) => d.kind === "warehouse" && d.tx === tx && d.ty === ty); }
+// ===== 収納(冷蔵庫=食料/料理・倉庫=持ち物/素材)。1ページ10件でページ送り =====
+function openStorage(kind) { for (const k in keys) keys[k] = false; storageUI = { kind, sel: 0, page: 0 }; state = STATE.STORAGE; }
+// しまう/取り出せる項目(ページ分割前の全アクション)
+function storageActions(kind) {
+  const a = [];
+  if (kind === "fridge") {
+    Object.keys(bag).filter((n) => isFood(n) && bag[n] > 0).forEach((n) => a.push({ act: "store", name: n, label: `しまう ▶ ${n} ×${bag[n]}` }));
+    dishes.forEach((d, i) => a.push({ act: "storedish", di: i, label: `しまう ▶ 🍳${d.name}` }));
+    Object.keys(fridge).filter((n) => fridge[n] > 0).forEach((n) => a.push({ act: "take", name: n, label: `◀ 取り出す ${n} ×${fridge[n]}` }));
+    fridgeDishes.forEach((d, i) => a.push({ act: "takedish", di: i, label: `◀ 取り出す 🍳${d.name}` }));
+  } else {
+    // 倉庫は食料と一部のクエスト用アイテムは預けられない
+    Object.keys(bag).filter((n) => !isFood(n) && !NO_STORE_ITEMS.includes(n)).forEach((n) => a.push({ act: "whstore", name: n, label: `しまう ▶ ${n} ×${bag[n]}` }));
+    Object.keys(materials).forEach((n) => a.push({ act: "whstoremat", name: n, label: `しまう ▶ [素材]${n} ×${materials[n]}` }));
+    Object.keys(whBag).forEach((n) => a.push({ act: "whtake", name: n, label: `◀ 取り出す ${n} ×${whBag[n]}` }));
+    Object.keys(whMat).forEach((n) => a.push({ act: "whtakemat", name: n, label: `◀ 取り出す [素材]${n} ×${whMat[n]}` }));
+  }
+  return a;
+}
+// 現在ページの表示行(アクション最大10＋前/次＋とじる)
+function storageRows() {
+  const actions = storageActions(storageUI.kind);
+  const pages = Math.max(1, Math.ceil(actions.length / STORAGE_PER_PAGE));
+  if (storageUI.page >= pages) storageUI.page = pages - 1;
+  if (storageUI.page < 0) storageUI.page = 0;
+  const start = storageUI.page * STORAGE_PER_PAGE;
+  const rows = actions.slice(start, start + STORAGE_PER_PAGE);
+  if (!actions.length) rows.push({ kind: "empty", label: storageUI.kind === "fridge" ? "しまえる食料がないよ" : "しまえる持ち物がないよ" });
+  if (pages > 1) {
+    rows.push({ kind: "prev", label: "◀ 前のページ", dis: storageUI.page <= 0 });
+    rows.push({ kind: "next", label: "次のページ ▶", dis: storageUI.page >= pages - 1 });
+  }
   rows.push({ kind: "close", label: "とじる" });
   return rows;
 }
-function fridgeSelect(row) {
-  if (!row || row.kind === "empty") return;
-  if (row.kind === "close") { fridgeUI = null; state = STATE.TOWN; if (canSave()) saveGame(); return; }
-  if (row.kind === "store") { bag[row.name]--; if (bag[row.name] <= 0) delete bag[row.name]; fridge[row.name] = (fridge[row.name] || 0) + 1; }
-  else if (row.kind === "take") { fridge[row.name]--; if (fridge[row.name] <= 0) delete fridge[row.name]; bag[row.name] = (bag[row.name] || 0) + 1; }
-  else if (row.kind === "storedish") { const d = dishes.splice(row.di, 1)[0]; if (d) fridgeDishes.push(d); }
-  else if (row.kind === "takedish") { const d = fridgeDishes.splice(row.di, 1)[0]; if (d) { dishes.push(d); if (dishes.length > 12) dishes.shift(); } }
-  const rows = fridgeRows();
-  if (fridgeUI.sel >= rows.length) fridgeUI.sel = rows.length - 1;
+function storageSelect(row) {
+  if (!row || row.kind === "empty" || row.dis) return;
+  const ui = storageUI;
+  if (row.kind === "close") { storageUI = null; state = STATE.TOWN; if (canSave()) saveGame(); return; }
+  if (row.kind === "prev") { ui.page = Math.max(0, ui.page - 1); ui.sel = 0; return; }
+  if (row.kind === "next") { ui.page++; ui.sel = 0; return; }
+  switch (row.act) {
+    case "store": { const c = bag[row.name]; delete bag[row.name]; fridge[row.name] = (fridge[row.name] || 0) + c; break; }
+    case "take": if (bagFull(row.name)) { showToast(`もちものがいっぱい（${BAG_MAX_TYPES}種類）`); return; } bag[row.name] = (bag[row.name] || 0) + fridge[row.name]; delete fridge[row.name]; break;
+    case "storedish": { const d = dishes.splice(row.di, 1)[0]; if (d) fridgeDishes.push(d); break; }
+    case "takedish": { const d = fridgeDishes.splice(row.di, 1)[0]; if (d) { dishes.push(d); if (dishes.length > 12) dishes.shift(); } break; }
+    case "whstore": { const c = bag[row.name]; delete bag[row.name]; whBag[row.name] = (whBag[row.name] || 0) + c; break; }
+    case "whstoremat": { const c = materials[row.name]; delete materials[row.name]; whMat[row.name] = (whMat[row.name] || 0) + c; break; }
+    case "whtake": if (bagFull(row.name)) { showToast(`もちものがいっぱい（${BAG_MAX_TYPES}種類）`); return; } bag[row.name] = (bag[row.name] || 0) + whBag[row.name]; delete whBag[row.name]; break;
+    case "whtakemat": materials[row.name] = (materials[row.name] || 0) + whMat[row.name]; delete whMat[row.name]; break;
+  }
+  const rows = storageRows();
+  if (ui.sel >= rows.length) ui.sel = rows.length - 1;
 }
-function drawFridge() {
+function drawStorage() {
   ctx.fillStyle = "#06122b"; ctx.fillRect(0, 0, W, H);
+  const kind = storageUI.kind;
+  const actions = storageActions(kind);
+  const pages = Math.max(1, Math.ceil(actions.length / STORAGE_PER_PAGE));
   ctx.textAlign = "center"; ctx.fillStyle = "#fff"; ctx.font = "bold 22px 'MS Gothic', monospace";
-  ctx.fillText("冷蔵庫", W / 2, 44);
+  ctx.fillText(kind === "fridge" ? "冷蔵庫" : "倉庫", W / 2, 42);
   ctx.fillStyle = "#9fd6ff"; ctx.font = "12px 'MS Gothic', monospace";
-  ctx.fillText("食料品をしまう / 取り出す", W / 2, 68);
-  const rows = fridgeRows();
+  ctx.fillText(`${kind === "fridge" ? "食料品・料理をしまう / 取り出す" : "持ち物・素材をしまう / 取り出す"}   ページ ${storageUI.page + 1}/${pages}`, W / 2, 64);
+  const rows = storageRows();
   const { top, rh, h } = shopRowLayout(rows.length);
   for (let i = 0; i < rows.length; i++) {
     const y = top + i * rh;
-    drawWindow(40, y, 400, h, fridgeUI.sel === i);
-    ctx.textAlign = "left"; ctx.fillStyle = rows[i].kind === "close" ? "#9fd6ff" : "#fff";
-    ctx.font = "14px 'MS Gothic', monospace";
-    ctx.fillText(rows[i].label, 62, y + h - 12);
+    drawWindow(40, y, 400, h, storageUI.sel === i);
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillStyle = row_dim(rows[i]) ? "#5a6a80" : (rows[i].kind === "close" || rows[i].kind === "prev" || rows[i].kind === "next") ? "#9fd6ff" : "#fff";
+    ctx.font = "13px 'MS Gothic', monospace";
+    ctx.fillText(rows[i].label, 60, y + h / 2 + 1);
   }
+  ctx.textBaseline = "alphabetic";
   ctx.textAlign = "center";
 }
+function row_dim(row) { return !!row.dis; }
 // テレビ: AI放送(ニュース/アニメ/バラエティ)。見るだけ・チャンネル変更のみ。
 function startTV() {
   for (const k in keys) keys[k] = false;
@@ -2873,7 +2933,7 @@ function render() {
     case STATE.BOARD: drawQuestBoard(); break;
     case STATE.QUESTLOG: drawQuestLog(); break;
     case STATE.WORDLIST: drawWordList(); break;
-    case STATE.FRIDGE: drawFridge(); break;
+    case STATE.STORAGE: drawStorage(); break;
     case STATE.BATTLE: drawBattleScene(); drawBattleUI(); break;
     case STATE.BOSSBATTLE: drawBossBattle(); break;
     case STATE.GAMEOVER: drawEnd("ゲームオーバー", "#c0392b"); break;
@@ -3102,18 +3162,33 @@ function drawRightPanel() {
   const allItems = [...Object.entries(materials), ...Object.entries(bag)];
   if (allItems.length) {
     if (bagOpen) {
-      // 展開: 品目一覧(最大8件)
-      const items = allItems.slice(0, 8);
-      const bh = 24 + items.length * 16 + 6;
+      // 展開: 品目一覧(8件/ページ・前後ページ移動)
+      const per = 8;
+      const pages = Math.max(1, Math.ceil(allItems.length / per));
+      if (bagPage >= pages) bagPage = pages - 1; if (bagPage < 0) bagPage = 0;
+      const items = allItems.slice(bagPage * per, bagPage * per + per);
+      const hasNav = allItems.length > per;
+      const bh = 24 + items.length * 16 + 6 + (hasNav ? 16 : 0);
       drawWindow(bx, y, bw, bh, false);
-      bagBoxRect = { x: bx, y, w: bw, h: bh };
+      bagBoxRect = { x: bx, y, w: bw, h: 22 }; // 見出し部だけ開閉トグル
       ctx.textAlign = "left";
       ctx.fillStyle = "#9fe0c0"; ctx.font = "12px 'MS Gothic', monospace";
       ctx.fillText(`● もちもの (${allItems.length}) ▼`, bx + 10, y + 19);
       ctx.fillStyle = "#fff"; ctx.font = "11px 'MS Gothic', monospace";
       for (let i = 0; i < items.length; i++) ctx.fillText(`${items[i][0]} ×${items[i][1]}`, bx + 10, y + 37 + i * 16);
+      bagNavRects = null;
+      if (hasNav) {
+        const ny = y + 24 + items.length * 16 + 4;
+        ctx.font = "11px 'MS Gothic', monospace";
+        ctx.fillStyle = bagPage > 0 ? "#9fd6ff" : "#5a6a80"; ctx.textAlign = "left"; ctx.fillText("◀前", bx + 12, ny + 8);
+        ctx.fillStyle = "#cfe0ff"; ctx.textAlign = "center"; ctx.fillText(`${bagPage + 1}/${pages}`, bx + bw / 2, ny + 8);
+        ctx.fillStyle = bagPage < pages - 1 ? "#9fd6ff" : "#5a6a80"; ctx.textAlign = "right"; ctx.fillText("次▶", bx + bw - 12, ny + 8);
+        ctx.textAlign = "left";
+        bagNavRects = { prev: { x: bx, y: ny - 4, w: bw / 2, h: 16 }, next: { x: bx + bw / 2, y: ny - 4, w: bw / 2, h: 16 } };
+      }
       y += bh + 6;
     } else {
+      bagNavRects = null;
       // 折りたたみ: 見出しのみ(タップで展開)
       const bh = 26;
       drawWindow(bx, y, bw, bh, false);
@@ -3369,6 +3444,7 @@ function drawDecor(kind, x, y) {
     case "cauldron": drawCauldron(x, y); break;
     case "fridge": drawFridgeIcon(x, y); break;
     case "tv": drawTV(x, y); break;
+    case "warehouse": drawWarehouse(x, y); break;
   }
 }
 // 台所: コンロ(鍋つき)
@@ -3436,6 +3512,16 @@ function drawFridgeIcon(x, y) {
   ctx.strokeStyle = "#b6c2cc"; ctx.lineWidth = 1; ctx.strokeRect(x + 8, y + 3, 16, 27);
   ctx.strokeStyle = "#c9d3db"; ctx.beginPath(); ctx.moveTo(x + 8, y + 14); ctx.lineTo(x + 24, y + 14); ctx.stroke(); // 上下ドアの境
   ctx.fillStyle = "#8fa0ac"; ctx.fillRect(x + 20, y + 6, 2, 6); ctx.fillRect(x + 20, y + 16, 2, 8); // 取っ手
+}
+// 倉庫(木の大きな収納箱／チェスト)
+function drawWarehouse(x, y) {
+  ctx.fillStyle = "#8a6a3e"; ctx.fillRect(x + 3, y + 12, 26, 18);       // 箱本体
+  ctx.fillStyle = "#6e5230"; ctx.fillRect(x + 3, y + 12, 26, 4);        // 上ぶち
+  ctx.fillStyle = "#a5844e"; ctx.fillRect(x + 3, y + 6, 26, 8);         // フタ(丸みは省略)
+  ctx.fillStyle = "#5a4326"; ctx.fillRect(x + 3, y + 13, 26, 2);        // フタの合わせ目
+  ctx.fillStyle = "#c8a24a"; ctx.fillRect(x + 14, y + 12, 4, 6);        // 金具
+  ctx.fillStyle = "#d8b24a"; ctx.fillRect(x + 15, y + 15, 2, 2);        // 錠前
+  ctx.fillStyle = "#6e5230"; ctx.fillRect(x + 5, y + 20, 22, 2); ctx.fillRect(x + 5, y + 26, 22, 2); // 帯
 }
 // テレビ(薄型テレビ・画面が光る)
 function drawTV(x, y) {

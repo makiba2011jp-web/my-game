@@ -361,14 +361,21 @@ async function callClaudeStudy(level, messages, theme) {
 }
 
 // ===== 台所: コトハと料理(英語で手順を指示→完成・採点→効果つき料理) =====
+// AIプロンプトに載せる食材/素材リスト(トークン節約のため最大24種で要約)
+const AI_LIST_MAX = 24;
+function capListForPrompt(names) {
+  if (!names || !names.length) return "";
+  if (names.length <= AI_LIST_MAX) return names.join("、");
+  return names.slice(0, AI_LIST_MAX).join("、") + `、（ほか${names.length - AI_LIST_MAX}種・主人公が名前を言えば使える）`;
+}
 function buildCookSystem(level, ingredients) {
   const pname = (window.getPlayerName && window.getPlayerName()) || "";
-  const list = (ingredients && ingredients.length) ? ingredients.join("、") : "(手持ちの食材なし)";
+  const list = (ingredients && ingredients.length) ? capListForPrompt(ingredients) : "(手持ちの食材なし)";
   return `あなたは「コトハ」。幼い女の子の姿をした言葉の精霊で、主人公${pname ? `(${pname})` : ""}の料理の相棒です。いまは台所で、主人公の英語の調理指示を受けて一緒に料理しています。
 
 進め方:
 - 主人公は英語で調理の手順を指示します。あなたは reply_ja に日本語(幼い女の子の親しみやすいタメ口)で、反応・あいづち・次の手順への誘導を2〜4文で書きます。
-- 使える食材は次のものだけ: ${list}。このリストにない食材は使えません。リストにない物を指示されたら reply_ja で「それは持ってないよ」とやさしく伝え、done=false にします。
+- 手持ちの食材(一部): ${list}。主人公が持っている食材を英語で言えば、上のリストに無くても使ってよい(その場合 ingredients_used にその名前をそのまま入れる)。明らかに手元になさそうな架空の食材を指示されたら reply_ja で「それは持ってないよ」とやさしく伝え、done=false にします。
 - 数ターンやりとりして、主人公が「完成/できた/これで終わり(I'm done など)」と示すか、十分な手順がそろったら done=true にして料理を完成させます。
 - done=true のとき: dish_name_ja に料理名(日本語)、score(0-100)に出来栄え、ingredients_used に実際に使った食材(渡したリストの表記そのまま。例「マグロ×1」なら「マグロ」)、comment_ja に短い採点コメント(日本語)を入れる。
   - 出来栄えscoreは「手順の丁寧さ・食材の活かし方」に加えて、特に【英語で調理指示できたか】を重視して評価する。
@@ -388,11 +395,11 @@ function buildCookSystem(level, ingredients) {
 // 召喚料理: モンスターの素材で「架空の料理(貢物)」を作る
 function buildSummonCookSystem(level, ingredients) {
   const pname = (window.getPlayerName && window.getPlayerName()) || "";
-  const list = (ingredients && ingredients.length) ? ingredients.join("、") : "(手持ちの素材なし)";
+  const list = (ingredients && ingredients.length) ? capListForPrompt(ingredients) : "(手持ちの素材なし)";
   return `あなたは「コトハ」。幼い女の子の姿をした言葉の精霊で、主人公${pname ? `(${pname})` : ""}の相棒です。いまは大きな邸宅の「召喚料理のキッチン」で、モンスターから得た素材を使って、召喚儀式の“貢物(そなえもの)”となる料理を一緒に作っています。
 
 進め方:
-- 使える素材は次のものだけ: ${list}。リストにない素材は使えません。リストにない物を言われたら reply_ja で「それは持ってないよ」と伝え done=false にします。
+- 手持ちの素材(一部): ${list}。主人公が持っている素材を英語で言えば、上のリストに無くても使ってよい(ingredients_used にその名前をそのまま入れる)。明らかに手元になさそうな架空の素材を言われたら reply_ja で「それは持ってないよ」と伝え done=false にします。
 - 主人公は英語で調理手順を指示します。reply_ja には日本語(幼い女の子のタメ口)で反応・誘導を2〜4文。
 - 数ターンで主人公が「完成(I'm done など)」と示すか十分な手順が揃ったら done=true。
 - done=true のとき: dish_name_ja に、その素材と手順から想像した“架空の料理名(かっこいい/おいしそう/少し不気味など創作OK)”を日本語で命名。score(0-100)は出来栄え。ingredients_used に使った素材(リストの表記そのまま)。comment_ja に短い講評。
@@ -968,10 +975,10 @@ const Chat = (() => {
     if (convMode === "cook") {
       if (cookVariant === "summon") {
         addInfo("🔮 コトハ「召喚料理を作ろう！ モンスターの素材を使って、英語で手順を教えてね。」");
-        addInfo(cookIngredients.length ? ("素材: " + cookIngredients.join("、")) : "（素材がないみたい。モンスターをたおして素材を集めよう！）");
+        addInfo(cookIngredients.length ? (`🧺 手持ちの素材（${cookIngredients.length}種）: ` + cookIngredients.join("、")) : "（素材がないみたい。モンスターをたおして素材を集めよう！）");
       } else {
         addInfo("🍳 コトハ「料理しよう！ 英語で手順を教えてね。できあがったら『I'm done』って言ってね。」");
-        addInfo(cookIngredients.length ? ("食材: " + cookIngredients.join("、")) : "（食材がないみたい。食料品店で買ってこよう！）");
+        addInfo(cookIngredients.length ? (`🧺 手持ちの食材（${cookIngredients.length}種）: ` + cookIngredients.join("、")) : "（食材がないみたい。食料品店で買ってこよう！）");
       }
       history.push({ role: "user", content: "(料理を始めるよ。何を作るか提案して。)" });
       turn(true);
