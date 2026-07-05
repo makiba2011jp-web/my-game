@@ -498,11 +498,14 @@ function buildTvSystem(level, channel) {
 - Give a short Japanese program title (title_ja) and a natural Japanese translation of the broadcast (program_ja).
 - Make each broadcast fresh and different.`;
 }
-async function callClaudeTv(level, channel) {
+async function callClaudeTv(level, channel, prev) {
+  const userMsg = prev
+    ? `Continue the same ${channel} program. Here is the previous part:\n"${prev}"\nBroadcast the NEXT part (a natural continuation of the same story/report/scene).`
+    : `Broadcast the ${channel} channel now.`;
   const body = {
     model: AI_CONFIG.model, max_tokens: AI_CONFIG.maxTokens,
     system: buildTvSystem(level, channel),
-    messages: [{ role: "user", content: `Broadcast the ${channel} channel now.` }],
+    messages: [{ role: "user", content: userMsg }],
   };
   const oc = outputConfigWith(TV_SCHEMA); if (oc) body.output_config = oc;
   const data = await postClaude(body);
@@ -534,6 +537,8 @@ const Chat = (() => {
   let castTribute = "";     // 召喚で捧げた貢物の名前
   let castOnResult = null;  // 召喚成立時のコールバック(game.js)
   let castDone = false;     // 召喚が成立済みか
+  let tvChannel = "";       // テレビの現在チャンネル(続きを見る用)
+  let tvLastProgram = "";   // 直前の放送内容(続きの生成に渡す)
   let sendLabel = "話す";
   let suspended = null;     // NPC会話を退避してコトハに切替えた時の保存先
 
@@ -600,15 +605,38 @@ const Chat = (() => {
       } finally { expLoading = false; scrollBottom(); }
     });
     btns.appendChild(trBtn); btns.appendChild(exBtn);
+    // 返し方のヒント(町人との会話のときだけ)。押すとコトハが英語での返事の例を教えてくれる。
+    const rh = el("div", "exp-text"); rh.style.display = "none";
+    if (convMode === "npc") {
+      let rhLoaded = false, rhLoading = false;
+      const rhBtn = el("button", "tr-btn hint-btn", "💬 返し方のヒント");
+      rhBtn.addEventListener("click", async () => {
+        if (rhLoading) return;
+        if (rhLoaded) { const show = rh.style.display === "none"; rh.style.display = show ? "block" : "none"; rhBtn.textContent = show ? "🔼 ヒントをかくす" : "💬 返し方のヒント"; return; }
+        rhLoading = true; rhBtn.textContent = "💬 コトハが考え中…";
+        try { rh.textContent = await callReplyHint(reply); rh.style.display = "block"; rhLoaded = true; rhBtn.textContent = "🔼 ヒントをかくす"; }
+        catch (err) { rh.textContent = "⚠ " + errorMessage(err); rh.style.display = "block"; rhBtn.textContent = "💬 もう一度ヒント"; }
+        finally { rhLoading = false; scrollBottom(); }
+      });
+      btns.appendChild(rhBtn);
+    }
     if (window.Voice) Voice.attachSpeakButton(btns, reply, "en"); // 🔊聞く(voice.js。無ければ無効)
     bubble.appendChild(btns);
 
     row.appendChild(bubble);
     row.appendChild(ja);
     row.appendChild(exp);
+    row.appendChild(rh);
     logEl.appendChild(row);
     scrollBottom();
     if (window.Voice) Voice.autoSpeak(reply, "en"); // 自動読み上げ(ONのときのみ)
+  }
+  // 町人のセリフに英語でどう返すかのヒント(返事の例＋表現)
+  async function callReplyHint(npcReply) {
+    return callKotoha(level, null, [{
+      role: "user",
+      content: `町の人にこう言われたよ：「${npcReply}」。これに英語でどう返せばいい？ 返事の例を1〜2個(英語フレーズ)と、使える単語・表現を、英語初心者の私にやさしく日本語で短く教えて。丸暗記じゃなく自分で言えるようにヒントにして。** などの記号装飾は使わないで。`,
+    }], 600);
   }
 
   // コトハに英文を詳しく解説してもらう(その文専用の単発リクエスト)
@@ -624,6 +652,15 @@ const Chat = (() => {
       role: "user",
       content: `次の日本語を英語に訳すための「ヒント」を、英語学習中の私に教えて。完成した英文そのものは絶対に書かないでね。使えそうな英単語や言い回しを2〜4個、それと文の組み立て方(時制や構文のポイント)を、日本語で短く。** などの記号装飾は使わないでね：\n「${ja}」`,
     }], 500);
+  }
+  // 料理: 手持ち食材からのアドバイス(何が作れそうか＋英語での言い方のヒント)
+  async function callCookHint() {
+    const list = (cookIngredients && cookIngredients.length) ? cookIngredients.join("、") : (cookVariant === "summon" ? "(素材なし)" : "(食材なし)");
+    const noun = cookVariant === "summon" ? "召喚料理(モンスターの素材で作る貢物)" : "料理";
+    return callKotoha(level, null, [{
+      role: "user",
+      content: `${noun}のヒントをちょうだい。今の手持ち: ${list}。① これで作れそうな${noun}のアイデアを1〜2個、② 英語で調理手順を言うときに使える調理動詞や表現(例: chop, boil, grill, fry, season, mix, add など)を2〜4個、英語初心者の私にやさしく日本語で短く教えて。完成英文の丸暗記ではなく、自分で英語を組み立てられるヒントにして。** などの記号装飾は使わないでね。`,
+    }], 700);
   }
   function addPlayerLine(text) {
     const row = el("div", "chat-row me");
@@ -686,35 +723,63 @@ const Chat = (() => {
     logEl.appendChild(box); scrollBottom();
   }
 
-  // テレビ: チャンネル選択ボタン
+  // テレビ: チャンネル選択ボタン(直前のチャンネルがあれば「続きを見る」も)
   function addTvChannels() {
     const box = el("div", "theme-pick");
     box.appendChild(el("div", "theme-pick-title", "📺 チャンネルを選んでね"));
     const grid = el("div", "theme-grid");
+    if (tvChannel) { // 続きを見る(同じチャンネルの続き)
+      const cb = el("button", "theme-btn theme-random", `▶ 続きを見る（${TV_CHANNELS[tvChannel]}）`);
+      cb.addEventListener("click", () => { if (!busy) tvWatch(tvChannel, true); });
+      grid.appendChild(cb);
+    }
     for (const key of Object.keys(TV_CHANNELS)) {
       const b = el("button", "theme-btn", TV_CHANNELS[key]);
-      b.addEventListener("click", () => { if (!busy) tvWatch(key); });
+      b.addEventListener("click", () => { if (!busy) tvWatch(key, false); });
       grid.appendChild(b);
     }
     box.appendChild(grid);
     logEl.appendChild(box); scrollBottom();
   }
-  // テレビ: 選んだチャンネルの番組をAIが放送
-  async function tvWatch(channel) {
+  // テレビ: 選んだチャンネルの番組をAIが放送(cont=trueで同じ番組の続き)
+  async function tvWatch(channel, cont) {
     setBusy(true);
-    addInfo(`📺 チャンネル: ${TV_CHANNELS[channel]}`);
+    addInfo(`📺 チャンネル: ${TV_CHANNELS[channel]}${cont ? "（つづき）" : ""}`);
     const typing = el("div", "chat-info", "…📡 受信中…"); logEl.appendChild(typing); scrollBottom();
     try {
-      const data = await callClaudeTv(level, channel);
+      const data = await callClaudeTv(level, channel, cont ? tvLastProgram : null);
       typing.remove();
+      tvChannel = channel; tvLastProgram = data.program_en || "";
       addInfo(`【${data.title_ja || TV_CHANNELS[channel]}】`);
       addNpcLine(data.program_en, data.program_ja || ""); // 英語＋和訳＋🔊(リスニング)
-      addTvChannels(); // またチャンネルを変えられる
+      addTvChannels(); // 続きを見る／チャンネルを変えられる
     } catch (err) {
       typing.remove();
       addInfo("⚠ " + errorMessage(err));
       addTvChannels();
     } finally { setBusy(false); }
+  }
+
+  // 料理: 「💡料理のヒント」ボタン。押すとコトハがアドバイス(何度でも押せる)。
+  function addCookHintButton() {
+    const box = el("div", "bubble-btns");
+    const btn = el("button", "tr-btn hint-btn", "💡 料理のヒントをもらう");
+    let loading = false;
+    btn.addEventListener("click", async () => {
+      if (loading || busy || cookDone) return;
+      loading = true; btn.textContent = "💡 コトハが考え中…";
+      try {
+        const advice = await callCookHint();
+        addKotohaLine(advice);
+        btn.disabled = true; btn.textContent = "💡 ヒントをもらった";
+        addCookHintButton(); // また下に新しいヒントボタンを出す
+      } catch (err) {
+        addInfo("⚠ " + errorMessage(err));
+        btn.textContent = "💡 料理のヒントをもらう";
+      } finally { loading = false; scrollBottom(); }
+    });
+    box.appendChild(btn);
+    logEl.appendChild(box); scrollBottom();
   }
 
   // 勉強机: 出題(日本語の問題)を表示。💡ヒントボタンつき。
@@ -886,8 +951,8 @@ const Chat = (() => {
           if (data.correct && window.studyCorrectReward) {
             const r = window.studyCorrectReward();
             if (r) {
-              addInfo(`✨ けいけんち +${r.exp} を かくとく！`);
-              (r.leveled || []).forEach((line) => addInfo("🎉 " + line));
+              addInfo(`✨ コトハの経験値 +${r.exp}（コトハ Lv${r.kotohaLevel}）`);
+              (r.leveled || []).forEach((line) => addInfo(line));
             }
           }
         }
@@ -980,6 +1045,7 @@ const Chat = (() => {
         addInfo("🍳 コトハ「料理しよう！ 英語で手順を教えてね。できあがったら『I'm done』って言ってね。」");
         addInfo(cookIngredients.length ? (`🧺 手持ちの食材（${cookIngredients.length}種）: ` + cookIngredients.join("、")) : "（食材がないみたい。食料品店で買ってこよう！）");
       }
+      addCookHintButton(); // 困ったらコトハがアドバイス
       history.push({ role: "user", content: "(料理を始めるよ。何を作るか提案して。)" });
       turn(true);
       return;
@@ -1077,7 +1143,7 @@ const Chat = (() => {
   }
   // テレビ: AI放送(チャンネル選択のみ・一方通行)
   function openTV(toeicLevel) {
-    convMode = "tv"; kotohaContext = null; sendLabel = "－";
+    convMode = "tv"; kotohaContext = null; sendLabel = "－"; tvChannel = ""; tvLastProgram = "";
     npc = { id: "tv", name: "テレビ" }; level = toeicLevel; onCloseCb = null;
     inputEl.placeholder = "テレビは見るだけ（チャンネルを選んでね）";
     beginSession("テレビ");

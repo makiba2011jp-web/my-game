@@ -8,7 +8,7 @@ const TILE = 32, MAP_N = 15;
 ctx.imageSmoothingEnabled = false;
 
 // ===== ゲーム状態 =====
-const STATE = { TITLE: "title", NAME: "name", FIELD: "field", TOWN: "town", BATTLE: "battle", BOSSBATTLE: "bossbattle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", BOARD: "board", QUESTLOG: "questlog", WORDLIST: "wordlist", STORAGE: "storage", GAMEOVER: "gameover", CLEAR: "clear" };
+const STATE = { TITLE: "title", NAME: "name", FIELD: "field", TOWN: "town", BATTLE: "battle", BOSSBATTLE: "bossbattle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", BOARD: "board", QUESTLOG: "questlog", WORDLIST: "wordlist", STORAGE: "storage", EQUIP: "equip", GAMEOVER: "gameover", CLEAR: "clear" };
 let state = STATE.TITLE;
 
 // プレイヤー
@@ -17,9 +17,26 @@ const player = {
   tx: 2, ty: 12, px: 2 * TILE, py: 12 * TILE,
   dir: "down", moving: false, anim: 0,
   level: 1, hp: 20, maxhp: 20, atk: 6, def: 0, exp: 0, nextExp: 10,
+  baseAtk: 6, baseDef: 0, baseMaxhp: 20, // 素の値(レベルで上がる)。装備分は recomputeStats で加算
   gold: 0, wins: 0,
   guildLevel: 0, guildPoints: 0, // 0=未登録、1〜=ギルドランク
 };
+// 装備スロット(SHOP_ITEMSのindexを入れる。nullは未装備)
+let equipped = { weapon: null, head: null, armor: null, shield: null, accessory: null };
+const EQUIP_SLOTS = ["weapon", "head", "armor", "shield", "accessory"];
+const SLOT_JA = { weapon: "武器", head: "頭", armor: "鎧", shield: "盾", accessory: "アクセ" };
+// 装備の合計ボーナスを反映して player.atk/def/maxhp を再計算
+function recomputeStats() {
+  let a = 0, d = 0, h = 0;
+  for (const s of EQUIP_SLOTS) {
+    const i = equipped[s];
+    if (i != null && SHOP_ITEMS[i]) { const it = SHOP_ITEMS[i]; a += it.atk || 0; d += it.def || 0; h += it.hp || 0; }
+  }
+  player.atk = player.baseAtk + a;
+  player.def = player.baseDef + d;
+  player.maxhp = player.baseMaxhp + h;
+  if (player.hp > player.maxhp) player.hp = player.maxhp;
+}
 
 let toeicLevel = 500;     // 選択された難易度
 let stepsToEncounter = 0; // エンカウントまでの歩数
@@ -502,12 +519,16 @@ const MATERIAL_PRICE = {
   "スライムのゼリー": 8, "こうもりの羽": 10, "れいきのかけら": 14, "こわれた鎧の破片": 18,
 };
 const SHOP_ITEMS = [
-  { name: "Copper Sword", kind: "atk", value: 4, price: 30 },
-  { name: "Steel Sword", kind: "atk", value: 10, price: 120 },
-  { name: "Wooden Shield", kind: "def", value: 3, price: 25 },
-  { name: "Iron Shield", kind: "def", value: 8, price: 100 },
-  { name: "Traveler's Clothes", kind: "hp", value: 15, price: 40 },
-  { name: "Chain Mail", kind: "hp", value: 40, price: 150 },
+  { name: "Copper Sword", slot: "weapon", atk: 4, price: 30 },
+  { name: "Steel Sword", slot: "weapon", atk: 10, price: 120 },
+  { name: "Leather Cap", slot: "head", def: 2, hp: 5, price: 35 },
+  { name: "Iron Helmet", slot: "head", def: 5, hp: 10, price: 110 },
+  { name: "Traveler's Clothes", slot: "armor", hp: 15, price: 40 },
+  { name: "Chain Mail", slot: "armor", def: 4, hp: 40, price: 150 },
+  { name: "Wooden Shield", slot: "shield", def: 3, price: 25 },
+  { name: "Iron Shield", slot: "shield", def: 8, price: 100 },
+  { name: "Power Ring", slot: "accessory", atk: 3, price: 80 },
+  { name: "Guard Amulet", slot: "accessory", def: 3, hp: 8, price: 80 },
 ];
 // 家電屋の品(購入するとマイホームに設置)
 const APPLIANCE_ITEMS = [
@@ -568,7 +589,11 @@ function materialsValue() {
   return v;
 }
 function effText(it) {
-  return it.kind === "atk" ? `こうげき+${it.value}` : it.kind === "def" ? `ぼうぎょ+${it.value}` : `さいだいHP+${it.value}`;
+  const p = [];
+  if (it.atk) p.push(`攻+${it.atk}`);
+  if (it.def) p.push(`防+${it.def}`);
+  if (it.hp) p.push(`HP+${it.hp}`);
+  return `${SLOT_JA[it.slot] || ""} ${p.join(" ")}`;
 }
 function shopRows() {
   const rows = [];
@@ -635,10 +660,9 @@ function shopSelect(row) {
   } else if (row.kind === "buy") {
     const it = SHOP_ITEMS[row.idx];
     player.gold -= it.price; boughtItems.add(row.idx);
-    if (it.kind === "atk") player.atk += it.value;
-    else if (it.kind === "def") player.def += it.value;
-    else { player.maxhp += it.value; player.hp += it.value; }
-    shop.msg = `${it.name}を そうびした！`; shop.msgT = 220;
+    if (equipped[it.slot] == null) { equipped[it.slot] = row.idx; recomputeStats(); shop.msg = `${it.name}を 買って そうびした！`; }
+    else { shop.msg = `${it.name}を 買った！（🛡装備で着けかえできるよ）`; }
+    shop.msgT = 260;
   } else if (row.kind === "buyhome") {
     const p = HOME_PROPERTIES[row.idx];
     player.gold -= p.price; ownedHome = p.id;
@@ -850,6 +874,13 @@ if (saveBtn) saveBtn.addEventListener("click", (e) => {
   showToast(saveGame() ? "💾 セーブしました" : "ここではセーブできません");
 });
 
+// 装備メニューを開く(探索中のみ)
+const equipBtn = document.getElementById("equip-btn");
+if (equipBtn) equipBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  if (state === STATE.FIELD || state === STATE.TOWN) openEquip();
+});
+
 // 効果音のショートカット(モジュールが無くても無害)
 function sfx(name) { if (window.Sfx) Sfx.play(name); }
 const sfxBtn = document.getElementById("sfx-btn");
@@ -993,6 +1024,14 @@ function onInput(k) {
     else if (k === "cancel") { storageUI = null; state = STATE.TOWN; if (canSave()) saveGame(); }
     return;
   }
+  if (state === STATE.EQUIP && equipUI) {
+    const rows = equipRows();
+    if (k === "up") equipUI.sel = (equipUI.sel - 1 + rows.length) % rows.length;
+    else if (k === "down") equipUI.sel = (equipUI.sel + 1) % rows.length;
+    else if (k === "confirm") equipSelect(rows[equipUI.sel]);
+    else if (k === "cancel") { if (equipUI.view === "items") { equipUI.view = "slots"; equipUI.sel = 0; } else { equipUI = null; state = STATE.TOWN; if (canSave()) saveGame(); } }
+    return;
+  }
   if (state === STATE.BOARD && board) {
     const rows = boardRows();
     if (k === "up") board.sel = (board.sel - 1 + rows.length) % rows.length;
@@ -1095,6 +1134,15 @@ function onTap(x, y) {
     }
     return;
   }
+  if (state === STATE.EQUIP && equipUI) {
+    const rows = equipRows();
+    const { top, rh, h } = shopRowLayout(rows.length + 1);
+    for (let i = 0; i < rows.length; i++) {
+      const ry = top + i * rh;
+      if (x >= 40 && x <= 440 && y >= ry && y <= ry + h) { equipUI.sel = i; equipSelect(rows[i]); return; }
+    }
+    return;
+  }
   if (state === STATE.BOARD && board) {
     const rows = boardRows();
     for (let i = 0; i < rows.length; i++) {
@@ -1177,13 +1225,15 @@ function saveGame() {
       name: player.name,
       tx: player.tx, ty: player.ty, dir: player.dir,
       level: player.level, maxhp: player.maxhp, hp: player.hp, atk: player.atk, def: player.def,
+      baseAtk: player.baseAtk, baseDef: player.baseDef, baseMaxhp: player.baseMaxhp,
       exp: player.exp, nextExp: player.nextExp, wins: player.wins, gold: player.gold,
       guildLevel: player.guildLevel, guildPoints: player.guildPoints,
     },
+    equipped: { ...equipped },
     quest: quest ? { ...quest } : null,
     materials: { ...materials }, bag: { ...bag }, boughtItems: [...boughtItems],
     sideQuests: sideQuests.map((q) => ({ ...q })), sideQuestId,
-    wordCorrect: { ...wordCorrect }, npcAffection: { ...npcAffection }, metNPCs: [...metNPCs], ownedHome,
+    wordCorrect: { ...wordCorrect }, npcAffection: { ...npcAffection }, metNPCs: [...metNPCs], ownedHome, kotoha: { ...kotoha },
     dishes: dishes.map((d) => ({ ...d })), mealBuff: { ...mealBuff }, fieldBoss: fieldBoss ? { ...fieldBoss } : null,
     tributes: tributes.map((t) => ({ ...t })), summonCards: summonCards.map((c) => ({ ...c })),
     ownedFridge, ownedTV, fridge: { ...fridge }, fridgeDishes: fridgeDishes.map((d) => ({ ...d })), whBag: { ...whBag }, whMat: { ...whMat },
@@ -1202,9 +1252,14 @@ function loadGame() {
   quest = data.quest || null;
   materials = data.materials || {}; bag = data.bag || {};
   boughtItems = new Set(data.boughtItems || []);
+  // 装備: 旧セーブ(base無し)は現ステータスを素の値として扱う(装備なし)
+  equipped = data.equipped || { weapon: null, head: null, armor: null, shield: null, accessory: null };
+  if (player.baseAtk == null) { player.baseAtk = player.atk; player.baseDef = player.def; player.baseMaxhp = player.maxhp; }
+  recomputeStats();
   sideQuests = data.sideQuests || []; sideQuestId = data.sideQuestId || 0;
   wordCorrect = data.wordCorrect || {};
   npcAffection = data.npcAffection || {};
+  kotoha = data.kotoha || { level: 1, exp: 0, nextExp: 12 };
   if (data.floristAffection) npcAffection.florist = data.floristAffection; // 旧セーブ互換
   affectionRecent = {};
   metNPCs = new Set(data.metNPCs || []);
@@ -1245,13 +1300,15 @@ function startGame(level) {
   deleteSave(); // 新規開始: 古いセーブは消す(以降の自動セーブで新たに作られる)
   player.tx = 2; player.ty = 12; player.px = 2 * TILE; player.py = 12 * TILE;
   player.dir = "down"; player.moving = false;
-  player.level = 1; player.maxhp = 20; player.hp = 20; player.atk = 6; player.def = 0;
+  player.level = 1; player.baseMaxhp = 20; player.baseAtk = 6; player.baseDef = 0; player.hp = 20;
+  equipped = { weapon: null, head: null, armor: null, shield: null, accessory: null }; recomputeStats();
   player.exp = 0; player.nextExp = 10; player.wins = 0; player.gold = 0;
   player.guildLevel = 0; player.guildPoints = 0;
   materials = {}; quest = null; boughtItems = new Set();
   bag = {}; catSpot = 0; CAT.tx = CAT_SPOTS[0][0]; CAT.ty = CAT_SPOTS[0][1];
   board = null; boardCache = null; sideQuests = []; questLog = null;
   wordCorrect = {}; zone = ""; npcAffection = {}; affectionRecent = {}; metNPCs = new Set(); ownedHome = null; refreshHome();
+  kotoha = { level: 1, exp: 0, nextExp: 12 };
   dishes = []; tributes = []; summonCards = []; pendingTribute = null; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
   ownedFridge = false; ownedTV = false; fridge = {}; fridgeDishes = []; whBag = {}; whMat = {}; storageUI = null; bagPage = 0;
   fieldBoss = null; bossBattle = null;
@@ -1269,7 +1326,8 @@ function devJump(stage) {
   if (window.Chat && Chat.isOpen()) Chat.close();
   battle = null; shop = null; quiz = null; cutsceneDraw = null; cutsceneSteps = null; messageSpeaker = null;
   // 目的③以降を試せる程度のステータス
-  player.level = 3; player.maxhp = 32; player.hp = 32; player.atk = 10; player.def = 0;
+  player.level = 3; player.baseMaxhp = 32; player.baseAtk = 10; player.baseDef = 0; player.hp = 32;
+  equipped = { weapon: null, head: null, armor: null, shield: null, accessory: null }; recomputeStats();
   player.exp = 0; player.nextExp = 26; player.wins = 5;
   player.guildLevel = stage >= 6 ? 1 : 0; player.guildPoints = 0;
   boughtItems = new Set();
@@ -1283,6 +1341,7 @@ function devJump(stage) {
   catSpot = 0; CAT.tx = CAT_SPOTS[0][0]; CAT.ty = CAT_SPOTS[0][1];
   board = null; boardCache = null; sideQuests = []; questLog = null;
   wordCorrect = {}; metNPCs = new Set(); npcAffection = {}; affectionRecent = {}; ownedHome = null; refreshHome();
+  kotoha = { level: 1, exp: 0, nextExp: 12 };
   dishes = []; tributes = []; summonCards = []; pendingTribute = null; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
   ownedFridge = false; ownedTV = false; fridge = {}; fridgeDishes = []; whBag = {}; whMat = {}; storageUI = null; bagPage = 0;
   fieldBoss = null; bossBattle = null;
@@ -1364,6 +1423,56 @@ function summonCircleAt(tx, ty) {
 function fridgeAt(tx, ty) { return curArea.id === "home" && (curArea.decor || []).some((d) => d.kind === "fridge" && d.tx === tx && d.ty === ty); }
 function tvAt(tx, ty) { return curArea.id === "home" && (curArea.decor || []).some((d) => d.kind === "tv" && d.tx === tx && d.ty === ty); }
 function warehouseAt(tx, ty) { return curArea.id === "home" && (curArea.decor || []).some((d) => d.kind === "warehouse" && d.tx === tx && d.ty === ty); }
+// ===== 装備メニュー(武器/頭/鎧/盾/アクセを付け替え) =====
+let equipUI = null; // { view:"slots"|"items", slotKey, sel }
+function openEquip() { for (const k in keys) keys[k] = false; equipUI = { view: "slots", slotKey: null, sel: 0 }; state = STATE.EQUIP; sfx("select"); }
+function ownedForSlot(slot) { return [...boughtItems].filter((i) => SHOP_ITEMS[i] && SHOP_ITEMS[i].slot === slot); }
+function equipRows() {
+  const rows = [];
+  if (equipUI.view === "slots") {
+    for (const s of EQUIP_SLOTS) {
+      const it = equipped[s] != null ? SHOP_ITEMS[equipped[s]] : null;
+      rows.push({ kind: "slot", slot: s, label: `${SLOT_JA[s]}： ${it ? `${it.name}（${effText(it).trim()}）` : "なし"}` });
+    }
+    rows.push({ kind: "close", label: "とじる" });
+  } else {
+    const owned = ownedForSlot(equipUI.slotKey);
+    owned.forEach((i) => {
+      const eq = equipped[equipUI.slotKey] === i;
+      rows.push({ kind: "equip", idx: i, label: `${eq ? "✓ " : ""}${SHOP_ITEMS[i].name}（${effText(SHOP_ITEMS[i]).trim()}）` });
+    });
+    if (!owned.length) rows.push({ kind: "none", label: "持っている装備がない（武器屋で買おう）" });
+    if (equipped[equipUI.slotKey] != null) rows.push({ kind: "unequip", label: "🚫 はずす" });
+    rows.push({ kind: "back", label: "← もどる" });
+  }
+  return rows;
+}
+function equipSelect(row) {
+  if (!row || row.kind === "none") return;
+  if (row.kind === "close") { equipUI = null; state = STATE.TOWN; if (canSave()) saveGame(); sfx("cancel"); return; }
+  if (row.kind === "back") { equipUI.view = "slots"; equipUI.sel = 0; sfx("cancel"); return; }
+  if (row.kind === "slot") { equipUI.view = "items"; equipUI.slotKey = row.slot; equipUI.sel = 0; sfx("select"); return; }
+  if (row.kind === "equip") { equipped[equipUI.slotKey] = row.idx; recomputeStats(); sfx("item"); return; }
+  if (row.kind === "unequip") { equipped[equipUI.slotKey] = null; recomputeStats(); sfx("cancel"); return; }
+}
+function drawEquip() {
+  ctx.fillStyle = "#06122b"; ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = "center"; ctx.fillStyle = "#fff"; ctx.font = "bold 22px 'MS Gothic', monospace";
+  ctx.fillText("そうび", W / 2, 42);
+  ctx.fillStyle = "#ffe082"; ctx.font = "13px 'MS Gothic', monospace";
+  ctx.fillText(`Lv${player.level}  こうげき ${player.atk}  ぼうぎょ ${player.def}  さいだいHP ${player.maxhp}`, W / 2, 66);
+  const rows = equipRows();
+  const { top, rh, h } = shopRowLayout(rows.length + 1);
+  for (let i = 0; i < rows.length; i++) {
+    const y = top + i * rh;
+    drawWindow(40, y, 400, h, equipUI.sel === i);
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillStyle = (rows[i].kind === "close" || rows[i].kind === "back") ? "#9fd6ff" : rows[i].kind === "none" ? "#7a8aa8" : "#fff";
+    ctx.font = "14px 'MS Gothic', monospace";
+    ctx.fillText(rows[i].label, 60, y + h / 2 + 1);
+  }
+  ctx.textBaseline = "alphabetic"; ctx.textAlign = "center";
+}
 // ===== 収納(冷蔵庫=食料/料理・倉庫=持ち物/素材)。1ページ10件でページ送り =====
 function openStorage(kind) { for (const k in keys) keys[k] = false; storageUI = { kind, sel: 0, page: 0 }; state = STATE.STORAGE; }
 // しまう/取り出せる項目(ページ分割前の全アクション)
@@ -2535,19 +2644,33 @@ function gainExp(amount) {
   while (player.exp >= player.nextExp) {
     player.exp -= player.nextExp;
     player.level++;
-    player.maxhp += 6; player.hp = player.maxhp; player.atk += 2;
+    player.baseMaxhp += 6; player.baseAtk += 2; // 素の値を上げる
+    recomputeStats(); player.hp = player.maxhp; // レベルアップで全回復
     player.nextExp = Math.floor(player.nextExp * 1.6);
     leveled.push(`レベル ${player.level} に あがった！ (HP/攻撃 アップ)`);
   }
   return leveled;
 }
-// コトハとの英訳学習で正解したときの報酬(難易度に応じた経験値)。chat.js から呼ぶ。
+// コトハの経験値/レベル(勉強机の英訳ドリルでだけ上がる。上がると戦闘の魔法が強くなる)
+let kotoha = { level: 1, exp: 0, nextExp: 12 };
+function gainKotohaExp(amount) {
+  kotoha.exp += amount;
+  const leveled = [];
+  while (kotoha.exp >= kotoha.nextExp) {
+    kotoha.exp -= kotoha.nextExp;
+    kotoha.level++;
+    kotoha.nextExp = Math.floor(kotoha.nextExp * 1.6);
+    leveled.push(`🎉 コトハが レベル ${kotoha.level} に あがった！（魔法が強くなった）`);
+  }
+  return leveled;
+}
+// コトハとの英訳学習で正解したときの報酬(難易度に応じた経験値)。※コトハの経験値になる。chat.js から呼ぶ。
 const STUDY_EXP = { 500: 3, 700: 5, 900: 8 };
 window.studyCorrectReward = () => {
   const exp = STUDY_EXP[toeicLevel] || 3;
-  const leveled = gainExp(exp);
+  const leveled = gainKotohaExp(exp);
   if (canSave()) saveGame(); // 学習の成果を保存
-  return { exp, leveled };
+  return { exp, leveled, kotohaLevel: kotoha.level };
 };
 
 function winBattle() {
@@ -2626,7 +2749,9 @@ function startBossBattle() {
     questId: fieldBoss.questId, sel: 0, itemSel: 0, summonSel: 0, phase: "resolve", guard: false,
     sp: 0, spMax: 3, // 必殺技ゲージ(気合)
     beast: null, // 召喚中の召喚獣 {name,atk,turnsLeft,element}
-    khp: 30, kmaxhp: 30, kmp: 14, shake: 0, ehurt: 0, phurt: 0, khurt: 0,
+    // コトハの戦闘ステータスはコトハのレベルで強化(勉強机でレベルUP)
+    khp: 30 + (kotoha.level - 1) * 6, kmaxhp: 30 + (kotoha.level - 1) * 6, kmp: 14 + (kotoha.level - 1) * 3,
+    klevel: kotoha.level, shake: 0, ehurt: 0, phurt: 0, khurt: 0,
   };
   cutsceneDraw = drawBossScene;
   sfx("encounter");
@@ -2717,13 +2842,13 @@ function bossKotohaPhase() {
   const lowPlayer = player.hp <= player.maxhp * 0.4;
   const lowKotoha = bb.khp <= bb.kmaxhp * 0.45;
   if ((lowPlayer || lowKotoha) && bb.kmp >= 4) {
-    bb.kmp -= 4; const heal = 18 + Math.floor(rnd() * 8); sfx("heal");
+    bb.kmp -= 4; const heal = 18 + (bb.klevel - 1) * 3 + Math.floor(rnd() * 8); sfx("heal");
     if (lowPlayer && player.hp <= bb.khp) { player.hp = Math.min(player.maxhp, player.hp + heal); bossSay([`コトハは ヒールを となえた！ ${player.name}の HPが ${heal} 回復！`], () => bossEnemyPhase()); }
     else { bb.khp = Math.min(bb.kmaxhp, bb.khp + heal); bossSay([`コトハは ヒールを となえた！ コトハの HPが ${heal} 回復！`], () => bossEnemyPhase()); }
     return;
   }
   if (bb.kmp >= 3) {
-    bb.kmp -= 3; const dmg = 12 + Math.floor(rnd() * 8);
+    bb.kmp -= 3; const dmg = 12 + (bb.klevel - 1) * 3 + Math.floor(rnd() * 8);
     bb.ehp = Math.max(0, bb.ehp - dmg); bb.ehurt = 12; bb.shake = 6; sfx("magic");
     bossSay([`コトハは フレイムを となえた！ ${bb.name}に ${dmg} のダメージ！`], () => { if (bb.ehp <= 0) return bossWin(); bossEnemyPhase(); });
     return;
@@ -2777,7 +2902,7 @@ function drawBossScene() {
   ctx.fillText(player.name, 30, 256); drawBar(30, 262, 150, 8, player.hp / player.maxhp, "#3fa05a");
   ctx.fillText(`HP ${player.hp}/${player.maxhp}`, 188, 259);
   ctx.fillStyle = "#ffd24a"; ctx.fillText(`気合 ${"★".repeat(bb.sp)}${"・".repeat(bb.spMax - bb.sp)}`, 320, 259);
-  ctx.fillStyle = "#cfe0ff"; ctx.fillText("コトハ", 30, 282);
+  ctx.fillStyle = "#cfe0ff"; ctx.fillText(`コトハ Lv${bb.klevel}`, 30, 282);
   if (bb.khp > 0) { drawBar(30, 287, 150, 8, bb.khp / bb.kmaxhp, "#7be0d2"); ctx.fillStyle = "#fff"; ctx.fillText(`HP ${bb.khp}/${bb.kmaxhp} MP ${bb.kmp}`, 188, 284); }
   else { ctx.fillStyle = "#8aa"; ctx.fillText("たおれている…", 188, 284); }
   if (bb.beast) { ctx.fillStyle = "#d8b0ff"; ctx.fillText(`召喚 ${bb.beast.name}(残${bb.beast.turnsLeft})`, 300, 284); }
@@ -2955,6 +3080,7 @@ function render() {
     case STATE.QUESTLOG: drawQuestLog(); break;
     case STATE.WORDLIST: drawWordList(); break;
     case STATE.STORAGE: drawStorage(); break;
+    case STATE.EQUIP: drawEquip(); break;
     case STATE.BATTLE: drawBattleScene(); drawBattleUI(); break;
     case STATE.BOSSBATTLE: drawBossBattle(); break;
     case STATE.GAMEOVER: drawEnd("ゲームオーバー", "#c0392b"); break;
