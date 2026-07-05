@@ -653,13 +653,18 @@ const Chat = (() => {
       content: `次の日本語を英語に訳すための「ヒント」を、英語学習中の私に教えて。完成した英文そのものは絶対に書かないでね。使えそうな英単語や言い回しを2〜4個、それと文の組み立て方(時制や構文のポイント)を、日本語で短く。** などの記号装飾は使わないでね：\n「${ja}」`,
     }], 500);
   }
-  // 料理: 手持ち食材からのアドバイス(何が作れそうか＋英語での言い方のヒント)
+  // 料理: いまの会話の流れをふまえたアドバイス(次の手順＋英語での言い方)
   async function callCookHint() {
     const list = (cookIngredients && cookIngredients.length) ? cookIngredients.join("、") : (cookVariant === "summon" ? "(素材なし)" : "(食材なし)");
     const noun = cookVariant === "summon" ? "召喚料理(モンスターの素材で作る貢物)" : "料理";
+    // これまでのやりとり(直近数ターン)をまとめて渡す→続きの手順をアドバイスできる
+    const convo = history.slice(-6).map((m) => {
+      if (m.role === "user") return "私: " + m.content;
+      try { const o = JSON.parse(m.content); return "コトハ: " + (o.reply_ja || ""); } catch (_) { return "コトハ: " + m.content; }
+    }).join("\n");
     return callKotoha(level, null, [{
       role: "user",
-      content: `${noun}のヒントをちょうだい。今の手持ち: ${list}。① これで作れそうな${noun}のアイデアを1〜2個、② 英語で調理手順を言うときに使える調理動詞や表現(例: chop, boil, grill, fry, season, mix, add など)を2〜4個、英語初心者の私にやさしく日本語で短く教えて。完成英文の丸暗記ではなく、自分で英語を組み立てられるヒントにして。** などの記号装飾は使わないでね。`,
+      content: `いま${noun}を作っている途中だよ。手持ち: ${list}。\nこれまでのやりとり:\n${convo}\n\nこの続きのアドバイスをちょうだい。① 次にどんな手順をすればいいか(調理の進め方)を1〜2個、② それを英語でどう言えばいいか(例フレーズ1〜2個＋使える調理動詞や単語: chop, boil, grill, fry, season, mix, add など)を、英語初心者の私にやさしく日本語で短く教えて。完成英文の丸暗記ではなく、自分で英語を組み立てられるヒントにして。** などの記号装飾は使わないでね。`,
     }], 700);
   }
   function addPlayerLine(text) {
@@ -760,23 +765,17 @@ const Chat = (() => {
     } finally { setBusy(false); }
   }
 
-  // 料理: 「💡料理のヒント」ボタン。押すとコトハがアドバイス(何度でも押せる)。
+  // 料理: 「💡料理のヒント」ボタン(コトハの返事の後に出す)。押すと次の手順＋英語の言い方を助言。
   function addCookHintButton() {
     const box = el("div", "bubble-btns");
-    const btn = el("button", "tr-btn hint-btn", "💡 料理のヒントをもらう");
+    const btn = el("button", "tr-btn hint-btn", "💡 料理のヒント");
     let loading = false;
     btn.addEventListener("click", async () => {
       if (loading || busy || cookDone) return;
       loading = true; btn.textContent = "💡 コトハが考え中…";
-      try {
-        const advice = await callCookHint();
-        addKotohaLine(advice);
-        btn.disabled = true; btn.textContent = "💡 ヒントをもらった";
-        addCookHintButton(); // また下に新しいヒントボタンを出す
-      } catch (err) {
-        addInfo("⚠ " + errorMessage(err));
-        btn.textContent = "💡 料理のヒントをもらう";
-      } finally { loading = false; scrollBottom(); }
+      try { const advice = await callCookHint(); addKotohaLine(advice); }
+      catch (err) { addInfo("⚠ " + errorMessage(err)); }
+      finally { loading = false; btn.textContent = "💡 料理のヒント"; scrollBottom(); }
     });
     box.appendChild(btn);
     logEl.appendChild(box); scrollBottom();
@@ -975,6 +974,8 @@ const Chat = (() => {
             if (r && r.lines) r.lines.forEach((ln) => addInfo(ln));
           }
           addInfo(cookVariant === "summon" ? "（× でとじる。貢物は召喚魔法陣で使えるよ）" : "（× でとじる。料理は「もちもの」からタップで食べられるよ）");
+        } else {
+          addCookHintButton(); // コトハの返事の後に「💡料理のヒント」を出す(次の手順＋英語の言い方)
         }
       } else if (convMode === "cast") {
         const data = await callClaudeCast(level, history, castTribute);
@@ -1045,7 +1046,6 @@ const Chat = (() => {
         addInfo("🍳 コトハ「料理しよう！ 英語で手順を教えてね。できあがったら『I'm done』って言ってね。」");
         addInfo(cookIngredients.length ? (`🧺 手持ちの食材（${cookIngredients.length}種）: ` + cookIngredients.join("、")) : "（食材がないみたい。食料品店で買ってこよう！）");
       }
-      addCookHintButton(); // 困ったらコトハがアドバイス
       history.push({ role: "user", content: "(料理を始めるよ。何を作るか提案して。)" });
       turn(true);
       return;
