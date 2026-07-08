@@ -69,7 +69,7 @@ const HOME_SUMMON_DECOR = [{ tx: 3, ty: 6, kind: "summoncircle" }, { tx: 9, ty: 
 // 所有グレードに応じてマイホームの内装と表示名を更新
 function refreshHome() {
   const p = ownedHome && HOME_PROPERTIES.find((x) => x.id === ownedHome);
-  AREAS.home.name = p ? "マイホーム" : "売り家";
+  AREAS.home.name = p ? "My Home" : "For Sale";
   let decor = p ? (DECOR_TEMPLATES[p.decor] || []).concat(HOME_GARDEN_DECOR) : [];
   if (p) decor = decor.concat([{ tx: 7, ty: 7, kind: "warehouse" }]); // 全マイホームに倉庫
   if (p && p.id === "manor") decor = decor.concat(HOME_SUMMON_DECOR); // 邸宅のみ召喚設備
@@ -154,21 +154,21 @@ const GUILD_DECOR = [
 
 // 各建物の店主NPCと内装テンプレ名(ギルドは別定義)
 const BUILDING_DEFS = {
-  inn:        { name: "宿屋",   npc: { id: "innkeeper",  name: "宿屋の女将 Marian", color: "#e0a060" }, decor: "inn" },
-  restaurant: { name: "飲食店", npc: { id: "restaurant", name: "料理人 Tom",        color: "#c08a3e" }, decor: "restaurant" },
-  bar:        { name: "バー",   npc: { id: "bar",        name: "バーの主人 Sal",    color: "#9a5a3a" }, decor: "bar" },
-  bank:       { name: "銀行",   npc: { id: "bank",       name: "銀行員 Greta",      color: "#5a7a8a" }, decor: "bank" },
-  school:     { name: "学校",   npc: { id: "school",     name: "先生 Edwin",        color: "#7a8a5a" }, decor: "school" },
-  hospital:   { name: "病院",   npc: { id: "hospital",   name: "医者 Hale",         color: "#cfd8dc" }, decor: "hospital" },
-  church:     { name: "教会",   npc: { id: "church",     name: "シスター Clara",    color: "#d0d0e8" }, decor: "church" },
-  weapon:     { name: "武器屋", npc: { id: "weaponshop", name: "武器屋",            color: "#8fa0c0", shop: "weapon" }, decor: "weapon" },
-  material:   { name: "素材屋", npc: { id: "matshop",    name: "素材屋",            color: "#c08a3e", shop: "material" }, decor: "material" },
-  smith:      { name: "鍛冶屋", npc: { id: "smith",      name: "鍛冶屋 Borin",      color: "#9098b0" }, decor: "smith" },
-  salon:      { name: "美容院", npc: { id: "salon",      name: "美容師 Coco",       color: "#d07ab0" }, decor: "salon" },
-  police:     { name: "警察署", npc: { id: "police",     name: "警官 Bruno",        color: "#3a5a8a" }, decor: "police" },
-  florist:    { name: "花屋",   npc: { id: "florist",    name: "花屋 リリィ",       color: "#e57aa0" }, decor: "florist" },
-  realestate: { name: "不動産屋", npc: { id: "realestate", name: "不動産屋 Estelle",   color: "#b0884a" }, decor: "realestate" },
-  appliance:  { name: "家電屋", npc: { id: "appliance",  name: "家電屋 デン",       color: "#5a8a8a", shop: "appliance" }, decor: "appliance" },
+  inn:        { name: "Inn",          npc: { id: "innkeeper",  name: "宿屋の女将 Marian", color: "#e0a060" }, decor: "inn" },
+  restaurant: { name: "Restaurant",   npc: { id: "restaurant", name: "料理人 Tom",        color: "#c08a3e" }, decor: "restaurant" },
+  bar:        { name: "Bar",          npc: { id: "bar",        name: "バーの主人 Sal",    color: "#9a5a3a" }, decor: "bar" },
+  bank:       { name: "Bank",         npc: { id: "bank",       name: "銀行員 Greta",      color: "#5a7a8a" }, decor: "bank" },
+  school:     { name: "School",       npc: { id: "school",     name: "先生 Edwin",        color: "#7a8a5a" }, decor: "school" },
+  hospital:   { name: "Hospital",     npc: { id: "hospital",   name: "医者 Hale",         color: "#cfd8dc" }, decor: "hospital" },
+  church:     { name: "Church",       npc: { id: "church",     name: "シスター Clara",    color: "#d0d0e8" }, decor: "church" },
+  weapon:     { name: "Weapon Shop",  npc: { id: "weaponshop", name: "武器屋 Dunn",       color: "#8fa0c0", shop: "weapon" }, decor: "weapon" },
+  material:   { name: "Material Shop", npc: { id: "matshop",   name: "素材屋 Gil",        color: "#c08a3e", shop: "material" }, decor: "material" },
+  smith:      { name: "Smithy",       npc: { id: "smith",      name: "鍛冶屋 Borin",      color: "#9098b0" }, decor: "smith" },
+  salon:      { name: "Salon",        npc: { id: "salon",      name: "美容師 Coco",       color: "#d07ab0" }, decor: "salon" },
+  police:     { name: "Police",       npc: { id: "police",     name: "警官 Bruno",        color: "#3a5a8a" }, decor: "police" },
+  florist:    { name: "Flower Shop",  npc: { id: "florist",    name: "花屋 リリィ",       color: "#e57aa0" }, decor: "florist" },
+  realestate: { name: "Real Estate",  npc: { id: "realestate", name: "不動産屋 Estelle",   color: "#b0884a" }, decor: "realestate" },
+  appliance:  { name: "Appliance Shop", npc: { id: "appliance", name: "家電屋 デン",       color: "#5a8a8a", shop: "appliance" }, decor: "appliance" },
 };
 // 内装(家具)テンプレ。中央列(列5の通路と店主(5,2))は空ける。
 const DECOR_TEMPLATES = {
@@ -271,7 +271,7 @@ const AREAS = {
     doors: _town.doors.map((d) => ({ tx: d.tx, ty: d.ty, to: d.to, spawn: d.spawn })),
   },
   guild: {
-    id: "guild", indoor: true, name: "ギルド", map: GUILD_MAP, cols: 13, rows: 9,
+    id: "guild", indoor: true, name: "Guild", map: GUILD_MAP, cols: 13, rows: 9,
     npcs: GUILD_NPCS, decor: GUILD_DECOR,
     doors: [{ tx: 6, ty: 7, to: "town", spawn: townReturnOf("guild") }],
   },
@@ -300,7 +300,7 @@ const HOME_MAP = [
 ];
 // マイホーム(購入前は「売り家」。店員なし。内装は購入グレードで変わる)
 AREAS.home = {
-  id: "home", indoor: true, name: "売り家", map: HOME_MAP, cols: 13, rows: 11,
+  id: "home", indoor: true, name: "For Sale", map: HOME_MAP, cols: 13, rows: 11,
   npcs: [], decor: [],
   doors: [{ tx: 6, ty: 9, to: "town", spawn: townReturnOf("home") }],
 };
@@ -328,7 +328,7 @@ const MARKET_DECOR = [
   { tx: 1, ty: 1, kind: "crate" }, { tx: 11, ty: 1, kind: "crate" }, { tx: 1, ty: 7, kind: "barrel" }, { tx: 11, ty: 7, kind: "shelf" },
 ];
 AREAS.market = {
-  id: "market", indoor: true, name: "食料品店", map: MARKET_MAP, cols: 13, rows: 10,
+  id: "market", indoor: true, name: "Food Market", map: MARKET_MAP, cols: 13, rows: 10,
   npcs: MARKET_NPCS, decor: MARKET_DECOR,
   doors: [{ tx: 6, ty: 8, to: "town", spawn: townReturnOf("market") }],
 };
@@ -356,11 +356,11 @@ AREAS.dungeon = {
 };
 // ダンジョン専用の敵(フィールドより手強い)
 const DUNGEON_ENEMIES = [
-  { name: "どくグモ",     hp: 24, atk: 6,  exp: 14, color: "#6a8a3a", drop: "クモの毒牙" },
-  { name: "ヘドロ",       hp: 28, atk: 6,  exp: 16, color: "#5a6a3a", drop: "ヘドロのかたまり" },
-  { name: "がいこつ兵",   hp: 32, atk: 7,  exp: 19, color: "#e8e0c8", drop: "古びた骨" },
-  { name: "いわゴーレム", hp: 42, atk: 9,  exp: 27, color: "#8a7a6a", drop: "魔石のかけら" },
-  { name: "ドラゴンの子", hp: 52, atk: 11, exp: 35, color: "#b0402a", drop: "竜のうろこ" },
+  { name: "どくグモ",     hp: 24, atk: 6,  exp: 14, color: "#6a8a3a", drop: "Spider Silk" },
+  { name: "ヘドロ",       hp: 28, atk: 6,  exp: 16, color: "#5a6a3a", drop: "Sludge Ooze" },
+  { name: "がいこつ兵",   hp: 32, atk: 7,  exp: 19, color: "#e8e0c8", drop: "Old Bone" },
+  { name: "いわゴーレム", hp: 42, atk: 9,  exp: 27, color: "#8a7a6a", drop: "Mana Shard" },
+  { name: "ドラゴンの子", hp: 52, atk: 11, exp: 35, color: "#b0402a", drop: "Dragon Flame" },
 ];
 
 // ===== タワー(フィールドの入口 Y から入る。熟語が出る) =====
@@ -388,11 +388,11 @@ AREAS.tower = {
 };
 // タワー専用の敵(魔法系・最も手強い)
 const TOWER_ENEMIES = [
-  { name: "まどうし",     hp: 30, atk: 8,  exp: 20, color: "#7a4ad6", drop: "魔法書のきれはし" },
-  { name: "ガーゴイル",   hp: 36, atk: 8,  exp: 24, color: "#9a9aa6", drop: "石の翼" },
-  { name: "よろいの亡霊", hp: 44, atk: 10, exp: 30, color: "#c0c0d4", drop: "のろいの兜" },
-  { name: "キメラ",       hp: 50, atk: 11, exp: 38, color: "#c08a3a", drop: "キメラのたてがみ" },
-  { name: "だいまどう",   hp: 62, atk: 13, exp: 48, color: "#5a2a8a", drop: "賢者の石" },
+  { name: "まどうし",     hp: 30, atk: 8,  exp: 20, color: "#7a4ad6", drop: "Mana Powder" },
+  { name: "ガーゴイル",   hp: 36, atk: 8,  exp: 24, color: "#9a9aa6", drop: "Demon Guts" },
+  { name: "よろいの亡霊", hp: 44, atk: 10, exp: 30, color: "#c0c0d4", drop: "Wraith Eye" },
+  { name: "キメラ",       hp: 50, atk: 11, exp: 38, color: "#c08a3a", drop: "Chimera Meat" },
+  { name: "だいまどう",   hp: 62, atk: 13, exp: 48, color: "#5a2a8a", drop: "Archmage Soul" },
 ];
 
 // ===== 魔王城(フィールドの C から入る。英文法問題が出る) =====
@@ -420,10 +420,10 @@ AREAS.castle = {
 };
 // 魔王城の敵(配下)。魔王(BOSS)は玉座Bで出現
 const CASTLE_ENEMIES = [
-  { name: "小悪魔",     hp: 34, atk: 8,  exp: 22, color: "#b04a6a", drop: "悪魔の角" },
-  { name: "ダークナイト", hp: 46, atk: 10, exp: 30, color: "#3a3a5a", drop: "闇の鎧" },
-  { name: "魔導兵",     hp: 40, atk: 11, exp: 32, color: "#6a3a8a", drop: "呪文のスクロール" },
-  { name: "デュラハン", hp: 54, atk: 12, exp: 40, color: "#4a5a6a", drop: "首なしの兜" },
+  { name: "小悪魔",     hp: 34, atk: 8,  exp: 22, color: "#b04a6a", drop: "Devil Horn" },
+  { name: "ダークナイト", hp: 46, atk: 10, exp: 30, color: "#3a3a5a", drop: "Dark Metal" },
+  { name: "魔導兵",     hp: 40, atk: 11, exp: 32, color: "#6a3a8a", drop: "Arcane Powder" },
+  { name: "デュラハン", hp: 54, atk: 12, exp: 40, color: "#4a5a6a", drop: "Dullahan Bone" },
 ];
 
 // ===== ダンジョン2 / 氷の洞窟(フィールドの Z から入る。専用単語が出る) =====
@@ -449,11 +449,11 @@ AREAS.dungeon2 = {
 };
 // 氷の洞窟の敵
 const DUNGEON2_ENEMIES = [
-  { name: "こおりスライム", hp: 30, atk: 7,  exp: 18, color: "#7ad0e0", drop: "こおりのかけら" },
-  { name: "フロストウルフ", hp: 38, atk: 9,  exp: 24, color: "#aab8d8", drop: "凍った牙" },
-  { name: "ゆきおんな",     hp: 44, atk: 10, exp: 30, color: "#dfeefc", drop: "白銀の髪" },
-  { name: "アイスゴーレム", hp: 56, atk: 12, exp: 40, color: "#6aa0c0", drop: "氷晶の核" },
-  { name: "ブリザードドラゴン", hp: 66, atk: 14, exp: 52, color: "#3a8ac0", drop: "氷竜のうろこ" },
+  { name: "こおりスライム", hp: 30, atk: 7,  exp: 18, color: "#7ad0e0", drop: "Ancient Ice" },
+  { name: "フロストウルフ", hp: 38, atk: 9,  exp: 24, color: "#aab8d8", drop: "Frost Meat" },
+  { name: "ゆきおんな",     hp: 44, atk: 10, exp: 30, color: "#dfeefc", drop: "Ice Soul" },
+  { name: "アイスゴーレム", hp: 56, atk: 12, exp: 40, color: "#6aa0c0", drop: "Ice Shard" },
+  { name: "ブリザードドラゴン", hp: 66, atk: 14, exp: 52, color: "#3a8ac0", drop: "Ice Dragon Heart" },
 ];
 
 let zone = "";                          // "" | "dungeon" | "dungeon2" | "tower" | "castle" (敵/単語の出し分け用)
@@ -516,7 +516,7 @@ function updateCamera(cols, rows) {
 
 // ===== 素材の売値 / ショップの品ぞろえ =====
 const MATERIAL_PRICE = {
-  "スライムのゼリー": 8, "こうもりの羽": 10, "れいきのかけら": 14, "こわれた鎧の破片": 18,
+  "Slime Ooze": 8, "Bat Wing": 10, "Ghost Soul": 14, "Rusty Metal": 18,
 };
 const SHOP_ITEMS = [
   { name: "Copper Sword", slot: "weapon", atk: 4, price: 30 },
@@ -570,7 +570,7 @@ const FOOD_SHOPS = {
   meat:    [{ name: "Chicken", price: 14 }, { name: "Pork", price: 18 }, { name: "Beef", price: 26 }, { name: "Bacon", price: 16 }, { name: "Sausage", price: 14 }],
   grocery: [{ name: "Rice", price: 8 }, { name: "Noodles", price: 8 }, { name: "Bread", price: 7 }, { name: "Egg", price: 6 }, { name: "Oil", price: 8 }, { name: "Salt", price: 4 }, { name: "Soy Sauce", price: 8 }, { name: "Sugar", price: 6 }, { name: "Butter", price: 12 }],
 };
-const SHOP_TITLE = { material: "素材屋", weapon: "武器屋", fish: "魚屋", green: "八百屋", meat: "肉屋", grocery: "食料品店", home: "不動産屋 〜 物件リスト", appliance: "家電屋" };
+const SHOP_TITLE = { material: "Material Shop", weapon: "Weapon Shop", fish: "Fish Shop", green: "Green Grocer", meat: "Butcher", grocery: "Grocery", home: "Real Estate 〜 Properties", appliance: "Appliance Shop" };
 // 料理に使える食材(食材ショップの品)。台所の調理で消費する。
 const INGREDIENT_NAMES = [].concat(...Object.values(FOOD_SHOPS).map((a) => a.map((x) => x.name)));
 // 旧セーブの日本語食料名も「食料品」として扱う(冷蔵庫に保管・倉庫には入れない)
@@ -807,10 +807,10 @@ function questLines() {
 
 // ===== 敵テンプレート =====
 const ENEMIES = [
-  { name: "スライム",   hp: 12, atk: 3, exp: 5,  color: "#3fbf6f", drop: "スライムのゼリー" },
-  { name: "おおコウモリ", hp: 16, atk: 4, exp: 7,  color: "#7a5ad6", drop: "こうもりの羽" },
-  { name: "ゴースト",   hp: 20, atk: 5, exp: 9,  color: "#9fd6e6", drop: "れいきのかけら" },
-  { name: "アーマー兵", hp: 28, atk: 6, exp: 12, color: "#b0b0c0", drop: "こわれた鎧の破片" },
+  { name: "スライム",   hp: 12, atk: 3, exp: 5,  color: "#3fbf6f", drop: "Slime Ooze" },
+  { name: "おおコウモリ", hp: 16, atk: 4, exp: 7,  color: "#7a5ad6", drop: "Bat Wing" },
+  { name: "ゴースト",   hp: 20, atk: 5, exp: 9,  color: "#9fd6e6", drop: "Ghost Soul" },
+  { name: "アーマー兵", hp: 28, atk: 6, exp: 12, color: "#b0b0c0", drop: "Rusty Metal" },
 ];
 const BOSS = { name: "まおう", hp: 60, atk: 9, exp: 0, color: "#c0392b", boss: true };
 
@@ -1332,7 +1332,7 @@ function devJump(stage) {
   player.guildLevel = stage >= 6 ? 1 : 0; player.guildPoints = 0;
   boughtItems = new Set();
   quest = { stage, kills: stage === 0 ? 0 : 5, goal: 5, shopRevealed: stage >= 3 };
-  materials = (stage === 2 || stage === 3) ? { "スライムのゼリー": 3, "こうもりの羽": 1, "れいきのかけら": 1 } : {};
+  materials = (stage === 2 || stage === 3) ? { "Slime Ooze": 3, "Bat Wing": 1, "Ghost Soul": 1 } : {};
   player.gold = stage >= 4 ? 80 : 0;
   // 迷いネコクエストの持ち物・ネコ位置を段階に合わせて用意
   bag = {};
@@ -3426,7 +3426,7 @@ function drawArea() {
   // 扉ラベル(でぐち／家の名前)
   ctx.textAlign = "center"; ctx.font = "11px 'MS Gothic', monospace";
   for (const d of a.doors) {
-    const label = (d.to === "field" || d.to === "town") ? "でぐち" : (AREAS[d.to] ? AREAS[d.to].name : "");
+    const label = (d.to === "field" || d.to === "town") ? "EXIT" : (AREAS[d.to] ? AREAS[d.to].name : "");
     if (!label) continue;
     const lx = d.tx * TILE + TILE / 2 - camX, ly = d.ty * TILE - 3 - camY;
     const w = ctx.measureText(label).width + 8;

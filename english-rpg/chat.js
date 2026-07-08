@@ -306,6 +306,22 @@ const STUDY_THEMES = [
   { id: "conjunction", label: "接続詞",          note: "接続詞(when/because/although/so/if など)で節をつなぐ文を中心に出題する。" },
   { id: "question",    label: "疑問文・否定文",  note: "疑問文(Wh疑問・Yes/No疑問)や否定文の作り方が要点になる文を中心に出題する。" },
 ];
+// 出題のマンネリ防止: 開始メッセージに毎回ちがう話題ヒント＋シードを混ぜる
+const STUDY_TOPICS = [
+  "天気", "買い物", "旅行", "料理", "仕事", "学校の授業", "趣味", "スポーツ観戦",
+  "家族", "友達との約束", "ペット", "音楽", "映画やドラマ", "健康・体調", "季節の行事",
+  "電車やバスの移動", "レストランでの食事", "週末の予定", "引っ越し", "誕生日パーティー",
+  "読書", "ガーデニング", "海や山でのレジャー", "カフェ", "病院・通院", "スマホやパソコン",
+  "会議やプレゼン", "家電の買い替え", "お祭り", "掃除や片付け", "アルバイト", "貯金やお金",
+  "道案内", "ホテルの予約", "写真を撮ること", "アプリの使い方", "近所の人との会話",
+  "在宅ワーク", "子どもの世話", "料理のレシピ", "天体観測", "キャンプ",
+];
+function randomStudyStarter() {
+  const shuffled = STUDY_TOPICS.slice().sort(() => Math.random() - 0.5);
+  const picks = shuffled.slice(0, 3).join("・");
+  const seed = Math.floor(Math.random() * 1e6);
+  return `(レッスンを始めて。最初の問題を出して。今回はできれば「${picks}」のような話題から選んで、いつもと違う新鮮な文にしてね。#${seed})`;
+}
 function buildStudySystem(level, theme) {
   const guide = level === 900
     ? `TOEIC900・上級(CEFR C1相当)。しっかり手応えのある英作文にする。
@@ -719,7 +735,7 @@ const Chat = (() => {
         logEl.innerHTML = ""; // テーマ選択を消してドリル開始
         addInfo(`コトハ「テーマは『${t.label}』だね！ 日本語の文を英語にしてみてね。」`);
         history = [];
-        history.push({ role: "user", content: "(レッスンを始めて。最初の問題を出して。)" });
+        history.push({ role: "user", content: randomStudyStarter() });
         turn(true);
       });
       grid.appendChild(b);
