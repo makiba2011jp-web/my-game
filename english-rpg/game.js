@@ -735,15 +735,15 @@ function drawQuestBoard() {
   }
   const rows = boardRows();
   for (let i = 0; i < rows.length; i++) {
-    const y = 92 + i * 40;
-    drawWindow(30, y, 420, 36, board.sel === i);
+    const y = 86 + i * 34;
+    drawWindow(30, y, 420, 30, board.sel === i);
     ctx.textAlign = "left";
     ctx.fillStyle = "#fff"; ctx.font = "14px 'MS Gothic', monospace";
-    ctx.fillText(rows[i].label, 48, y + 24);
+    ctx.fillText(rows[i].label, 48, y + 20);
   }
   // 選択中の依頼の詳細
   const sel = rows[board.sel];
-  const yDetail = 92 + rows.length * 40 + 8;
+  const yDetail = 86 + rows.length * 34 + 6;
   if (sel && sel.kind === "quest" && boardCache[sel.idx]) {
     const q = boardCache[sel.idx];
     drawWindow(30, yDetail, 420, 96, false);
@@ -1146,8 +1146,8 @@ function onTap(x, y) {
   if (state === STATE.BOARD && board) {
     const rows = boardRows();
     for (let i = 0; i < rows.length; i++) {
-      const ry = 92 + i * 40;
-      if (x >= 30 && x <= 450 && y >= ry && y <= ry + 36) { board.sel = i; boardSelect(rows[i]); return; }
+      const ry = 86 + i * 34;
+      if (x >= 30 && x <= 450 && y >= ry && y <= ry + 30) { board.sel = i; boardSelect(rows[i]); return; }
     }
     return;
   }
@@ -1813,16 +1813,38 @@ function instantiateQuest(def) {
   else if (def.type === "areaboss") { q.boss = def.boss; q.zone = def.zone || "field"; q.bossName = (AREA_BOSSES[def.boss] || {}).name || "ボス"; }
   return q;
 }
-// 依頼プール(QUEST_POOL)からランダムにn件(重複なし)選んで実体化
+// 依頼の種類ごとの出現重み(会話を増やしても戦闘依頼が埋もれないよう調整)
+const QUEST_TYPE_WEIGHTS = [
+  { type: "areaboss", w: 10 },
+  { type: "hunt",     w: 35 },
+  { type: "talk",     w: 55 },
+];
+// 依頼プール(QUEST_POOL)からn件(重複なし)を、種類の重みに従って選んで実体化
 function pickQuestsFromPool(n) {
-  const pool = (typeof QUEST_POOL !== "undefined" ? QUEST_POOL : []).slice();
-  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-  return pool.slice(0, Math.min(n, pool.length)).map(instantiateQuest);
+  // 種類ごとに分類してシャッフル
+  const byType = { areaboss: [], hunt: [], talk: [] };
+  for (const q of (typeof QUEST_POOL !== "undefined" ? QUEST_POOL : [])) {
+    if (byType[q.type]) byType[q.type].push(q);
+  }
+  for (const t in byType) {
+    const a = byType[t];
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  }
+  const picked = [];
+  for (let k = 0; k < n; k++) {
+    const avail = QUEST_TYPE_WEIGHTS.filter((w) => byType[w.type].length > 0);
+    if (!avail.length) break; // もう出せる依頼がない
+    const total = avail.reduce((s, w) => s + w.w, 0);
+    let r = rnd() * total, type = avail[avail.length - 1].type;
+    for (const w of avail) { if (r < w.w) { type = w.type; break; } r -= w.w; }
+    picked.push(byType[type].pop());
+  }
+  return picked.map(instantiateQuest);
 }
-// 依頼ボードを(再)生成: 事前定義リストからランダムで3件出題
+// 依頼ボードを(再)生成: 種類の重みに従って5件出題
 function refreshBoard() {
   if (!board) return;
-  boardCache = pickQuestsFromPool(3);
+  boardCache = pickQuestsFromPool(5);
   board.loading = false; board.sel = 0; board.msg = "";
 }
 function openBoard() {
@@ -1873,7 +1895,7 @@ function questLogRows() {
 function questDetailLines(q) {
   const lines = [q.desc_ja];
   if (q.type === "areaboss") lines.push(q.progress >= 1 ? "討伐完了！ ギルド受付に報告しよう" : `${q.bossName || "ボス"}がフィールドに出現中。会いに行ってたおそう！`);
-  else if (q.type === "hunt") lines.push(`進行: ${q.enemy} ${q.progress}/${q.count} 体`);
+  else if (q.type === "hunt") lines.push(`進行: ${q.enemy === "any" ? "モンスター" : q.enemy} ${q.progress}/${q.count} 体`);
   else if (q.type === "fetch") lines.push("※アイテムを持って対象の人に話しかけよう");
   else if (q.type === "talk") lines.push(`お題: ${q.goal_ja || "英語で話す"}（英語で伝えよう）`);
   lines.push(`報酬: ${q.gold}G ＋ ギルドポイント${q.gp}`);

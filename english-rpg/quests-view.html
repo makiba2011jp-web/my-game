@@ -10,39 +10,61 @@
     font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "MS Gothic", system-ui, sans-serif; line-height: 1.55; }
   h1 { font-size: 20px; margin: 4px 0 6px; }
   .note { font-size: 12px; color: #9fb3d8; background: #11203f; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; }
+  .summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+  .chip { background: #16284f; border: 1px solid #28406f; border-radius: 999px; padding: 4px 12px; font-size: 12px; }
+  .chip b { color: #ffd24a; font-size: 14px; }
   h2 { font-size: 15px; margin: 22px 0 8px; padding: 5px 10px; background: #16284f; border-left: 4px solid #ffd24a; border-radius: 4px; }
   .count { color: #ffd24a; font-size: 12px; font-weight: normal; margin-left: 6px; }
-  .card { background: #11203f; border: 1px solid #28406f; border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+  .card { background: #11203f; border: 1px solid #28406f; border-radius: 10px; padding: 10px 12px; }
   .title { font-weight: bold; color: #fff; font-size: 15px; }
   .badge { font-size: 11px; border-radius: 6px; padding: 1px 8px; margin-right: 8px; color: #0a1226; font-weight: bold; }
+  .b-areaboss { background: #ff7a7a; }
   .b-hunt { background: #ff9b6b; }
-  .b-fetch { background: #ffd24a; }
   .b-talk { background: #7be0d2; }
   .desc { color: #cfe0ff; font-size: 13px; margin-top: 5px; }
   .meta { color: #9fb3d8; font-size: 12px; margin-top: 4px; }
-  .reward { color: #ffd24a; }
+  .reward { color: #ffd24a; font-size: 12px; margin-top: 4px; }
   .en { color: #b9c8e6; font-size: 12px; font-style: italic; margin-top: 4px; }
   #err { color: #ff9b9b; background: #3a1414; padding: 10px; border-radius: 8px; display: none; }
 </style>
 </head>
 <body>
-<h1>📋 ギルド依頼リスト確認ページ</h1>
+<h1>📋 ギルド依頼リスト</h1>
 <div class="note">
-  ギルドの依頼ボードは、この一覧（<code>quests.js</code> の <b>QUEST_POOL</b>）から<b>ランダムで3件</b>出題されます（AI自動生成は廃止）。常に最新を表示。<br>
-  ※ <b>プレビューサーバー経由で開いてください</b>（例 <code>http://127.0.0.1:8123/quests-view.html</code>）。ゲーム本体とは無関係。報酬はゲーム側で自動計算するため一覧には出ません。
+  ギルドの依頼ボードは、この一覧（<code>quests.js</code> の <b>QUEST_POOL</b>）から<b>ランダムで3件</b>出題されます。常に最新を表示。<br>
+  ※ <b>プレビューサーバー経由で開いてください</b>（例 <code>http://127.0.0.1:8123/quests-view.html</code>）。ゲーム本体とは無関係。<br>
+  ※ おつかい(fetch)依頼は「簡単すぎる」ため廃止しました。討伐と会話チャレンジが中心です。報酬はTOEIC難易度で変動します（表示は 500 / 700 / 900 の順）。
 </div>
 <div id="err"></div>
+<div class="summary" id="summary"></div>
 <div id="list"></div>
 
 <script src="quests.js"></script>
 <script>
-  const TYPE_JA = { hunt: "討伐", fetch: "おつかい", talk: "会話" };
+  const TYPE_JA = { areaboss: "エリアボス討伐", hunt: "討伐", talk: "会話チャレンジ" };
+  const TYPE_ICON = { areaboss: "👹", hunt: "⚔", talk: "💬" };
+  const BOSS_JA = { ogre: "オーガ将軍", golem: "ストーンゴーレム", wyvern: "ワイバーン" };
   function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
+  // ゲーム側 rewardFor と同じ計算(難易度 lv: 500→1 / 700→2 / 900→3)
+  function rewardFor(type, count, lv) {
+    if (type === "areaboss") return { gold: 150 + 40 * lv, gp: 40 };
+    if (type === "hunt") return { gold: 30 + 15 * count + 10 * lv, gp: 12 + 4 * count };
+    if (type === "talk") return { gold: 45 + 15 * lv, gp: 22 };
+    return { gold: 0, gp: 0 };
+  }
+  function rewardText(q) {
+    const count = q.count || (q.type === "hunt" ? 3 : 1);
+    const golds = [1, 2, 3].map((lv) => rewardFor(q.type, count, lv).gold);
+    const gp = rewardFor(q.type, count, 1).gp; // GPは難易度で不変
+    return `報酬: ${golds.join(" / ")}G ＋ ギルドポイント ${gp}`;
+  }
+
   function detailMeta(q) {
-    if (q.type === "hunt") return `対象: ${esc(q.enemy)} ×${q.count} 体`;
-    if (q.type === "fetch") return `届ける物: ${esc(q.item)}　／　届け先id: ${esc(q.deliverTo)}`;
-    if (q.type === "talk") return `相手id: ${esc(q.npcId)}　／　お題: ${esc(q.goal_ja)}`;
+    if (q.type === "areaboss") return `対象ボス: ${esc(BOSS_JA[q.boss] || q.boss)}（フィールドに出現／コマンドバトル）`;
+    if (q.type === "hunt") return `対象: ${q.enemy === "any" ? "モンスター(なんでも)" : esc(q.enemy)} ×${q.count} 体`;
+    if (q.type === "talk") return `相手: ${esc(q.npcId)}　／　お題: ${esc(q.goal_ja)}`;
     return "";
   }
 
@@ -53,22 +75,32 @@
       e.textContent = "quests.js を読み込めませんでした。プレビューサーバー経由で開いてください: http://127.0.0.1:8123/quests-view.html";
       return;
     }
+    const order = ["areaboss", "hunt", "talk"];
+    // 上部サマリー
+    const sum = order.map((t) => {
+      const n = QUEST_POOL.filter((q) => q.type === t).length;
+      return `<span class="chip">${TYPE_ICON[t]} ${TYPE_JA[t]} <b>${n}</b></span>`;
+    }).join("") + `<span class="chip">合計 <b>${QUEST_POOL.length}</b> 件</span>`;
+    document.getElementById("summary").innerHTML = sum;
+
     const list = document.getElementById("list");
     let html = "";
-    for (const type of ["hunt", "fetch", "talk"]) {
+    for (const type of order) {
       const arr = QUEST_POOL.filter((q) => q.type === type);
-      html += `<h2>${TYPE_JA[type]}（${type}）<span class="count">${arr.length}件</span></h2>`;
+      if (!arr.length) continue;
+      html += `<h2>${TYPE_ICON[type]} ${TYPE_JA[type]}<span class="count">${arr.length}件</span></h2><div class="grid">`;
       arr.forEach((q) => {
         html += `<div class="card">` +
           `<div><span class="badge b-${q.type}">${TYPE_JA[q.type]}</span><span class="title">${esc(q.title_ja)}</span></div>` +
           `<div class="desc">${esc(q.desc_ja)}</div>` +
           `<div class="meta">${detailMeta(q)}</div>` +
           (q.goal_en ? `<div class="en">英語の目標: ${esc(q.goal_en)}</div>` : "") +
+          `<div class="reward">${rewardText(q)}</div>` +
           `<div class="en">Fia: “${esc(q.flavor_en)}”</div>` +
           `</div>`;
       });
+      html += `</div>`;
     }
-    html += `<h2>合計<span class="count">${QUEST_POOL.length}件</span></h2>`;
     list.innerHTML = html;
   }
   render();
