@@ -2468,6 +2468,21 @@ function enterArea(id, spawn) {
 }
 
 function enterTown() {
+  // 目的①: 素材を3つ集めるまでは町に入れない(入口の手前で引き返す)
+  if (quest && quest.stage === 0) {
+    if (player.dir === "up") player.ty += 1;
+    else if (player.dir === "down") player.ty -= 1;
+    else if (player.dir === "left") player.tx += 1;
+    else if (player.dir === "right") player.tx -= 1;
+    player.px = player.tx * TILE; player.py = player.ty * TILE; player.moving = false;
+    for (const k in keys) keys[k] = false;
+    cutsceneDraw = drawField;
+    playCutscene(
+      [{ who: "コトハ", lines: ["まだ町に行くのは早いよ！", `まずはモンスターをたおして素材を${quest.goal}つ集めよう。（いま ${quest.kills}/${quest.goal}）`] }],
+      () => { cutsceneDraw = null; messageSpeaker = null; state = STATE.FIELD; }
+    );
+    return;
+  }
   savedOverworld = { tx: player.tx, ty: player.ty };
   zone = "";
   curArea = AREAS.town;
