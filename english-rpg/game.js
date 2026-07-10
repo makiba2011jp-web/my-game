@@ -8,7 +8,7 @@ const TILE = 32, MAP_N = 15;
 ctx.imageSmoothingEnabled = false;
 
 // ===== ゲーム状態 =====
-const STATE = { TITLE: "title", NAME: "name", FIELD: "field", TOWN: "town", BATTLE: "battle", BOSSBATTLE: "bossbattle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", BOARD: "board", QUESTLOG: "questlog", WORDLIST: "wordlist", STORAGE: "storage", EQUIP: "equip", GAMEOVER: "gameover", CLEAR: "clear" };
+const STATE = { TITLE: "title", NAME: "name", FIELD: "field", TOWN: "town", BATTLE: "battle", BOSSBATTLE: "bossbattle", MESSAGE: "message", QUIZ: "quiz", SHOP: "shop", NPCMENU: "npcmenu", BOARD: "board", QUESTLOG: "questlog", WORDLIST: "wordlist", STORAGE: "storage", EQUIP: "equip", GAMEOVER: "gameover", CLEAR: "clear" };
 let state = STATE.TITLE;
 
 // プレイヤー
@@ -1038,6 +1038,14 @@ function onInput(k) {
     else if (k === "cancel") { shop = null; state = STATE.TOWN; }
     return;
   }
+  if (state === STATE.NPCMENU && npcMenu) {
+    const rows = npcMenuRows();
+    if (k === "up") npcMenu.sel = (npcMenu.sel - 1 + rows.length) % rows.length;
+    else if (k === "down") npcMenu.sel = (npcMenu.sel + 1) % rows.length;
+    else if (k === "confirm") npcMenuSelect(rows[npcMenu.sel]);
+    else if (k === "cancel") { sfx("cancel"); npcMenu = null; state = STATE.TOWN; }
+    return;
+  }
   if (state === STATE.STORAGE && storageUI) {
     const rows = storageRows();
     if (k === "up") storageUI.sel = (storageUI.sel - 1 + rows.length) % rows.length;
@@ -1147,6 +1155,14 @@ function onTap(x, y) {
     for (let i = 0; i < rows.length; i++) {
       const ry = top + i * rh;
       if (x >= 40 && x <= 440 && y >= ry && y <= ry + h) { shop.sel = i; shopSelect(rows[i]); return; }
+    }
+    return;
+  }
+  if (state === STATE.NPCMENU && npcMenu) {
+    const rows = npcMenuRows();
+    for (let i = 0; i < rows.length; i++) {
+      const ry = 196 + i * 52;
+      if (x >= 80 && x <= 400 && y >= ry && y <= ry + 44) { npcMenu.sel = i; npcMenuSelect(rows[i]); return; }
     }
     return;
   }
@@ -2343,7 +2359,57 @@ function talkInn(n) {
 }
 
 // 店: AI会話で「売りたい/買いたい」と伝えるとメニューが開く(AI無しなら直接メニュー)
+// 販売NPC: まず「会話する / 買い物する」を選ばせるメニュー
+let npcMenu = null; // { npc, sel, buyLabel, onChat, onBuy }
+function openNpcMenu(npc, buyLabel, onChat, onBuy) {
+  for (const k in keys) keys[k] = false;
+  npcMenu = { npc, sel: 0, buyLabel, onChat, onBuy };
+  state = STATE.NPCMENU;
+}
+function npcMenuRows() {
+  return [
+    { kind: "chat", label: "💬 会話する（英語でおしゃべり）" },
+    { kind: "buy", label: npcMenu.buyLabel },
+    { kind: "cancel", label: "やめる" },
+  ];
+}
+function npcMenuSelect(row) {
+  if (!row) return;
+  const m = npcMenu;
+  if (row.kind === "cancel") { sfx("cancel"); npcMenu = null; state = STATE.TOWN; return; }
+  sfx("select");
+  npcMenu = null; state = STATE.TOWN;
+  if (row.kind === "chat") m.onChat();
+  else if (row.kind === "buy") m.onBuy();
+}
+function drawNpcMenu() {
+  drawArea();
+  ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = "center"; ctx.fillStyle = "#fff"; ctx.font = "bold 18px 'MS Gothic', monospace";
+  ctx.fillText(npcMenu.npc.name, W / 2, 150);
+  ctx.fillStyle = "#9fd6ff"; ctx.font = "13px 'MS Gothic', monospace";
+  ctx.fillText("どうする？", W / 2, 176);
+  const rows = npcMenuRows();
+  for (let i = 0; i < rows.length; i++) {
+    const y = 196 + i * 52;
+    drawWindow(80, y, 320, 44, npcMenu.sel === i);
+    ctx.textAlign = "left"; ctx.fillStyle = "#fff"; ctx.font = "15px 'MS Gothic', monospace";
+    ctx.fillText(rows[i].label, 104, y + 28);
+  }
+  ctx.textAlign = "center";
+}
 function talkShop(n) {
+  for (const k in keys) keys[k] = false;
+  const isMat = n.shop === "material";
+  const buyLabel = isMat ? "🛒 素材を売る" : "🛒 買い物する";
+  // AI会話が使えないなら従来どおり直接お店へ
+  if (!Chat.aiReady()) { openShop(n.shop); return; }
+  // まず「会話 / 買い物」を選択
+  openNpcMenu(n, buyLabel, () => talkToNPC(n), () => openShop(n.shop));
+  return;
+}
+// (旧)購入前にAIへ買い物意思を伝える会話。現在は未使用(メニューで直接お店へ)。
+function talkShopBuyChat(n) {
   for (const k in keys) keys[k] = false;
   if (!Chat.aiReady()) { openShop(n.shop); return; }
   const isMat = n.shop === "material";
@@ -2373,16 +2439,11 @@ function talkToNPC(npc) {
   Chat.open(npc, toeicLevel, () => { /* 会話終了後は街に留まる */ });
 }
 
-// 不動産屋: AI会話で「家を買いたい」と伝えると物件リストが開く(AI無しなら直接)
+// 不動産屋: まず「会話 / 物件を見る」を選択(AI無しなら直接物件リスト)
 function talkRealEstate(n) {
   for (const k in keys) keys[k] = false;
   if (!Chat.aiReady()) { openHomeShop(); return; }
-  Chat.setQuest({
-    note: "the traveler says they want to buy a house or property, see the houses/properties for sale, or find a place to live (e.g. \"I want to buy a house\", \"Do you have any houses for sale?\", \"I'm looking for a place to live\"). When they do, happily offer to show the properties you have available.",
-    flagMessage: "コトハ「物件を見せてくれるって！ × でとじて物件リストへ」",
-    onClose: () => openHomeShop(),
-  });
-  Chat.open(n, toeicLevel, () => {});
+  openNpcMenu(n, "🏠 物件を見る", () => talkToNPC(n), () => openHomeShop());
 }
 function openHomeShop() {
   shop = {
@@ -3189,6 +3250,7 @@ function render() {
       drawQuizUI();
       break;
     case STATE.SHOP: drawShop(); break;
+    case STATE.NPCMENU: drawNpcMenu(); break;
     case STATE.BOARD: drawQuestBoard(); break;
     case STATE.QUESTLOG: drawQuestLog(); break;
     case STATE.WORDLIST: drawWordList(); break;
