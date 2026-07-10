@@ -60,9 +60,9 @@ const STORAGE_PER_PAGE = 10; // 1ページの表示件数
 let tvChannel = "";       // テレビの現在チャンネル(演出用)
 // 不動産屋で買える物件(安い順)。買うと町の「売り家」が「マイホーム」になる
 const HOME_PROPERTIES = [
-  { id: "cottage", name: "ボロ小屋",     price: 500,  decor: "home_cottage" },
-  { id: "stone",   name: "石造りの家",   price: 2000, decor: "home_stone" },
-  { id: "manor",   name: "大きな邸宅",   price: 8000, decor: "home_manor" },
+  { id: "cottage", name: "ボロ小屋",     en: "Old Cottage", price: 500,  decor: "home_cottage" },
+  { id: "stone",   name: "石造りの家",   en: "Stone House", price: 2000, decor: "home_stone" },
+  { id: "manor",   name: "大きな邸宅",   en: "Grand Manor", price: 8000, decor: "home_manor" },
 ];
 // 大きな邸宅だけの設備: 召喚魔法陣＋召喚料理の大鍋
 const HOME_SUMMON_DECOR = [{ tx: 3, ty: 6, kind: "summoncircle" }, { tx: 9, ty: 6, kind: "cauldron" }];
@@ -532,8 +532,8 @@ const SHOP_ITEMS = [
 ];
 // 家電屋の品(購入するとマイホームに設置)
 const APPLIANCE_ITEMS = [
-  { id: "fridge", name: "冷蔵庫", price: 300 },
-  { id: "tv", name: "テレビ", price: 400 },
+  { id: "fridge", name: "冷蔵庫", en: "Refrigerator", price: 300 },
+  { id: "tv", name: "テレビ", en: "Television", price: 400 },
 ];
 let shop = null;             // { sel, msg, msgT }
 let boughtItems = new Set(); // 購入済み装備のindex
@@ -573,6 +573,24 @@ const FOOD_SHOPS = {
 const SHOP_TITLE = { material: "Material Shop", weapon: "Weapon Shop", fish: "Fish Shop", green: "Green Grocer", meat: "Butcher", grocery: "Grocery", home: "Real Estate 〜 Properties", appliance: "Appliance Shop" };
 // 料理に使える食材(食材ショップの品)。台所の調理で消費する。
 const INGREDIENT_NAMES = [].concat(...Object.values(FOOD_SHOPS).map((a) => a.map((x) => x.name)));
+// ショップ表示用の日本語訳(英語表記の商品に併記)
+const ITEM_JA = {
+  // 魚屋
+  "Tuna": "マグロ", "Sardine": "イワシ", "Salmon": "サーモン", "Shrimp": "エビ", "Octopus": "タコ", "Clam": "アサリ",
+  // 八百屋
+  "Cabbage": "キャベツ", "Tomato": "トマト", "Carrot": "にんじん", "Onion": "たまねぎ", "Potato": "じゃがいも", "Eggplant": "なす",
+  // 肉屋
+  "Chicken": "とり肉", "Pork": "ぶた肉", "Beef": "ぎゅう肉", "Bacon": "ベーコン", "Sausage": "ソーセージ",
+  // 食料品店
+  "Rice": "米", "Noodles": "めん", "Bread": "パン", "Egg": "たまご", "Oil": "油", "Salt": "塩", "Soy Sauce": "しょうゆ", "Sugar": "さとう", "Butter": "バター",
+  // 武器・防具
+  "Copper Sword": "銅の剣", "Steel Sword": "鋼の剣", "Leather Cap": "革の帽子", "Iron Helmet": "鉄のかぶと",
+  "Traveler's Clothes": "旅人の服", "Chain Mail": "くさりかたびら", "Wooden Shield": "木の盾", "Iron Shield": "鉄の盾",
+  "Power Ring": "力の指輪", "Guard Amulet": "守りの護符",
+};
+function jaName(name) { return ITEM_JA[name] || ""; }
+// 英語名に日本語訳を「英名（訳）」で併記(訳がなければ英名のみ)
+function nameWithJa(name) { const j = ITEM_JA[name]; return j ? `${name}（${j}）` : name; }
 // 旧セーブの日本語食料名も「食料品」として扱う(冷蔵庫に保管・倉庫には入れない)
 const LEGACY_FOOD = ["マグロ", "イワシ", "サーモン", "えび", "たこ", "あさり", "キャベツ", "トマト", "にんじん", "たまねぎ", "じゃがいも", "なす", "とり肉", "ぶた肉", "牛肉", "ベーコン", "ソーセージ", "ライス", "麺", "パン", "卵", "油", "塩", "しょうゆ", "さとう", "バター"];
 function isFood(name) { return INGREDIENT_NAMES.includes(name) || LEGACY_FOOD.includes(name); }
@@ -603,29 +621,33 @@ function shopRows() {
   } else if (shop.type === "home") {
     HOME_PROPERTIES.forEach((p, i) => {
       const owned = ownedHome === p.id;
+      const nm = `${p.en}（${p.name}）`;
       rows.push({
         kind: "buyhome", idx: i, enabled: !owned && player.gold >= p.price,
-        label: owned ? `✓ ${p.name}（いま住んでいる）` : `${p.name}（${p.price}G）`,
+        label: owned ? `✓ ${nm} いま住んでいる` : `${nm} ${p.price}G`,
       });
     });
   } else if (shop.type === "appliance") {
     APPLIANCE_ITEMS.forEach((it, i) => {
       const owned = (it.id === "fridge" && ownedFridge) || (it.id === "tv" && ownedTV);
+      const nm = `${it.en}（${it.name}）`;
       rows.push({
         kind: "buyappliance", idx: i, enabled: !owned && player.gold >= it.price,
-        label: owned ? `✓ ${it.name}（設置ずみ）` : `${it.name}（${it.price}G）`,
+        label: owned ? `✓ ${nm} 設置ずみ` : `${nm} ${it.price}G`,
       });
     });
   } else if (FOOD_SHOPS[shop.type]) {
     FOOD_SHOPS[shop.type].forEach((it, i) => {
-      rows.push({ kind: "buyfood", idx: i, enabled: player.gold >= it.price, label: `${it.name}（${it.price}G）` });
+      rows.push({ kind: "buyfood", idx: i, enabled: player.gold >= it.price, label: `${nameWithJa(it.name)}　${it.price}G` });
     });
   } else {
     SHOP_ITEMS.forEach((it, i) => {
       const owned = boughtItems.has(i);
+      const ja = jaName(it.name);
+      const inner = (ja ? ja + "・" : "") + effText(it);
       rows.push({
         kind: "buy", idx: i, enabled: !owned && player.gold >= it.price,
-        label: owned ? `✓ ${it.name}（${effText(it)}）購入ずみ` : `${it.name}（${effText(it)}）${it.price}G`,
+        label: owned ? `✓ ${it.name}（${inner}）購入ずみ` : `${it.name}（${inner}）${it.price}G`,
       });
     });
   }
@@ -667,7 +689,7 @@ function shopSelect(row) {
     const p = HOME_PROPERTIES[row.idx];
     player.gold -= p.price; ownedHome = p.id;
     refreshHome();
-    shop.msg = `${p.name}を 買った！ 町に「マイホーム」ができたよ。休んでセーブできるよ!`; shop.msgT = 360;
+    shop.msg = `${p.en}（${p.name}）を 買った！ 町に「マイホーム」ができたよ。休んでセーブできるよ!`; shop.msgT = 360;
   } else if (row.kind === "buyfood") {
     const it = FOOD_SHOPS[shop.type][row.idx];
     if (bagFull(it.name)) { shop.msg = `もちものがいっぱい！（${BAG_MAX_TYPES}種類まで）冷蔵庫や倉庫にしまおう`; shop.msgT = 300; const rr = shopRows(); if (shop.sel >= rr.length) shop.sel = rr.length - 1; return; }
@@ -685,7 +707,7 @@ function shopSelect(row) {
       player.gold -= it.price;
       if (it.id === "fridge") ownedFridge = true; else if (it.id === "tv") ownedTV = true;
       refreshHome();
-      shop.msg = `${it.name}を 買った！ マイホームに設置したよ。`; shop.msgT = 320;
+      shop.msg = `${it.en}（${it.name}）を 買った！ マイホームに設置したよ。`; shop.msgT = 320;
     }
   }
   const rows = shopRows();
@@ -710,7 +732,7 @@ function drawShop() {
     drawWindow(40, y, 400, h, shop.sel === i);
     ctx.textAlign = "left";
     ctx.fillStyle = (rows[i].enabled || rows[i].kind === "exit") ? "#fff" : "#7a8aa8";
-    ctx.font = "15px 'MS Gothic', monospace";
+    ctx.font = "13px 'MS Gothic', monospace";
     ctx.fillText(rows[i].label, 70, y + h - 13);
   }
   if (shop.msgT > 0) {
@@ -1045,7 +1067,10 @@ function onInput(k) {
     if (k === "up") questLog.sel = (questLog.sel - 1 + rows.length) % rows.length;
     else if (k === "down") questLog.sel = (questLog.sel + 1) % rows.length;
     else if (k === "confirm") questLogSelect(rows[questLog.sel]);
-    else if (k === "cancel") { questLog = null; state = STATE.TOWN; }
+    else if (k === "cancel") {
+      if (questLog.confirm != null) { questLog.confirm = null; questLog.sel = 0; } // 確認→一覧へ戻る
+      else { questLog = null; state = STATE.TOWN; }
+    }
     return;
   }
   if (state === STATE.WORDLIST && wordList) {
@@ -1154,7 +1179,7 @@ function onTap(x, y) {
   if (state === STATE.QUESTLOG && questLog) {
     const rows = questLogRows();
     for (let i = 0; i < rows.length; i++) {
-      const ry = 64 + i * 38;
+      const ry = questLogRowY(i);
       if (x >= 30 && x <= 450 && y >= ry && y <= ry + 34) { questLog.sel = i; questLogSelect(rows[i]); return; }
     }
     return;
@@ -1432,14 +1457,17 @@ function equipRows() {
   if (equipUI.view === "slots") {
     for (const s of EQUIP_SLOTS) {
       const it = equipped[s] != null ? SHOP_ITEMS[equipped[s]] : null;
-      rows.push({ kind: "slot", slot: s, label: `${SLOT_JA[s]}： ${it ? `${it.name}（${effText(it).trim()}）` : "なし"}` });
+      const inner = it ? ((jaName(it.name) ? jaName(it.name) + "・" : "") + effText(it).trim()) : "";
+      rows.push({ kind: "slot", slot: s, label: `${SLOT_JA[s]}： ${it ? `${it.name}（${inner}）` : "なし"}` });
     }
     rows.push({ kind: "close", label: "とじる" });
   } else {
     const owned = ownedForSlot(equipUI.slotKey);
     owned.forEach((i) => {
       const eq = equipped[equipUI.slotKey] === i;
-      rows.push({ kind: "equip", idx: i, label: `${eq ? "✓ " : ""}${SHOP_ITEMS[i].name}（${effText(SHOP_ITEMS[i]).trim()}）` });
+      const ja = jaName(SHOP_ITEMS[i].name);
+      const inner = (ja ? ja + "・" : "") + effText(SHOP_ITEMS[i]).trim();
+      rows.push({ kind: "equip", idx: i, label: `${eq ? "✓ " : ""}${SHOP_ITEMS[i].name}（${inner}）` });
     });
     if (!owned.length) rows.push({ kind: "none", label: "持っている装備がない（武器屋で買おう）" });
     if (equipped[equipUI.slotKey] != null) rows.push({ kind: "unequip", label: "🚫 はずす" });
@@ -1468,7 +1496,7 @@ function drawEquip() {
     drawWindow(40, y, 400, h, equipUI.sel === i);
     ctx.textAlign = "left"; ctx.textBaseline = "middle";
     ctx.fillStyle = (rows[i].kind === "close" || rows[i].kind === "back") ? "#9fd6ff" : rows[i].kind === "none" ? "#7a8aa8" : "#fff";
-    ctx.font = "14px 'MS Gothic', monospace";
+    ctx.font = "13px 'MS Gothic', monospace";
     ctx.fillText(rows[i].label, 60, y + h / 2 + 1);
   }
   ctx.textBaseline = "alphabetic"; ctx.textAlign = "center";
@@ -1883,13 +1911,32 @@ function boardSelect(row) {
 function openQuestLog() {
   if (!sideQuests.length) return;
   for (const k in keys) keys[k] = false;
-  questLog = { sel: 0 };
+  questLog = { sel: 0, confirm: null };
   state = STATE.QUESTLOG;
 }
+// 受注ログの行の描画/タップ座標(通常時とキャンセル確認時で開始位置が変わる)
+function questLogRowY(i) { return ((questLog && questLog.confirm != null) ? 150 : 64) + i * 38; }
 function questLogRows() {
+  if (questLog && questLog.confirm != null) {
+    return [
+      { kind: "cancelYes", label: "❌ はい、この依頼をやめる" },
+      { kind: "cancelNo",  label: "もどる" },
+    ];
+  }
   const rows = sideQuests.map((q, i) => ({ kind: "q", idx: i, label: `${questIcon(q.type)} ${q.title_ja}` }));
   rows.push({ kind: "close", label: "とじる" });
   return rows;
+}
+// 受注中の依頼をキャンセル(報酬なし)。エリアボスならフィールドのボスも消す。
+function cancelSideQuest(idx) {
+  const q = sideQuests[idx];
+  if (!q) { questLog.confirm = null; questLog.sel = 0; return; }
+  if (q.type === "areaboss" && fieldBoss && fieldBoss.questId === q.id) fieldBoss = null;
+  sideQuests.splice(idx, 1);
+  sfx("cancel");
+  questLog.confirm = null;
+  questLog.sel = 0;
+  if (!sideQuests.length) { questLog = null; state = STATE.TOWN; }
 }
 // 依頼1件の詳細テキスト行
 function questDetailLines(q) {
@@ -1904,7 +1951,9 @@ function questDetailLines(q) {
 function questLogSelect(row) {
   if (!row) return;
   if (row.kind === "close") { questLog = null; state = STATE.TOWN; return; }
-  // 依頼行はそのまま選択(詳細は常時表示)
+  if (row.kind === "q") { questLog.confirm = row.idx; questLog.sel = 0; sfx("select"); return; } // キャンセル確認へ
+  if (row.kind === "cancelYes") { cancelSideQuest(questLog.confirm); return; }
+  if (row.kind === "cancelNo") { questLog.confirm = null; questLog.sel = 0; return; }
 }
 function drawQuestLog() {
   ctx.fillStyle = "#0a1630"; ctx.fillRect(0, 0, W, H);
@@ -1912,14 +1961,32 @@ function drawQuestLog() {
   ctx.fillStyle = "#fff"; ctx.font = "bold 20px 'MS Gothic', monospace";
   ctx.fillText("受注中のギルド依頼", W / 2, 38);
   const rows = questLogRows();
+  // ── キャンセル確認モード ──
+  if (questLog.confirm != null) {
+    const q = sideQuests[questLog.confirm];
+    ctx.textAlign = "center"; ctx.fillStyle = "#ffd24a"; ctx.font = "15px 'MS Gothic', monospace";
+    ctx.fillText("この依頼をキャンセルする？", W / 2, 84);
+    ctx.fillStyle = "#fff"; ctx.font = "14px 'MS Gothic', monospace";
+    if (q) ctx.fillText(`${questIcon(q.type)} 『${q.title_ja}』`, W / 2, 112);
+    ctx.fillStyle = "#ff9b9b"; ctx.font = "12px 'MS Gothic', monospace";
+    ctx.fillText("※ キャンセルすると報酬はもらえません", W / 2, 134);
+    for (let i = 0; i < rows.length; i++) {
+      const y = questLogRowY(i);
+      drawWindow(30, y, 420, 34, questLog.sel === i);
+      ctx.textAlign = "left"; ctx.fillStyle = "#fff"; ctx.font = "14px 'MS Gothic', monospace";
+      ctx.fillText(rows[i].label, 48, y + 23);
+    }
+    ctx.textAlign = "center"; return;
+  }
+  // ── 通常モード(受注一覧＋詳細) ──
   for (let i = 0; i < rows.length; i++) {
-    const y = 64 + i * 38;
+    const y = questLogRowY(i);
     drawWindow(30, y, 420, 34, questLog.sel === i);
     ctx.textAlign = "left"; ctx.fillStyle = "#fff"; ctx.font = "14px 'MS Gothic', monospace";
     ctx.fillText(rows[i].label, 48, y + 23);
   }
   const sel = rows[questLog.sel];
-  const yD = 64 + rows.length * 38 + 8;
+  const yD = questLogRowY(rows.length) + 8;
   if (sel && sel.kind === "q" && sideQuests[sel.idx]) {
     const q = sideQuests[sel.idx];
     const lines = questDetailLines(q);
@@ -1930,6 +1997,8 @@ function drawQuestLog() {
       ctx.fillStyle = i === 0 ? "#9fe0c0" : "#fff";
       wrapText(lines[i], 46, yD + 24 + i * 20, 392, 16);
     }
+    ctx.textAlign = "center"; ctx.fillStyle = "#9fb3d8"; ctx.font = "11px 'MS Gothic', monospace";
+    ctx.fillText("決定でこの依頼をキャンセルできます", W / 2, yD + bh + 16);
   }
   ctx.textAlign = "center";
 }
@@ -4032,14 +4101,9 @@ function startOpening() {
   cutsceneDraw = drawIntroScene;
   playCutscene([
     { who: null, lines: ["……ん？ ここ、どこ？", "さっきまで家にいたはずなのに…？"] },
-    { who: "村人？", lines: ["Help! My dog is lost!"] },
-    { who: null, lines: ["(ぜんぜん分からない…！ 何語…？)"] },
-    { who: "コトハ", lines: [`やっと起きた、${player.name}！ キミ、転生しちゃったみたいだね。`, "私はコトハ、言葉の精霊！", "安心して、私が通訳するから！"] },
-    { who: "コトハ", lines: ["この世界の人は英語しか話さないの。", "でも大丈夫、いっしょに少しずつ覚えよう。", "まずは大事な単語をひとつ！"] },
-    { quiz: { en: "lost", q: "コトハ「\"lost\" ってどういう意味だと思う？」", choices: ["なくした・いなくなった", "見つけた", "食べた", "ねむった"], answer: 0 } },
-    { who: "コトハ", lines: ["正解！ \"lost\" は『なくした・いなくなった』。", "じゃあ、さっきの村人の言葉をもう一度…"] },
-    { who: "コトハ", lines: ["『助けて！ 犬がいなくなったの！』だって。", "ね？ 言葉が分かると世界が広がるでしょ？"] },
-    { who: "コトハ", lines: ["元の世界に帰る手がかりも、きっと人との会話の中にあるはず。"] },
+    { who: "コトハ", lines: [`起きた、${player.name}！ キミ、転生しちゃったみたいだね。`, "私はコトハ、言葉の精霊！ これからよろしくね。"] },
+    { who: "コトハ", lines: ["この世界の人は英語しか話さないの。", "でも大丈夫、私が相棒になるから。", "英語を覚えるほど、キミはどんどん強くなるよ。"] },
+    { who: "コトハ", lines: ["元の世界に帰る手がかりも、きっと人との会話の中にあるはず。", "少しずつ、いっしょに言葉を覚えよう。"] },
     { who: "コトハ", lines: ["でもまずは旅の資金！ 宿屋に泊まるにもお金がいるの。", "モンスターをたおすと素材が手に入るから、それを町で換金しよう。"] },
     { who: "コトハ", lines: ["まずはモンスターを5匹たおして素材集め！", "それから町(赤い屋根の建物)へ向かおう。さ、行くよ相棒！"] },
   ], () => { setupFirstQuest(); cutsceneDraw = null; messageSpeaker = null; state = STATE.FIELD; });
@@ -4097,10 +4161,9 @@ function drawIntroScene() {
       drawTile(y === 0 || y === MAP_N - 1 ? "T" : "G", x * TILE, y * TILE);
     }
   }
-  // 主人公(右向き)・村人(右)・コトハ(主人公の右上に浮遊)
-  drawActor(150, 150, () => drawHero(0, 0, "right", gameTime));
-  drawActor(296, 150, () => drawPerson("#8d6e63", "#4a342a"));
-  drawKotoha(252, 138);
+  // 主人公(右向き)・コトハ(主人公の右上に浮遊)
+  drawActor(196, 150, () => drawHero(0, 0, "right", gameTime));
+  drawKotoha(298, 138);
 }
 
 function drawEnd(text, color) {
