@@ -806,11 +806,11 @@ function wrapText(text, x, y, maxW, lineH) {
 }
 
 // ===== クエスト(目的)管理 =====
-function setupFirstQuest() { quest = { stage: 0, kills: 0, goal: 5, shopRevealed: false }; }
+function setupFirstQuest() { quest = { stage: 0, kills: 0, goal: 3, shopRevealed: false }; }
 function addMaterial(name) { materials[name] = (materials[name] || 0) + 1; }
 function questLines() {
   if (!quest) return null;
-  if (quest.stage === 0) return ["① モンスターを5匹たおす", `素材あつめ ${quest.kills}/${quest.goal}`];
+  if (quest.stage === 0) return ["① 素材を3つ あつめる", `素材あつめ ${quest.kills}/${quest.goal}`];
   if (quest.stage === 1) return ["② 町(赤い屋根)へ向かう", "素材あつめ 達成！"];
   if (quest.stage === 2) return ["③ 素材屋の場所を町の人に聞く", '"Where is the material shop?"'];
   if (quest.stage === 3) return ["④ 素材屋で素材を売る"];
@@ -1356,7 +1356,7 @@ function devJump(stage) {
   player.exp = 0; player.nextExp = 26; player.wins = 5;
   player.guildLevel = stage >= 6 ? 1 : 0; player.guildPoints = 0;
   boughtItems = new Set();
-  quest = { stage, kills: stage === 0 ? 0 : 5, goal: 5, shopRevealed: stage >= 3 };
+  quest = { stage, kills: stage === 0 ? 0 : 3, goal: 3, shopRevealed: stage >= 3 };
   materials = (stage === 2 || stage === 3) ? { "Slime Ooze": 3, "Bat Wing": 1, "Ghost Soul": 1 } : {};
   player.gold = stage >= 4 ? 80 : 0;
   // 迷いネコクエストの持ち物・ネコ位置を段階に合わせて用意
@@ -2433,6 +2433,11 @@ function playTownCutscene(steps, onDone) {
 // 扉を通る(家の中へ／町へ／フィールドへ)
 function goThroughDoor(d) {
   if (d.to === "field") { leaveTown(); return; }
+  // 目的①: 素材を3つ集めるまではどの建物にも入れない
+  if (quest && quest.stage === 0 && d.to !== "town") {
+    playTownCutscene([{ who: "コトハ", lines: ["まだ建物には入れないよ！", `まずはモンスターをたおして素材を${quest.goal}つ集めよう。（いま ${quest.kills}/${quest.goal}）`] }]);
+    return;
+  }
   if (d.to === "home") { enterHome(d.spawn); return; }
   enterArea(d.to, d.spawn);
 }
@@ -2773,13 +2778,15 @@ function winBattle() {
     addMaterial(battle.drop);
     lines.push(`「${battle.drop}」を 手に入れた！`);
   }
-  // クエスト(討伐数)進行
-  if (!battle.isBoss && quest && quest.stage === 0) {
+  // クエスト①(素材あつめ)進行: 素材を1つ手に入れるごとにカウント
+  if (!battle.isBoss && battle.drop && quest && quest.stage === 0) {
     quest.kills++;
     if (quest.kills >= quest.goal) {
       quest.stage = 1;
-      lines.push(`コトハ「5匹たおした！ 素材も集まったね。`);
+      lines.push(`コトハ「素材が${quest.goal}つ集まったね！`);
       lines.push(`　町(赤い屋根)へ向かって換金しよう！」`);
+    } else {
+      lines.push(`コトハ「素材あつめ ${quest.kills}/${quest.goal}」`);
     }
   }
   // ギルド討伐依頼(サブクエスト)の進行
@@ -4105,7 +4112,7 @@ function startOpening() {
     { who: "コトハ", lines: ["この世界の人は英語しか話さないの。", "でも大丈夫、私が相棒になるから。", "英語を覚えるほど、キミはどんどん強くなるよ。"] },
     { who: "コトハ", lines: ["元の世界に帰る手がかりも、きっと人との会話の中にあるはず。", "少しずつ、いっしょに言葉を覚えよう。"] },
     { who: "コトハ", lines: ["でもまずは旅の資金！ 宿屋に泊まるにもお金がいるの。", "モンスターをたおすと素材が手に入るから、それを町で換金しよう。"] },
-    { who: "コトハ", lines: ["まずはモンスターを5匹たおして素材集め！", "それから町(赤い屋根の建物)へ向かおう。さ、行くよ相棒！"] },
+    { who: "コトハ", lines: ["まずはモンスターをたおして素材を3つ集めよう！", "それから町(赤い屋根の建物)へ向かおう。さ、行くよ相棒！"] },
   ], () => { setupFirstQuest(); cutsceneDraw = null; messageSpeaker = null; state = STATE.FIELD; });
 }
 
