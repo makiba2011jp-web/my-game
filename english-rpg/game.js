@@ -1724,16 +1724,16 @@ function interactNPC(n) {
   if (sf && hasItem(sf.item)) { deliverSideFetch(sf, n); return; }
   const st = sideQuests.find((q) => q.status === "active" && q.type === "talk" && q.npcId === n.id);
   if (st) { talkSideChallenge(st, n); return; }
+  if (quest && quest.stage === 2) {                            // 素材屋の場所を尋ねるイベント(町の全NPCに適用)
+    if (Chat.aiReady()) talkAskDirections(n);
+    else askDirections(n);
+    return;
+  }
   if (n.id === "innkeeper") { talkInn(n); return; }            // 宿屋: 泊まりたい→泊まる
   if (n.id === "guild_receptionist") { talkGuild(n); return; } // ギルド受付: 登録/依頼/報告
   if (n.id === "salon") { talkSalon(n); return; }              // 美容師Coco: 特徴を聞く/ネコを届ける
   if (n.id === "realestate") { talkRealEstate(n); return; }    // 不動産屋: 家を買う
   if (n.shop) { talkShop(n); return; }                         // 店: 売りたい/買いたい→メニュー
-  if (quest && quest.stage === 2) {                            // 素材屋の場所を尋ねるイベント
-    if (Chat.aiReady()) talkAskDirections(n);
-    else askDirections(n);
-    return;
-  }
   if (quest && quest.stage === 8) { talkCatInfo(n); return; }  // 町の人に迷いネコの聞き込み
   talkToNPC(n);
 }
