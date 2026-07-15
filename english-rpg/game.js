@@ -349,7 +349,7 @@ const DUNGEON_MAP = [
 ];
 const DUNGEON_START = { tx: 7, ty: 9 };
 AREAS.dungeon = {
-  id: "dungeon", dungeon: true, indoor: true, encounter: true, zone: "dungeon", name: "洞窟",
+  id: "dungeon", dungeon: true, indoor: true, encounter: true, zone: "dungeon", name: "古代の遺跡",
   map: DUNGEON_MAP, cols: 15, rows: 11,
   npcs: [], decor: [],
   doors: [{ tx: 7, ty: 10, to: "field" }],
@@ -824,6 +824,12 @@ function questLines() {
   if (quest.stage === 11) return ["⑫ Tuna（マグロ）で迷いネコをとらえる", "教会の裏のネコに近づこう"];
   if (quest.stage === 12) return ["⑬ 迷いネコを美容院の人に届ける", "美容師Cocoに話しかけよう"];
   if (quest.stage === 13) return ["⑭ ギルドに報告する", "ギルド受付に達成を報告しよう"];
+  if (quest.stage === 14) return ["⑮ ギルド依頼ボードが解放！", "依頼で力をつけよう"];
+  if (quest.stage === 15) return ["⑯ ギルドランク2を目指す", `いまランク${player.guildLevel}／依頼をこなそう`];
+  if (quest.stage === 16) return ["⑰ ギルドへ行く", "受付Fiaに話しかけよう"];
+  if (quest.stage === 17) return ["⑱ 古代の遺跡の碑文を調査する", "遺跡の奥のエンシェントドラゴンを倒そう"];
+  if (quest.stage === 18) return ["⑲ ギルドランク3を目指す", `いまランク${player.guildLevel}／依頼をこなそう`];
+  if (quest.stage === 19) return ["⑳ 氷の遺跡で手がかりを探す", "（つづきは準備中）"];
   return ["クエスト達成！ つづきは準備中…"];
 }
 
@@ -1793,8 +1799,20 @@ function talkGuild(n) {
     Chat.open(n, toeicLevel, () => {});
     return;
   }
+  // 目的⑰: ランク2到達後、受付から古代の遺跡の碑文調査を依頼される
+  if (quest && quest.stage === 16) { giveInscriptionQuest(); return; }
   // 登録済み & メイン依頼ステップでない → ギルドAI依頼ボード
   openBoard();
+}
+// 目的⑰達成→⑱: 古代の遺跡の碑文調査を依頼される
+function giveInscriptionQuest() {
+  if (!quest || quest.stage !== 16) return;
+  quest.stage = 17;
+  playTownCutscene([
+    { who: "受付 Fia", lines: ["I have a special request for you."] },
+    { who: "コトハ", lines: ["Fiaさんから特別な依頼だよ！", "『古代の遺跡の最奥にある“碑文”を調べてきてほしい』って。", "古代の遺跡は…フィールドの洞窟、最初に入ったあのダンジョンのことだね。"] },
+    { who: "コトハ", lines: ["でも碑文の前には強い魔物が待ってるらしい…気をつけよう。", "フィールドの洞窟(古代の遺跡)に入って、いちばん奥まで進もう！"] },
+  ]);
 }
 
 // 目的⑦達成→⑧: 最初の依頼(迷いネコ捜索)を提案される
@@ -1815,7 +1833,7 @@ function proposeRequest() {
 // 目的⑭達成: 報酬(ゴールド＋GP)を受け取りクエスト完了
 function completeRequest() {
   if (!quest || quest.stage !== 13) return;
-  quest.stage = 14;
+  quest.stage = 15; // ⑮ボード解放 →(⑯)ギルドランク2を目指す
   const goldReward = 100, gpReward = 60;
   player.gold += goldReward;
   const ups = addGuildPoints(gpReward);
@@ -1824,8 +1842,22 @@ function completeRequest() {
     `報酬として ${goldReward}ゴールド と ギルドポイント${gpReward} をもらったよ！`,
   ];
   if (ups > 0) lines.push(`やったね、ギルドランクが ${player.guildLevel} に上がったよ！`);
-  lines.push("こうやって依頼をこなして、強くなっていこう！");
+  lines.push("これでギルドの依頼ボードも自由に使えるよ。");
+  lines.push("まずはいろんな依頼をこなして、ギルドランク2を目指そう！");
   playTownCutscene([{ who: "コトハ", lines }]);
+}
+// ギルドポイント獲得後に呼ぶ: ランク到達でストーリーを進める(返り値=追加で見せる行)
+function checkGuildStoryProgress() {
+  if (!quest) return [];
+  if (quest.stage === 15 && player.guildLevel >= 2) {
+    quest.stage = 16;
+    return ["ギルドランク2になった！ 一人前だね。", "コトハ「受付のFiaさんが話したいことがあるみたい。ギルドへ行ってみよう！」"];
+  }
+  if (quest.stage === 18 && player.guildLevel >= 3) {
+    quest.stage = 19;
+    return ["ギルドランク3になった！ ぐっと頼もしくなったね。", "コトハ「よし、氷の遺跡へ手がかりを探しに行こう！（…の準備をしてるところ）」"];
+  }
+  return [];
 }
 
 // =====================================================================
@@ -2118,6 +2150,7 @@ function grantSideReward(q) {
   const ups = addGuildPoints(q.gp);
   const lines = [`依頼『${q.title_ja}』達成！ ＋${q.gold}G ＋GP${q.gp}`];
   if (ups > 0) lines.push(`ギルドランクが ${player.guildLevel} に上がったよ！`);
+  lines.push(...checkGuildStoryProgress());
   return lines;
 }
 // 町中での達成(おつかい/会話)。コトハがお祝い
@@ -2581,10 +2614,11 @@ function enterDungeon() {
   for (const k in keys) keys[k] = false;
   state = STATE.TOWN;
   resetEncounter();
-  playTownCutscene([{
-    who: "コトハ",
-    lines: ["うわっ、洞窟だ…！ 外とは違うモンスターが出るみたい。", "知らない英単語も多いから、気を引きしめていこう！", "でぐち(下の扉)からいつでも外に戻れるよ。"],
-  }]);
+  const lines = ["うわっ、洞窟だ…！ ここは『古代の遺跡』。外とは違うモンスターが出るみたい。", "知らない英単語も多いから、気を引きしめていこう！", "でぐち(下の扉)からいつでも外に戻れるよ。"];
+  if (quest && quest.stage === 17 && !quest.ancientDefeated) {
+    lines.push("依頼の碑文は、いちばん奥(上のほう)にあるみたい。目指して進もう！");
+  }
+  playTownCutscene([{ who: "コトハ", lines }]);
 }
 
 // 氷の洞窟(ダンジョン2)に入る(フィールドの入口 Z から)
@@ -2643,6 +2677,9 @@ function onArrive() {
   if (state === STATE.TOWN) {
     const d = doorAt(player.tx, player.ty);
     if (d) { goThroughDoor(d); return; }
+    // 古代の遺跡: 碑文の前でエンシェントドラゴンが待つ(⑱調査中・未討伐のとき)
+    if (curArea.dungeon && quest && quest.stage >= 17 && !quest.ancientDefeated &&
+        player.tx === ANCIENT_TILE.tx && player.ty === ANCIENT_TILE.ty) { startAncientBattle(); return; }
     // ダンジョン/タワー/城内は歩くとエンカウント
     if (curArea.encounter) {
       if (curArea.castle && tileAtArea(player.tx, player.ty) === "B") { startBattle(true); return; } // 玉座=魔王戦
@@ -2897,10 +2934,13 @@ function loseBattle() {
 
 // ===== エリアボス(コマンド式ボスバトル。コトハが魔法使いとして参戦) =====
 const AREA_BOSSES = {
-  ogre:   { name: "オーガ将軍",       color: "#7a4a2a", hp: 120, atk: 15, exp: 40 },
-  golem:  { name: "ストーンゴーレム", color: "#7a7a86", hp: 165, atk: 13, exp: 46 },
-  wyvern: { name: "ワイバーン",       color: "#3a7a4a", hp: 140, atk: 18, exp: 52 },
+  ogre:    { name: "オーガ将軍",       color: "#7a4a2a", hp: 120, atk: 15, exp: 40 },
+  golem:   { name: "ストーンゴーレム", color: "#7a7a86", hp: 165, atk: 13, exp: 46 },
+  wyvern:  { name: "ワイバーン",       color: "#3a7a4a", hp: 140, atk: 18, exp: 52 },
+  ancient: { name: "エンシェントドラゴン", color: "#b03a2a", hp: 260, atk: 22, exp: 120 }, // 古代の遺跡の碑文を守るボス(ストーリー)
 };
+// 古代の遺跡(最初のダンジョン)の碑文の位置。ここにエンシェントドラゴンが待つ。
+const ANCIENT_TILE = { tx: 7, ty: 1 };
 // 受注時: フィールドにボスを出現させる(草地の固定マス)
 function spawnFieldBoss(q) { fieldBoss = { tx: 7, ty: 11, boss: q.boss, questId: q.id }; }
 // 討伐済みをギルド受付に報告→達成
@@ -2912,15 +2952,20 @@ function reportAreaBoss(q) {
 // ボス戦中の演出メッセージ(背景にボス戦シーンを出したまま送る)
 function bossSay(lines, after) { showMessage(lines, after); }
 function bossMenu() { bossBattle.phase = "menu"; bossBattle.sel = 0; state = STATE.BOSSBATTLE; }
-function startBossBattle() {
-  const b = AREA_BOSSES[fieldBoss.boss] || AREA_BOSSES.ogre;
+// エリアボス戦(依頼)を開始
+function startBossBattle() { beginBossBattle(fieldBoss.boss, { questId: fieldBoss.questId, returnState: STATE.FIELD }); }
+// ボス戦の共通開始処理。opts: { questId, onWin(leveled), returnState }
+function beginBossBattle(bossKey, opts) {
+  opts = opts || {};
+  const b = AREA_BOSSES[bossKey] || AREA_BOSSES.ogre;
   for (const k in keys) keys[k] = false;
   battleBuff = { atk: mealBuff.atk, def: mealBuff.def }; // 料理バフを適用
   const bl = (mealBuff.atk || mealBuff.def) ? [`料理の効果！ ${mealBuff.atk ? `こうげき+${mealBuff.atk} ` : ""}${mealBuff.def ? `ぼうぎょ+${mealBuff.def}` : ""}`] : [];
   mealBuff = { atk: 0, def: 0 };
   bossBattle = {
     name: b.name, color: b.color, ehp: b.hp, emaxhp: b.hp, eatk: b.atk, exp: b.exp,
-    questId: fieldBoss.questId, sel: 0, itemSel: 0, summonSel: 0, phase: "resolve", guard: false,
+    questId: opts.questId || null, onWin: opts.onWin || null, returnState: opts.returnState || STATE.FIELD,
+    sel: 0, itemSel: 0, summonSel: 0, phase: "resolve", guard: false,
     sp: 0, spMax: 3, // 必殺技ゲージ(気合)
     beast: null, // 召喚中の召喚獣 {name,atk,turnsLeft,element}
     // コトハの戦闘ステータスはコトハのレベルで強化(勉強机でレベルUP)
@@ -2930,6 +2975,22 @@ function startBossBattle() {
   cutsceneDraw = drawBossScene;
   sfx("encounter");
   bossSay([`${b.name} が あらわれた！`, "コトハ「私も魔法で戦うよ、相棒！」", ...bl], () => bossMenu());
+}
+// 古代の遺跡の碑文を守るエンシェントドラゴン戦(ストーリー)
+function startAncientBattle() {
+  beginBossBattle("ancient", { returnState: STATE.TOWN, onWin: onAncientDefeated });
+}
+// エンシェントドラゴン撃破 → 碑文を読む
+function onAncientDefeated(leveled) {
+  if (quest) { quest.ancientDefeated = true; if (quest.stage === 17) quest.stage = 18; }
+  if (canSave()) saveGame();
+  cutsceneDraw = drawArea; // 古代の遺跡(ダンジョン)を背景に
+  playCutscene([
+    { who: "コトハ", lines: ["エンシェントドラゴンを倒した！", ...(leveled || []), "…これで奥の碑文が読めるよ。"] },
+    { who: null, lines: ["── 古代の碑文 ──", "『魔王城の最奥に、異世界へと通ずるゲートあり。』", "『されど、その道は固く閉ざされたり。』"] },
+    { who: "コトハ", lines: ["異世界へのゲート…！ 帰るための手がかりだ！", "でも魔王城への道は閉ざされてる…今は行けないみたい。"] },
+    { who: "コトハ", lines: ["とりあえず、ギルドランクを3まで上げてみよう。", "それと『氷の遺跡』にも手がかりがないか、探しに行こう！"] },
+  ], () => { cutsceneDraw = null; messageSpeaker = null; state = STATE.TOWN; });
 }
 function bossCommand(cmd) {
   if (!bossBattle || bossBattle.phase !== "menu") return;
@@ -3048,12 +3109,14 @@ function bossEnemyPhase() {
 }
 function bossWin() {
   const bb = bossBattle; cutsceneDraw = null;
-  const leveled = gainExp(bb.exp);
-  const q = sideQuests.find((s) => s.id === bb.questId); if (q) q.progress = 1; // 討伐済み(報告待ち)
+  const bname = bb.name, bexp = bb.exp, onWin = bb.onWin, rs = bb.returnState || STATE.FIELD;
+  const leveled = gainExp(bexp);
+  if (bb.questId) { const q = sideQuests.find((s) => s.id === bb.questId); if (q) q.progress = 1; } // 討伐済み(報告待ち)
   fieldBoss = null; bossBattle = null; battleBuff = { atk: 0, def: 0 };
   if (canSave()) saveGame();
   sfx("win"); if (leveled.length) setTimeout(() => sfx("levelup"), 550);
-  showMessage([`${bb.name}を 討伐した！`, `けいけんち ${bb.exp} を かくとく！`, ...leveled, "コトハ「やったね相棒！ ギルドに報告しよう。」"], () => { state = STATE.FIELD; });
+  if (onWin) { onWin(leveled); return; } // ストーリーボス(碑文など)は専用処理へ
+  showMessage([`${bname}を 討伐した！`, `けいけんち ${bexp} を かくとく！`, ...leveled, "コトハ「やったね相棒！ ギルドに報告しよう。」"], () => { state = rs; });
 }
 function bossLose() {
   const bb = bossBattle; cutsceneDraw = null; bossBattle = null; battleBuff = { atk: 0, def: 0 };
@@ -3384,6 +3447,32 @@ function drawFieldBossMarker(px, py) {
   ctx.fillText("ボス", px + 16, py - 5); ctx.textAlign = "center";
 }
 
+// 古代の遺跡の碑文(石板)。showDragon=true なら碑文を守るエンシェントドラゴンも描く。
+function drawInscription(px, py, showDragon) {
+  // 石板
+  ctx.fillStyle = "#3a3a44"; ctx.fillRect(px + 5, py + 3, TILE - 10, TILE - 6);
+  ctx.fillStyle = "#4c4c58"; ctx.fillRect(px + 7, py + 5, TILE - 14, TILE - 12);
+  ctx.fillStyle = "#8a8aa0"; // 刻まれた文字っぽい線
+  for (let i = 0; i < 3; i++) ctx.fillRect(px + 10, py + 9 + i * 5, TILE - 20, 2);
+  if (showDragon) {
+    // ドラゴンのシルエット(角＋赤い目)
+    const b = AREA_BOSSES.ancient;
+    ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.beginPath(); ctx.ellipse(px + 16, py + 28, 13, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = b.color; ctx.beginPath(); ctx.ellipse(px + 16, py + 16, 13, 12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#000";
+    ctx.beginPath(); ctx.moveTo(px + 5, py + 7); ctx.lineTo(px - 1, py - 5); ctx.lineTo(px + 10, py + 4); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(px + 27, py + 7); ctx.lineTo(px + 33, py - 5); ctx.lineTo(px + 22, py + 4); ctx.fill();
+    ctx.fillStyle = "#ff4030"; ctx.fillRect(px + 9, py + 13, 4, 4); ctx.fillRect(px + 19, py + 13, 4, 4);
+    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(px - 6, py - 16, 44, 12);
+    ctx.fillStyle = "#ff9b9b"; ctx.font = "9px 'MS Gothic', monospace"; ctx.textAlign = "center";
+    ctx.fillText("古代竜", px + 16, py - 7);
+  } else {
+    ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(px - 4, py - 15, 40, 12);
+    ctx.fillStyle = "#ffe082"; ctx.font = "9px 'MS Gothic', monospace"; ctx.textAlign = "center";
+    ctx.fillText("碑文", px + 16, py - 6);
+  }
+  ctx.textAlign = "center";
+}
 // 情報パネルが隠れているときに出すヒント(下部)
 function drawCtrlHint() {
   if (hudShown) return;
@@ -3598,6 +3687,10 @@ function drawArea() {
     }
   }
   if (a.decor) for (const d of a.decor) drawDecor(d.kind, d.tx * TILE - camX, d.ty * TILE - camY);
+  // 古代の遺跡: 碑文(と未討伐ならエンシェントドラゴン)を表示
+  if (a.dungeon && quest && quest.stage >= 17) {
+    drawInscription(ANCIENT_TILE.tx * TILE - camX, ANCIENT_TILE.ty * TILE - camY, !quest.ancientDefeated);
+  }
   // 扉ラベル(でぐち／家の名前)
   ctx.textAlign = "center"; ctx.font = "11px 'MS Gothic', monospace";
   for (const d of a.doors) {
