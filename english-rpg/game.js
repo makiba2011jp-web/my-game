@@ -2715,6 +2715,24 @@ function enterDungeon() {
 
 // 氷の洞窟(ダンジョン2)に入る(フィールドの入口 Z から)
 function enterDungeon2() {
+  // 氷の遺跡はギルドランク3になり、碑文調査の依頼(㉑)を受けるまで入れない
+  if (!(quest && quest.stage >= 20)) {
+    if (player.dir === "up") player.ty += 1;
+    else if (player.dir === "down") player.ty -= 1;
+    else if (player.dir === "left") player.tx += 1;
+    else if (player.dir === "right") player.tx -= 1;
+    player.px = player.tx * TILE; player.py = player.ty * TILE; player.moving = false;
+    for (const k in keys) keys[k] = false;
+    cutsceneDraw = drawField;
+    const line2 = (quest && quest.stage >= 19)
+      ? "ギルドで氷の遺跡の碑文調査の依頼を受けてから来よう。"
+      : "今はまだ入れないみたい…ギルドランク3になれば、手がかりがつかめそう。";
+    playCutscene(
+      [{ who: "コトハ", lines: ["氷の遺跡だ…！ でも入口が固く凍りついて閉ざされてる。", line2] }],
+      () => { cutsceneDraw = null; messageSpeaker = null; state = STATE.FIELD; }
+    );
+    return;
+  }
   savedOverworld = { tx: player.tx, ty: player.ty };
   curArea = AREAS.dungeon2;
   zone = "dungeon2";
