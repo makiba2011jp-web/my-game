@@ -33,7 +33,7 @@
 <body>
 <h1>📚 単語リスト確認ページ</h1>
 <div class="note">
-  <code>words.js</code>（フィールド）と <code>words_dungeon.js</code>（ダンジョン）を読み込んで表示（常に最新）。バトルの4択は「正解＋誤答3つ」をシャッフルして出題します。<br>
+  <code>words.js</code>（フィールド）や <code>words_dungeon.js</code>（古代の遺跡）などを読み込んで表示（常に最新）。バトルの4択は「正解＋誤答3つ」をシャッフルして出題します。<br>
   ※ <b>プレビューサーバー経由で開いてください</b>（例 <code>http://127.0.0.1:8123/words-view.html</code>）。ゲーム本体とは無関係。
 </div>
 <div id="err"></div>
@@ -42,8 +42,9 @@
   <input id="search" type="text" placeholder="🔍 英単語・意味で検索（例: apple / りんご / 増加）" autocomplete="off">
   <div class="tabs" id="src-tabs">
     <span class="tab on" data-src="field">📙 フィールド</span>
-    <span class="tab" data-src="dungeon">🕳 ダンジョン</span>
-    <span class="tab" data-src="dungeon2">❄ 氷の洞窟</span>
+    <span class="tab" data-src="dungeon">🕳 古代の遺跡</span>
+    <span class="tab" data-src="dungeon2">❄ 氷の遺跡</span>
+    <span class="tab" data-src="fire">🔥 炎の遺跡</span>
     <span class="tab" data-src="tower">🗼 タワー(熟語)</span>
   </div>
   <div class="tabs" id="lv-tabs">
@@ -60,17 +61,19 @@
 <script src="words.js"></script>
 <script src="words_dungeon.js"></script>
 <script src="words_dungeon2.js"></script>
+<script src="words_fire.js"></script>
 <script src="words_tower.js"></script>
 <script>
   let curLv = "all", curSrc = "field", curQ = "";
   const listEl = document.getElementById("list");
   const emptyEl = document.getElementById("empty");
-  const SRC_LABEL = { field: "フィールド", dungeon: "ダンジョン", dungeon2: "氷の洞窟", tower: "タワー(熟語)" };
+  const SRC_LABEL = { field: "フィールド", dungeon: "古代の遺跡", dungeon2: "氷の遺跡", fire: "炎の遺跡", tower: "タワー(熟語)" };
 
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   function curData() {
     if (curSrc === "dungeon") return typeof DUNGEON_WORD_DATA !== "undefined" ? DUNGEON_WORD_DATA : null;
     if (curSrc === "dungeon2") return typeof DUNGEON2_WORD_DATA !== "undefined" ? DUNGEON2_WORD_DATA : null;
+    if (curSrc === "fire") return typeof FIRE_WORD_DATA !== "undefined" ? FIRE_WORD_DATA : null;
     if (curSrc === "tower") return typeof TOWER_WORD_DATA !== "undefined" ? TOWER_WORD_DATA : null;
     return typeof WORD_DATA !== "undefined" ? WORD_DATA : null;
   }
