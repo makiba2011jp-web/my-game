@@ -864,7 +864,10 @@ function questLines() {
   if (quest.stage === 19) return ["⑳ ギルドへ行く", "受付Fiaに話しかけよう"];
   if (quest.stage === 20) return ["㉑ 氷の遺跡の碑文を調査する", "遺跡の奥の氷の女王の亡霊を倒そう"];
   if (quest.stage === 21) return ["㉒ ギルドランク4を目指す", `いまランク${player.guildLevel}／依頼をこなそう`];
-  if (quest.stage === 22) return ["㉓ 炎の遺跡で手がかりを探す", "（つづきは準備中）"];
+  if (quest.stage === 22) return ["㉓ ギルドへ行く", "受付Fiaに話しかけよう"];
+  if (quest.stage === 23) return ["㉔ 炎の遺跡の碑文を調査する", "遺跡の奥の炎の皇帝の亡霊を倒そう"];
+  if (quest.stage === 24) return ["㉕ ギルドランク5を目指す", `いまランク${player.guildLevel}／依頼をこなそう`];
+  if (quest.stage === 25) return ["㉖ 天空の塔へ向かう", "（つづきは準備中）"];
   return ["クエスト達成！ つづきは準備中…"];
 }
 
@@ -1422,7 +1425,7 @@ function devJump(stage) {
   player.level = 3; player.baseMaxhp = 32; player.baseAtk = 10; player.baseDef = 0; player.hp = 32;
   equipped = { weapon: null, head: null, armor: null, shield: null, accessory: null }; recomputeStats();
   player.exp = 0; player.nextExp = 26; player.wins = 5;
-  player.guildLevel = stage >= 22 ? 4 : stage >= 19 ? 3 : stage >= 16 ? 2 : stage >= 6 ? 1 : 0; player.guildPoints = 0;
+  player.guildLevel = stage >= 25 ? 5 : stage >= 22 ? 4 : stage >= 19 ? 3 : stage >= 16 ? 2 : stage >= 6 ? 1 : 0; player.guildPoints = 0;
   boughtItems = new Set();
   quest = { stage, kills: stage === 0 ? 0 : 3, goal: 3, shopRevealed: stage >= 3 };
   reconcileGuildStory(); // 新ステージ(⑯以降)でもランク整合をとる
@@ -1850,6 +1853,8 @@ function talkGuild(n) {
   if (quest && quest.stage === 16) { giveInscriptionQuest(); return; }
   // 目的㉑: ランク3到達後、受付から氷の遺跡の碑文調査を依頼される
   if (quest && quest.stage === 19) { giveIceInscriptionQuest(); return; }
+  // 目的㉔: ランク4到達後、受付から炎の遺跡の碑文調査を依頼される
+  if (quest && quest.stage === 22) { giveFireInscriptionQuest(); return; }
   // 登録済み & メイン依頼ステップでない → ギルドAI依頼ボード
   openBoard();
 }
@@ -1871,6 +1876,16 @@ function giveIceInscriptionQuest() {
     { who: "受付 Fia", lines: ["Another request, only you can handle it."] },
     { who: "コトハ", lines: ["また特別な依頼だよ！", "『氷の遺跡の最奥にある“碑文”も調べてほしい』って。", "氷の遺跡は…フィールドの青い岩山(Z)から入る、あの氷の遺跡だね。"] },
     { who: "コトハ", lines: ["こんどの碑文の前には“氷の女王の亡霊”がいるらしい…かなり手強いよ。", "しっかり準備して、氷の遺跡のいちばん奥まで進もう！"] },
+  ]);
+}
+// 目的㉓達成→㉔: 炎の遺跡の碑文調査を依頼される
+function giveFireInscriptionQuest() {
+  if (!quest || quest.stage !== 22) return;
+  quest.stage = 23;
+  playTownCutscene([
+    { who: "受付 Fia", lines: ["The last inscription. I trust only you with this."] },
+    { who: "コトハ", lines: ["最後の碑文の依頼だよ！", "『炎の遺跡の最奥にある“碑文”を調べてほしい』って。", "炎の遺跡は…フィールドの赤い岩山(F)から入る、あの炎の遺跡だね。"] },
+    { who: "コトハ", lines: ["碑文の前には“炎の皇帝の亡霊”がいるらしい…これまでで一番手強い相手だよ。", "しっかり準備して、炎の遺跡のいちばん奥まで進もう！"] },
   ]);
 }
 
@@ -1920,7 +1935,11 @@ function checkGuildStoryProgress() {
   }
   if (quest.stage === 21 && player.guildLevel >= 4) {
     quest.stage = 22;
-    return ["ギルドランク4になった！ もう立派なベテランだね。", "コトハ「よし、炎の遺跡へ手がかりを探しに行こう！（…の準備をしてるところ）」"];
+    return ["ギルドランク4になった！ もう立派なベテランだね。", "コトハ「受付のFiaさんがまた話したいことがあるみたい。ギルドへ行ってみよう！」"];
+  }
+  if (quest.stage === 24 && player.guildLevel >= 5) {
+    quest.stage = 25;
+    return ["ギルドランク5になった！ 名うての冒険者だね。", "コトハ「よし、いよいよ天空の塔へ向かおう！（…の準備をしてるところ）」"];
   }
   return [];
 }
@@ -1930,7 +1949,8 @@ function reconcileGuildStory() {
   if (quest.stage === 14) quest.stage = 15;                                   // ⑮→⑯フェーズへ
   if (quest.stage === 15 && player.guildLevel >= 2) quest.stage = 16;         // ランク2到達済み→ギルドへ
   if (quest.stage === 18 && player.guildLevel >= 3) quest.stage = 19;         // ランク3到達済み→ギルドへ
-  if (quest.stage === 21 && player.guildLevel >= 4) quest.stage = 22;         // ランク4到達済み→次章
+  if (quest.stage === 21 && player.guildLevel >= 4) quest.stage = 22;         // ランク4到達済み→ギルドへ
+  if (quest.stage === 24 && player.guildLevel >= 5) quest.stage = 25;         // ランク5到達済み→次章
 }
 
 // =====================================================================
@@ -2760,10 +2780,11 @@ function enterFire() {
   for (const k in keys) keys[k] = false;
   state = STATE.TOWN;
   resetEncounter();
-  playTownCutscene([{
-    who: "コトハ",
-    lines: ["あつっ…！ ここは炎の遺跡だ。 燃えるようなモンスターが出るよ。", "見たことのない英単語もたくさん。 覚えていこう！", "でぐち(下の扉)からいつでも外に戻れるよ。"],
-  }]);
+  const lines3 = ["あつっ…！ ここは炎の遺跡だ。 燃えるようなモンスターが出るよ。", "見たことのない英単語もたくさん。 覚えていこう！", "でぐち(下の扉)からいつでも外に戻れるよ。"];
+  if (quest && quest.stage === 23 && !quest.fireEmperorDefeated) {
+    lines3.push("依頼の碑文は、いちばん奥(上のほう)にあるみたい。目指して進もう！");
+  }
+  playTownCutscene([{ who: "コトハ", lines: lines3 }]);
 }
 
 // タワーに入る(フィールドの入口 Y から。熟語が出る)
@@ -2811,6 +2832,9 @@ function onArrive() {
     // 氷の遺跡: 碑文の前で氷の女王の亡霊が待つ(㉑調査中・未討伐のとき)
     if (curArea.dungeon2 && quest && quest.stage >= 20 && !quest.iceQueenDefeated &&
         player.tx === ICE_TILE.tx && player.ty === ICE_TILE.ty) { startIceQueenBattle(); return; }
+    // 炎の遺跡: 碑文の前で炎の皇帝の亡霊が待つ(㉔調査中・未討伐のとき)
+    if (curArea.fire && quest && quest.stage >= 23 && !quest.fireEmperorDefeated &&
+        player.tx === FIRE_INSCRIPTION_TILE.tx && player.ty === FIRE_INSCRIPTION_TILE.ty) { startFireEmperorBattle(); return; }
     // ダンジョン/タワー/城内は歩くとエンカウント
     if (curArea.encounter) {
       if (curArea.castle && tileAtArea(player.tx, player.ty) === "B") { startBattle(true); return; } // 玉座=魔王戦
@@ -3075,11 +3099,14 @@ const AREA_BOSSES = {
   wyvern:  { name: "ワイバーン",       color: "#3a7a4a", hp: 140, atk: 18, exp: 52 },
   ancient: { name: "エンシェントドラゴン", color: "#b03a2a", hp: 260, atk: 22, exp: 120 }, // 古代の遺跡の碑文を守るボス(ストーリー)
   icequeen: { name: "氷の女王の亡霊", color: "#8ac8e8", hp: 340, atk: 26, exp: 170 }, // 氷の遺跡の碑文を守るボス(ストーリー)
+  fireemperor: { name: "炎の皇帝の亡霊", color: "#e0552a", hp: 420, atk: 30, exp: 240 }, // 炎の遺跡の碑文を守るボス(ストーリー)
 };
 // 古代の遺跡(最初のダンジョン)の碑文の位置。ここにエンシェントドラゴンが待つ。
 const ANCIENT_TILE = { tx: 7, ty: 1 };
 // 氷の遺跡(ダンジョン2)の碑文の位置。ここに氷の女王の亡霊が待つ。
 const ICE_TILE = { tx: 4, ty: 1 };
+// 炎の遺跡(fire)の碑文の位置。ここに炎の皇帝の亡霊が待つ。
+const FIRE_INSCRIPTION_TILE = { tx: 7, ty: 1 };
 // 受注時: フィールドにボスを出現させる(草地の固定マス)
 function spawnFieldBoss(q) { fieldBoss = { tx: 7, ty: 11, boss: q.boss, questId: q.id }; }
 // 討伐済みをギルド受付に報告→達成
@@ -3151,6 +3178,28 @@ function onIceQueenDefeated(leveled) {
     { who: null, lines: ["碑文が光り、足もとに『氷のオーブ』が現れた！", "＞ 氷のオーブ を手に入れた！（重要アイテム）"] },
     { who: "コトハ", lines: ["氷のオーブをゲット！ あとは炎のオーブだね。", "天空の塔＝あのタワーのことかな。"] },
     { who: "コトハ", lines: ["まずはギルドランクを4に上げてから、", "炎のオーブを探しに『炎の遺跡』へ行こう！"] },
+  ], () => { cutsceneDraw = null; messageSpeaker = null; state = STATE.TOWN; });
+}
+// 炎の遺跡の碑文を守る炎の皇帝の亡霊戦(ストーリー)
+function startFireEmperorBattle() {
+  beginBossBattle("fireemperor", { returnState: STATE.TOWN, onWin: onFireEmperorDefeated });
+}
+// 炎の皇帝の亡霊 撃破 → 碑文を読む → 炎のオーブ獲得
+function onFireEmperorDefeated(leveled) {
+  if (quest) {
+    quest.fireEmperorDefeated = true;
+    quest.fireOrb = true;           // 重要アイテム: 炎のオーブ 獲得フラグ
+    if (quest.stage === 23) quest.stage = 24;
+  }
+  bag["炎のオーブ"] = 1;              // もちものにも表示(重要アイテム)
+  if (canSave()) saveGame();
+  cutsceneDraw = drawArea; // 炎の遺跡を背景に
+  playCutscene([
+    { who: "コトハ", lines: ["炎の皇帝の亡霊を倒した！", ...(leveled || []), "…これで奥の碑文が読めるよ。"] },
+    { who: null, lines: ["── 炎の碑文 ──", "『魔王城には、古の時代に王国を滅ぼしたとされる魔王が封印されている。』"] },
+    { who: null, lines: ["碑文が赤く燃え、足もとに『炎のオーブ』が現れた！", "＞ 炎のオーブ を手に入れた！（重要アイテム）"] },
+    { who: "コトハ", lines: ["炎のオーブもゲット！ これで氷と炎、2つのオーブがそろったね。", "封印された魔王…だから魔王城への道は閉ざされてたんだ。"] },
+    { who: "コトハ", lines: ["まずはギルドランクを5に上げてから、", "2つのオーブを『天空の塔』へ捧げに行こう！"] },
   ], () => { cutsceneDraw = null; messageSpeaker = null; state = STATE.TOWN; });
 }
 function bossCommand(cmd) {
@@ -3865,6 +3914,10 @@ function drawArea() {
   if (a.dungeon2 && quest && quest.stage >= 20) {
     drawInscription(ICE_TILE.tx * TILE - camX, ICE_TILE.ty * TILE - camY, !quest.iceQueenDefeated,
       { color: AREA_BOSSES.icequeen.color, eye: "#bfefff", label: "氷の女王" });
+  }
+  if (a.fire && quest && quest.stage >= 23) {
+    drawInscription(FIRE_INSCRIPTION_TILE.tx * TILE - camX, FIRE_INSCRIPTION_TILE.ty * TILE - camY, !quest.fireEmperorDefeated,
+      { color: AREA_BOSSES.fireemperor.color, eye: "#ffd24a", label: "炎の皇帝" });
   }
   // 扉ラベル(でぐち／家の名前)
   ctx.textAlign = "center"; ctx.font = "11px 'MS Gothic', monospace";
