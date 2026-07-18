@@ -867,7 +867,9 @@ function questLines() {
   if (quest.stage === 22) return ["㉓ ギルドへ行く", "受付Fiaに話しかけよう"];
   if (quest.stage === 23) return ["㉔ 炎の遺跡の碑文を調査する", "遺跡の奥の炎の皇帝の亡霊を倒そう"];
   if (quest.stage === 24) return ["㉕ ギルドランク5を目指す", `いまランク${player.guildLevel}／依頼をこなそう`];
-  if (quest.stage === 25) return ["㉖ 天空の塔へ向かう", "（つづきは準備中）"];
+  if (quest.stage === 25) return ["㉖ ギルドへ行く", "受付Fiaに話しかけよう"];
+  if (quest.stage === 26) return ["㉗ 天空の塔の祭壇を調査する", "塔の最上部の嘆きの亡霊を倒そう"];
+  if (quest.stage === 27) return ["㉘ 魔王城へ向かう", "封印が解けた！ 魔王城(C)へ乗り込もう"];
   return ["クエスト達成！ つづきは準備中…"];
 }
 
@@ -1428,6 +1430,7 @@ function devJump(stage) {
   player.guildLevel = stage >= 25 ? 5 : stage >= 22 ? 4 : stage >= 19 ? 3 : stage >= 16 ? 2 : stage >= 6 ? 1 : 0; player.guildPoints = 0;
   boughtItems = new Set();
   quest = { stage, kills: stage === 0 ? 0 : 3, goal: 3, shopRevealed: stage >= 3 };
+  if (stage >= 27) quest.castleUnsealed = true; // ㉘以降: 魔王城の封印は解除済み
   reconcileGuildStory(); // 新ステージ(⑯以降)でもランク整合をとる
   materials = (stage === 2 || stage === 3) ? { "Slime Ooze": 3, "Bat Wing": 1, "Ghost Soul": 1 } : {};
   player.gold = stage >= 4 ? 80 : 0;
@@ -1869,6 +1872,8 @@ function talkGuild(n) {
   if (quest && quest.stage === 19) { giveIceInscriptionQuest(); return; }
   // 目的㉔: ランク4到達後、受付から炎の遺跡の碑文調査を依頼される
   if (quest && quest.stage === 22) { giveFireInscriptionQuest(); return; }
+  // 目的㉗: ランク5到達後、受付から天空の塔の祭壇調査を依頼される
+  if (quest && quest.stage === 25) { giveAltarQuest(); return; }
   // 登録済み & メイン依頼ステップでない → ギルドAI依頼ボード
   openBoard();
 }
@@ -1900,6 +1905,16 @@ function giveFireInscriptionQuest() {
     { who: "受付 Fia", lines: ["The last inscription. I trust only you with this."] },
     { who: "コトハ", lines: ["最後の碑文の依頼だよ！", "『炎の遺跡の最奥にある“碑文”を調べてほしい』って。", "炎の遺跡は…フィールドの赤い岩山(F)から入る、あの炎の遺跡だね。"] },
     { who: "コトハ", lines: ["碑文の前には“炎の皇帝の亡霊”がいるらしい…これまでで一番手強い相手だよ。", "しっかり準備して、炎の遺跡のいちばん奥まで進もう！"] },
+  ]);
+}
+// 目的㉖達成→㉗: 天空の塔の祭壇調査を依頼される
+function giveAltarQuest() {
+  if (!quest || quest.stage !== 25) return;
+  quest.stage = 26;
+  playTownCutscene([
+    { who: "受付 Fia", lines: ["The final request. May the words guide you."] },
+    { who: "コトハ", lines: ["いよいよ最後の依頼だよ！", "『天空の塔の最上部にある“祭壇”を調べてほしい』って。", "天空の塔は…フィールドの石の塔(Y)から入る、あのタワーのことだね。"] },
+    { who: "コトハ", lines: ["祭壇の前には“嘆きの亡霊”がいるらしい…。", "氷と炎、2つのオーブを持って、塔のいちばん上まで登ろう！"] },
   ]);
 }
 
@@ -1953,7 +1968,7 @@ function checkGuildStoryProgress() {
   }
   if (quest.stage === 24 && player.guildLevel >= 5) {
     quest.stage = 25;
-    return ["ギルドランク5になった！ 名うての冒険者だね。", "コトハ「よし、いよいよ天空の塔へ向かおう！（…の準備をしてるところ）」"];
+    return ["ギルドランク5になった！ 名うての冒険者だね。", "コトハ「受付のFiaさんが最後の依頼を用意してるみたい。ギルドへ行ってみよう！」"];
   }
   return [];
 }
@@ -1964,7 +1979,7 @@ function reconcileGuildStory() {
   if (quest.stage === 15 && player.guildLevel >= 2) quest.stage = 16;         // ランク2到達済み→ギルドへ
   if (quest.stage === 18 && player.guildLevel >= 3) quest.stage = 19;         // ランク3到達済み→ギルドへ
   if (quest.stage === 21 && player.guildLevel >= 4) quest.stage = 22;         // ランク4到達済み→ギルドへ
-  if (quest.stage === 24 && player.guildLevel >= 5) quest.stage = 25;         // ランク5到達済み→次章
+  if (quest.stage === 24 && player.guildLevel >= 5) quest.stage = 25;         // ランク5到達済み→ギルドへ
 }
 
 // =====================================================================
@@ -2812,14 +2827,30 @@ function enterTower() {
   for (const k in keys) keys[k] = false;
   state = STATE.TOWN;
   resetEncounter();
-  playTownCutscene([{
-    who: "コトハ",
-    lines: ["高い塔だ…！ ここに出るのは魔法のモンスターたち。", "ここでは単語じゃなくて『熟語(イディオム)』が試されるみたい。", "でぐち(下の扉)からいつでも外に戻れるよ。"],
-  }]);
+  const lines4 = ["高い塔だ…！ ここに出るのは魔法のモンスターたち。", "ここでは単語じゃなくて『熟語(イディオム)』が試されるみたい。", "でぐち(下の扉)からいつでも外に戻れるよ。"];
+  if (quest && quest.stage === 26 && !quest.wraithDefeated) {
+    lines4.push("依頼の祭壇は、塔のいちばん上にあるみたい。上まで登ろう！");
+  }
+  playTownCutscene([{ who: "コトハ", lines: lines4 }]);
 }
 
 // 魔王城に入る(フィールドの C から。英文法問題が出る)
 function enterCastle() {
+  // 魔王城は㉗(天空の塔の祭壇でオーブを捧げ封印が解ける)まで入れない
+  if (!(quest && quest.castleUnsealed)) {
+    if (player.dir === "up") player.ty += 1;
+    else if (player.dir === "down") player.ty -= 1;
+    else if (player.dir === "left") player.tx += 1;
+    else if (player.dir === "right") player.tx -= 1;
+    player.px = player.tx * TILE; player.py = player.ty * TILE; player.moving = false;
+    for (const k in keys) keys[k] = false;
+    cutsceneDraw = drawField;
+    playCutscene(
+      [{ who: "コトハ", lines: ["魔王城だ…！ でも門に強い封印がかかっていて、びくともしない。", "封印を解く手がかりを見つけないと入れないみたい。まずは物語を進めよう。"] }],
+      () => { cutsceneDraw = null; messageSpeaker = null; state = STATE.FIELD; }
+    );
+    return;
+  }
   savedOverworld = { tx: player.tx, ty: player.ty };
   curArea = AREAS.castle;
   zone = "castle";
@@ -2849,6 +2880,9 @@ function onArrive() {
     // 炎の遺跡: 碑文の前で炎の皇帝の亡霊が待つ(㉔調査中・未討伐のとき)
     if (curArea.fire && quest && quest.stage >= 23 && !quest.fireEmperorDefeated &&
         player.tx === FIRE_INSCRIPTION_TILE.tx && player.ty === FIRE_INSCRIPTION_TILE.ty) { startFireEmperorBattle(); return; }
+    // 天空の塔: 祭壇の前で嘆きの亡霊が待つ(㉗調査中・未討伐のとき)
+    if (curArea.tower && quest && quest.stage >= 26 && !quest.wraithDefeated &&
+        player.tx === ALTAR_TILE.tx && player.ty === ALTAR_TILE.ty) { startWraithBattle(); return; }
     // ダンジョン/タワー/城内は歩くとエンカウント
     if (curArea.encounter) {
       if (curArea.castle && tileAtArea(player.tx, player.ty) === "B") { startBattle(true); return; } // 玉座=魔王戦
@@ -3114,6 +3148,7 @@ const AREA_BOSSES = {
   ancient: { name: "エンシェントドラゴン", color: "#b03a2a", hp: 260, atk: 22, exp: 120 }, // 古代の遺跡の碑文を守るボス(ストーリー)
   icequeen: { name: "氷の女王の亡霊", color: "#8ac8e8", hp: 340, atk: 26, exp: 170 }, // 氷の遺跡の碑文を守るボス(ストーリー)
   fireemperor: { name: "炎の皇帝の亡霊", color: "#e0552a", hp: 420, atk: 30, exp: 240 }, // 炎の遺跡の碑文を守るボス(ストーリー)
+  wraith: { name: "嘆きの亡霊", color: "#7a6a9a", hp: 480, atk: 33, exp: 300 }, // 天空の塔の祭壇を守るボス(ストーリー)
 };
 // 古代の遺跡(最初のダンジョン)の碑文の位置。ここにエンシェントドラゴンが待つ。
 const ANCIENT_TILE = { tx: 7, ty: 1 };
@@ -3121,6 +3156,8 @@ const ANCIENT_TILE = { tx: 7, ty: 1 };
 const ICE_TILE = { tx: 4, ty: 1 };
 // 炎の遺跡(fire)の碑文の位置。ここに炎の皇帝の亡霊が待つ。
 const FIRE_INSCRIPTION_TILE = { tx: 7, ty: 1 };
+// 天空の塔(tower)の祭壇の位置。ここに嘆きの亡霊が待つ。
+const ALTAR_TILE = { tx: 6, ty: 1 };
 // 受注時: フィールドにボスを出現させる(草地の固定マス)
 function spawnFieldBoss(q) { fieldBoss = { tx: 7, ty: 11, boss: q.boss, questId: q.id }; }
 // 討伐済みをギルド受付に報告→達成
@@ -3214,6 +3251,33 @@ function onFireEmperorDefeated(leveled) {
     { who: null, lines: ["碑文が赤く燃え、足もとに『炎のオーブ』が現れた！", "＞ 炎のオーブ を手に入れた！（重要アイテム）"] },
     { who: "コトハ", lines: ["炎のオーブもゲット！ これで氷と炎、2つのオーブがそろったね。", "封印された魔王…だから魔王城への道は閉ざされてたんだ。"] },
     { who: "コトハ", lines: ["まずはギルドランクを5に上げてから、", "2つのオーブを『天空の塔』へ捧げに行こう！"] },
+  ], () => { cutsceneDraw = null; messageSpeaker = null; state = STATE.TOWN; });
+}
+// 天空の塔の祭壇を守る嘆きの亡霊戦(ストーリー)
+function startWraithBattle() {
+  beginBossBattle("wraith", { returnState: STATE.TOWN, onWin: onWraithDefeated });
+}
+// 嘆きの亡霊 撃破 → 祭壇にオーブを捧げる → 言葉の大精霊 → 魔王城の封印が解ける
+function onWraithDefeated(leveled) {
+  if (quest) {
+    quest.wraithDefeated = true;
+    quest.castleUnsealed = true;    // 魔王城の封印を解除
+    if (quest.stage === 26) quest.stage = 27;
+  }
+  delete bag["氷のオーブ"]; delete bag["炎のオーブ"]; // オーブを祭壇に捧げて消費
+  if (quest) { quest.iceOrb = false; quest.fireOrb = false; }
+  if (canSave()) saveGame();
+  cutsceneDraw = drawArea; // 天空の塔を背景に
+  playCutscene([
+    { who: "コトハ", lines: ["嘆きの亡霊を倒した！", ...(leveled || []), "…これで祭壇に近づけるよ。"] },
+    { who: null, lines: ["祭壇に『氷のオーブ』と『炎のオーブ』を捧げた——", "2つのオーブがまばゆく輝き、共鳴しはじめる！"] },
+    { who: "言葉の大精霊", lines: ["よくぞ2つのオーブを揃えた、勇者よ。", "われは言葉の大精霊。魔王城の封印を、いま解こう。"] },
+    { who: "言葉の大精霊", lines: ["だが、知っておくがよい。かの魔王の正体を——", "魔王とは、過去にこの世界へ召喚されし転生者たちの怨念。"] },
+    { who: "言葉の大精霊", lines: ["彼らは異界の言葉(英語)を習得できず、", "帰る術も見つけられぬまま、無念のうちに息絶えた者たち。"] },
+    { who: "言葉の大精霊", lines: ["その積もり積もった嘆きと恨みが、魔王という形をとったのだ。", "どうか…彼らの魂を解き放ってやってほしい。"] },
+    { who: null, lines: ["言葉の大精霊は、やさしく微笑んで光の中へ消えていった。"] },
+    { who: "コトハ", lines: ["魔王って、そんな…。帰れなかった転生者たちの想いだったんだ。", `${player.name}、私たちで彼らの魂を救ってあげよう。`] },
+    { who: "コトハ", lines: ["魔王城の封印が解けたよ！ しっかり準備して、魔王城へ乗り込もう！", "回復アイテムや装備をととのえてから行こうね。"] },
   ], () => { cutsceneDraw = null; messageSpeaker = null; state = STATE.TOWN; });
 }
 function bossCommand(cmd) {
@@ -3700,6 +3764,31 @@ function drawInscription(px, py, showBoss, opts) {
   }
   ctx.textAlign = "center";
 }
+// 天空の塔の祭壇(2つのオーブ台座)。showBoss=true なら嘆きの亡霊も描く。
+function drawAltar(px, py, showBoss) {
+  // 祭壇の台座
+  ctx.fillStyle = "#4a4658"; ctx.fillRect(px + 4, py + 16, TILE - 8, 12);
+  ctx.fillStyle = "#5c5870"; ctx.fillRect(px + 7, py + 12, TILE - 14, 6);
+  // 2つのオーブ(氷=青・炎=赤)。討伐後は台座に輝く
+  const glow = showBoss ? 0.4 : 1;
+  ctx.fillStyle = `rgba(120,200,232,${glow})`; ctx.beginPath(); ctx.arc(px + 11, py + 12, 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = `rgba(224,85,42,${glow})`; ctx.beginPath(); ctx.arc(px + 21, py + 12, 3.5, 0, Math.PI * 2); ctx.fill();
+  if (showBoss) {
+    const b = AREA_BOSSES.wraith;
+    ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.beginPath(); ctx.ellipse(px + 16, py + 28, 13, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = b.color; // 幽鬼のもや
+    ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.ellipse(px + 16, py + 14, 12, 13, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.fillStyle = "#e8e0ff"; ctx.fillRect(px + 9, py + 11, 4, 4); ctx.fillRect(px + 19, py + 11, 4, 4); // 光る目
+    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(px - 6, py - 16, 44, 12);
+    ctx.fillStyle = "#cdb8ff"; ctx.font = "9px 'MS Gothic', monospace"; ctx.textAlign = "center";
+    ctx.fillText("嘆きの亡霊", px + 16, py - 7);
+  } else {
+    ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(px - 4, py - 15, 40, 12);
+    ctx.fillStyle = "#ffe082"; ctx.font = "9px 'MS Gothic', monospace"; ctx.textAlign = "center";
+    ctx.fillText("祭壇", px + 16, py - 6);
+  }
+  ctx.textAlign = "center";
+}
 // 情報パネルが隠れているときに出すヒント(下部)
 function drawCtrlHint() {
   if (hudShown) return;
@@ -3932,6 +4021,9 @@ function drawArea() {
   if (a.fire && quest && quest.stage >= 23) {
     drawInscription(FIRE_INSCRIPTION_TILE.tx * TILE - camX, FIRE_INSCRIPTION_TILE.ty * TILE - camY, !quest.fireEmperorDefeated,
       { color: AREA_BOSSES.fireemperor.color, eye: "#ffd24a", label: "炎の皇帝" });
+  }
+  if (a.tower && quest && quest.stage >= 26) {
+    drawAltar(ALTAR_TILE.tx * TILE - camX, ALTAR_TILE.ty * TILE - camY, !quest.wraithDefeated);
   }
   // 扉ラベル(でぐち／家の名前)
   ctx.textAlign = "center"; ctx.font = "11px 'MS Gothic', monospace";
