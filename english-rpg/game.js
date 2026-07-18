@@ -1669,12 +1669,19 @@ function summonCookFinish(name, quality, used) {
     const key = Object.keys(materials).find((n) => ing && String(ing).indexOf(n) >= 0);
     if (key && materials[key] > 0) { materials[key]--; if (materials[key] <= 0) delete materials[key]; consumed.push(key); }
   }
+  // 実際に持っている素材を1つも使っていない→貢物は作れない
+  if (consumed.length === 0) {
+    return { ok: false, lines: [
+      "コトハ「あれ…素材が何も入ってないよ？ これじゃ作れないなぁ。」",
+      "※ 実際に持っている素材を使おう！（モンスターをたおして素材を集めよう）",
+    ] };
+  }
   const dishName = name || "謎の貢物";
   tributes.push({ name: dishName, quality });
   if (tributes.length > 12) tributes.shift();
   if (canSave()) saveGame();
-  return { lines: [
-    consumed.length ? `使った素材: ${consumed.join("、")}（消費）` : "（素材は使わなかった）",
+  return { ok: true, lines: [
+    `使った素材: ${consumed.join("、")}（消費）`,
     `貢物「${dishName}」を手に入れた！（出来${quality}）召喚魔法陣で使えるよ。`,
   ] };
 }
@@ -1719,17 +1726,24 @@ function cookFinish(name, score, used) {
     if (key && bag[key] > 0) { useItem(key); consumedNames.push(key); }
   }
   const consumed = consumedNames.length;
+  // 実際に持っている食材を1つも使っていない→料理は作れない
+  if (consumed === 0) {
+    return { ok: false, lines: [
+      "コトハ「あれ…材料が何も入ってないよ？ これじゃ作れないなぁ。」",
+      "※ 実際に持っている食材を使って調理しよう！（食料品店で食材を買ってこよう）",
+    ] };
+  }
   const heal = 12 + Math.round(score * 0.4) + consumed * 6;
   let atk = 0, def = 0;
   if (score >= 85) { atk = 5; def = 3; } else if (score >= 70) { atk = 3; def = 1; } else if (score >= 50) { atk = 2; def = 0; }
   dishes.push({ name: name || "なぞの料理", score, heal, atk, def });
   if (dishes.length > 12) dishes.shift();
-  const lines = [consumed ? `使った食材: ${consumedNames.join("、")}（消費）` : "（食材は使わなかった）"];
+  const lines = [`使った食材: ${consumedNames.join("、")}（消費）`];
   let eff = `効果: HP+${heal}`;
   if (atk || def) eff += ` ／ 次の戦闘 ${atk ? `こうげき+${atk} ` : ""}${def ? `ぼうぎょ+${def}` : ""}`;
   lines.push(eff);
   if (canSave()) saveGame();
-  return { lines };
+  return { ok: true, lines };
 }
 // 料理を食べる(もちものからタップ)。HP回復＋次の戦闘バフを保留。
 function eatDish(i) {

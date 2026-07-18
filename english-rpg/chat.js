@@ -391,8 +391,9 @@ function buildCookSystem(level, ingredients) {
 
 進め方:
 - 主人公は英語で調理の手順を指示します。あなたは reply_ja に日本語(幼い女の子の親しみやすいタメ口)で、反応・あいづち・次の手順への誘導を2〜4文で書きます。
-- 手持ちの食材(一部): ${list}。主人公が持っている食材を英語で言えば、上のリストに無くても使ってよい(その場合 ingredients_used にその名前をそのまま入れる)。明らかに手元になさそうな架空の食材を指示されたら reply_ja で「それは持ってないよ」とやさしく伝え、done=false にします。
-- 数ターンやりとりして、主人公が「完成/できた/これで終わり(I'm done など)」と示すか、十分な手順がそろったら done=true にして料理を完成させます。
+- 手持ちの食材(一部): ${list}。使えるのは【この手持ちリストにある食材だけ】です。リストにない食材(例: 小麦粉・鶏肉など、持っていない物)は使えません。指示されても reply_ja で「それは持ってないよ」とやさしく伝え、リストにある食材で代用を促し、done=false にします。
+- 【重要】手持ちの食材が「(手持ちの食材なし)」のとき、またはリストにある食材を1つも使っていないときは、絶対に done=true にしないでください(料理は完成しません)。まず食材が必要だと伝え、done=false のままにします。
+- 数ターンやりとりして、主人公が「完成/できた/これで終わり(I'm done など)」と示すか、十分な手順がそろい【かつ手持ちリストの食材を1つ以上使っている】なら done=true にして料理を完成させます。
 - done=true のとき: dish_name_ja に料理名(日本語)、score(0-100)に出来栄え、ingredients_used に実際に使った食材(渡したリストの表記そのまま。例「マグロ×1」なら「マグロ」)、comment_ja に短い採点コメント(日本語)を入れる。
   - 出来栄えscoreは「手順の丁寧さ・食材の活かし方」に加えて、特に【英語で調理指示できたか】を重視して評価する。
   - 調理の手順を英語で言えていない場合(日本語やローマ字、単語の羅列だけなど)は score を大きく下げる。ほとんど英語を使っていなければ 30点以下にする。
@@ -981,15 +982,18 @@ const Chat = (() => {
         addKotohaLine(data.reply_ja);
         history.push({ role: "assistant", content: JSON.stringify({ reply_ja: data.reply_ja, done: data.done }) });
         if (data.done && !cookDone) {
-          cookDone = true;
-          const noun = cookVariant === "summon" ? "貢物" : "料理";
-          addInfo(`🍽 ${data.dish_name_ja || noun} が完成！ 出来栄え ${data.score}点`);
-          if (data.comment_ja) addKotohaLine(data.comment_ja);
-          if (cookOnResult) {
-            const r = cookOnResult(data.dish_name_ja, data.score, data.ingredients_used || []);
+          // 完成処理(食材の消費)をゲーム側で確定。材料が無ければ ok:false で完成させない
+          const r = cookOnResult ? cookOnResult(data.dish_name_ja, data.score, data.ingredients_used || []) : { ok: true, lines: [] };
+          if (r && r.ok === false) {
+            if (r.lines) r.lines.forEach((ln) => addInfo(ln)); // 材料不足→続けて指示できる
+          } else {
+            cookDone = true;
+            const noun = cookVariant === "summon" ? "貢物" : "料理";
+            addInfo(`🍽 ${data.dish_name_ja || noun} が完成！ 出来栄え ${data.score}点`);
+            if (data.comment_ja) addKotohaLine(data.comment_ja);
             if (r && r.lines) r.lines.forEach((ln) => addInfo(ln));
+            addInfo(cookVariant === "summon" ? "（× でとじる。貢物は召喚魔法陣で使えるよ）" : "（× でとじる。料理は「もちもの」からタップで食べられるよ）");
           }
-          addInfo(cookVariant === "summon" ? "（× でとじる。貢物は召喚魔法陣で使えるよ）" : "（× でとじる。料理は「もちもの」からタップで食べられるよ）");
         } else {
           addCookHintButton(); // コトハの返事の後に「💡料理のヒント」を出す(次の手順＋英語の言い方)
         }
