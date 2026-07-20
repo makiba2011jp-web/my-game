@@ -1,0 +1,56 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>好感度ボーナス — 異世界英語クエスト</title><style>
+ :root{color-scheme:dark;}body{margin:0;padding:16px;background:#0a1226;color:#e8eefc;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","MS Gothic",system-ui,sans-serif;line-height:1.55;}
+ h1{font-size:22px;margin:4px 0 10px;}h2{font-size:16px;margin:24px 0 8px;padding:6px 10px;background:#16284f;border-left:4px solid #ffd24a;border-radius:4px;}
+ .note{font-size:12px;color:#9fb3d8;background:#11203f;padding:8px 12px;border-radius:8px;margin-bottom:10px;}
+ .cards{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;}
+ .card{flex:1 1 220px;background:#11203f;border:1px solid #28406f;border-radius:10px;padding:10px 14px;}
+ .card .t{font-size:13px;color:#9fd6ff;}.card .v{font-size:20px;font-weight:bold;color:#ffd24a;}
+ table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px;}
+ th{text-align:left;color:#9fd6ff;font-size:12px;border-bottom:2px solid #2a3a6b;padding:6px 8px;}
+ td{padding:8px;border-bottom:1px solid #18264a;vertical-align:top;}tr:nth-child(even) td{background:#0e1a35;}
+ .npc{font-weight:bold;white-space:nowrap;}.npc .place{display:block;font-weight:normal;color:#8a9bc0;font-size:11px;}
+ .food{color:#9fffcf;}.buff{color:#fff;}.eff{display:block;color:#9fb3d8;font-size:11px;}
+ .tag{display:inline-block;font-size:10px;border-radius:5px;padding:1px 7px;margin-right:6px;color:#0a1226;font-weight:bold;}
+ .b-atk{background:#ff9b6b;}.b-def{background:#7bb0e0;}.b-hp{background:#7be0a0;}.b-exp{background:#c9a0ff;}.b-gold{background:#ffd24a;}
+ .num{text-align:right;font-family:ui-monospace,Menlo,monospace;width:70px;}.small{color:#9fb3d8;font-size:12px;}
+ .rule{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;}
+ .pill{background:#16284f;border:1px solid #28406f;border-radius:999px;padding:4px 12px;font-size:12px;}
+ .ng{color:#ff9b9b;}
+</style></head><body>
+<h1>💗 好感度ボーナス まとめ</h1>
+<div class="note">町の人と<b>英語で会話</b>すると好感度が上がり、<b>50</b>で食べ物のプレゼント、<b>100</b>で永続バフがもらえます。※game.js の現在の値から生成。</div>
+
+<h2>📈 好感度の上がり方</h2>
+<div class="rule">
+  <span class="pill">流暢＋8語以上 … <b>+5</b></span>
+  <span class="pill">流暢な英語 … <b>+3</b></span>
+  <span class="pill">自然な英語 … <b>+1</b></span>
+</div>
+<div class="rule">
+  <span class="pill ng">🙅 3語未満（短すぎ）… 無効</span>
+  <span class="pill ng">🙅 直前と似た文（繰り返し）… 無効</span>
+  <span class="pill ng">🙅 会話の流れに合わない … 無効</span>
+</div>
+<div class="note">好感度が上がると <b>20 / 50 / 80</b> でNPCの口調がどんどん親しくなります（上限100）。</div>
+
+<h2>🏆 節目のごほうび</h2>
+<div class="cards">
+  <div class="card"><div class="t">好感度 50</div><div class="v">🎁 食べ物のプレゼント</div><div class="small">そのNPCらしい特別料理。「もちもの」からタップで food を食べるとHP回復＋次の戦闘バフ。</div></div>
+  <div class="card"><div class="t">好感度 100</div><div class="v">🏅 永続バフ</div><div class="small">以後ずっと有効。装備とは別枠でステータス／獲得量に加算（そうび画面の下部に合計表示）。</div></div>
+</div>
+
+<h2>💯 全員と親友になったときの合計</h2>
+<div class="cards">
+  <div class="card"><div class="t">こうげき</div><div class="v">+15</div></div>
+  <div class="card"><div class="t">ぼうぎょ</div><div class="v">+9</div></div>
+  <div class="card"><div class="t">さいだいHP</div><div class="v">+62</div></div>
+  <div class="card"><div class="t">経験値</div><div class="v">+30%</div></div>
+  <div class="card"><div class="t">ゴールド</div><div class="v">+40%</div></div>
+</div>
+<table><thead><tr><th>バフの種類</th><th>人数</th><th>くれる人</th></tr></thead><tbody><tr><td>さいだいHP</td><td class="num">7人</td><td class="small">Marian、Hale、Coco、リリィ、Mina、Vera、Estelle</td></tr><tr><td>こうげき</td><td class="num">6人</td><td class="small">Tom、Borin、Dunn、Rex、Finn、Otto</td></tr><tr><td>ぼうぎょ</td><td class="num">4人</td><td class="small">Sal、Clara、Bruno、デン</td></tr><tr><td>ゴールド</td><td class="num">4人</td><td class="small">Greta、Gil、Pip、マルコ</td></tr><tr><td>経験値</td><td class="num">3人</td><td class="small">Edwin、Lyra、Fia</td></tr></tbody></table>
+
+<h2>👥 NPC別の報酬（24人）</h2>
+<table><thead><tr><th>NPC（いる場所）</th><th>好感度50：食べ物</th><th>好感度100：永続バフ</th></tr></thead><tbody><tr><td class="npc">宿屋の女将 Marian<span class="place">Inn（宿屋）</span></td><td class="food">🎁 Marianの朝食プレート<span class="eff">HP+60</span></td><td class="buff"><span class="tag b-hp">さいだいHP</span>女将のまかない<span class="eff">さいだいHP +10</span></td></tr><tr><td class="npc">料理人 Tom<span class="place">Restaurant（飲食店）</span></td><td class="food">🎁 Tom特製シチュー<span class="eff">HP+55 ／ 次の戦闘 こうげき+3</span></td><td class="buff"><span class="tag b-atk">こうげき</span>料理人の推し<span class="eff">こうげき +2</span></td></tr><tr><td class="npc">バーの主人 Sal<span class="place">Bar（バー）</span></td><td class="food">🎁 Salの夜のひと皿<span class="eff">HP+45 ／ 次の戦闘 ぼうぎょ+2</span></td><td class="buff"><span class="tag b-def">ぼうぎょ</span>バーの常連<span class="eff">ぼうぎょ +2</span></td></tr><tr><td class="npc">銀行員 Greta<span class="place">Bank（銀行）</span></td><td class="food">🎁 Gretaの金貨クッキー<span class="eff">HP+35</span></td><td class="buff"><span class="tag b-gold">ゴールド</span>銀行の優遇（ゴールド+10%）<span class="eff">ゴールド +10%</span></td></tr><tr><td class="npc">先生 Edwin<span class="place">School（学校）</span></td><td class="food">🎁 Edwinの勉強サンド<span class="eff">HP+40</span></td><td class="buff"><span class="tag b-exp">経験値</span>先生の教え（経験値+10%）<span class="eff">経験値 +10%</span></td></tr><tr><td class="npc">医者 Hale<span class="place">Hospital（病院）</span></td><td class="food">🎁 Haleの薬草スープ<span class="eff">HP+70</span></td><td class="buff"><span class="tag b-hp">さいだいHP</span>医者のケア<span class="eff">さいだいHP +10</span></td></tr><tr><td class="npc">シスター Clara<span class="place">Church（教会）</span></td><td class="food">🎁 Claraの祝福のパン<span class="eff">HP+50 ／ 次の戦闘 ぼうぎょ+2</span></td><td class="buff"><span class="tag b-def">ぼうぎょ</span>聖なる加護<span class="eff">ぼうぎょ +2</span></td></tr><tr><td class="npc">美容師 Coco<span class="place">Salon（美容院）</span></td><td class="food">🎁 Cocoのベリータルト<span class="eff">HP+45</span></td><td class="buff"><span class="tag b-hp">さいだいHP</span>美容の秘訣<span class="eff">さいだいHP +8</span></td></tr><tr><td class="npc">警官 Bruno<span class="place">Police（警察署）</span></td><td class="food">🎁 Brunoの携行食<span class="eff">HP+50 ／ 次の戦闘 ぼうぎょ+3</span></td><td class="buff"><span class="tag b-def">ぼうぎょ</span>衛兵の守り<span class="eff">ぼうぎょ +3</span></td></tr><tr><td class="npc">花屋 リリィ<span class="place">Flower Shop（花屋）</span></td><td class="food">🎁 Lilyの花のはちみつ<span class="eff">HP+45 ／ 次の戦闘 こうげき+2</span></td><td class="buff"><span class="tag b-hp">さいだいHP</span>花の癒し<span class="eff">さいだいHP +8</span></td></tr><tr><td class="npc">鍛冶屋 Borin<span class="place">Smithy（鍛冶屋）</span></td><td class="food">🎁 Borinの鉄板串焼き<span class="eff">HP+55 ／ 次の戦闘 こうげき+3</span></td><td class="buff"><span class="tag b-atk">こうげき</span>鍛冶の心得<span class="eff">こうげき +3</span></td></tr><tr><td class="npc">吟遊詩人 Lyra<span class="place">町の広場</span></td><td class="food">🎁 Lyraの旅のパイ<span class="eff">HP+45</span></td><td class="buff"><span class="tag b-exp">経験値</span>詩人の記憶術（経験値+10%）<span class="eff">経験値 +10%</span></td></tr><tr><td class="npc">武器屋 Dunn<span class="place">Weapon Shop（武器屋）</span></td><td class="food">🎁 Dunnの豪快な肉焼き<span class="eff">HP+55 ／ 次の戦闘 こうげき+3</span></td><td class="buff"><span class="tag b-atk">こうげき</span>武器屋の目利き<span class="eff">こうげき +2</span></td></tr><tr><td class="npc">素材屋 Gil<span class="place">Material Shop（素材屋）</span></td><td class="food">🎁 Gilの行商ミックス<span class="eff">HP+40</span></td><td class="buff"><span class="tag b-gold">ゴールド</span>商人の目利き（ゴールド+10%）<span class="eff">ゴールド +10%</span></td></tr><tr><td class="npc">受付嬢 Fia<span class="place">Guild（ギルド）</span></td><td class="food">🎁 Fiaのギルド弁当<span class="eff">HP+50</span></td><td class="buff"><span class="tag b-exp">経験値</span>ギルドの後押し（経験値+10%）<span class="eff">経験値 +10%</span></td></tr><tr><td class="npc">冒険者 Rex<span class="place">Guild（ギルド）</span></td><td class="food">🎁 Rexの肉の宴<span class="eff">HP+60 ／ 次の戦闘 こうげき+4</span></td><td class="buff"><span class="tag b-atk">こうげき</span>歴戦の構え<span class="eff">こうげき +3</span></td></tr><tr><td class="npc">冒険者 Mina<span class="place">Guild（ギルド）</span></td><td class="food">🎁 Minaの魔力の茶<span class="eff">HP+45</span></td><td class="buff"><span class="tag b-hp">さいだいHP</span>魔力循環<span class="eff">さいだいHP +8</span></td></tr><tr><td class="npc">冒険者 Pip<span class="place">Guild（ギルド）</span></td><td class="food">🎁 Pipの幸運おにぎり<span class="eff">HP+40</span></td><td class="buff"><span class="tag b-gold">ゴールド</span>新人の幸運（ゴールド+10%）<span class="eff">ゴールド +10%</span></td></tr><tr><td class="npc">魚屋 Finn<span class="place">Food Market（食料品店）</span></td><td class="food">🎁 Finnの活き造り<span class="eff">HP+55 ／ 次の戦闘 こうげき+2</span></td><td class="buff"><span class="tag b-atk">こうげき</span>海の恵み<span class="eff">こうげき +2</span></td></tr><tr><td class="npc">八百屋 Vera<span class="place">Food Market（食料品店）</span></td><td class="food">🎁 Veraの畑のサラダ<span class="eff">HP+50 ／ 次の戦闘 ぼうぎょ+2</span></td><td class="buff"><span class="tag b-hp">さいだいHP</span>野菜の力<span class="eff">さいだいHP +8</span></td></tr><tr><td class="npc">肉屋 Otto<span class="place">Food Market（食料品店）</span></td><td class="food">🎁 OttoのBBQ盛り<span class="eff">HP+65 ／ 次の戦闘 こうげき+4</span></td><td class="buff"><span class="tag b-atk">こうげき</span>肉の力<span class="eff">こうげき +3</span></td></tr><tr><td class="npc">食料品店 マルコ<span class="place">Food Market（食料品店）</span></td><td class="food">🎁 Marcoの食料品セット<span class="eff">HP+45</span></td><td class="buff"><span class="tag b-gold">ゴールド</span>常連割引（ゴールド+10%）<span class="eff">ゴールド +10%</span></td></tr><tr><td class="npc">不動産屋 Estelle<span class="place">Real Estate（不動産屋）</span></td><td class="food">🎁 Estelleの新築祝いケーキ<span class="eff">HP+50</span></td><td class="buff"><span class="tag b-hp">さいだいHP</span>我が家の安心<span class="eff">さいだいHP +10</span></td></tr><tr><td class="npc">家電屋 デン<span class="place">Appliance Shop（家電屋）</span></td><td class="food">🎁 Denの冷たいデザート<span class="eff">HP+45 ／ 次の戦闘 ぼうぎょ+2</span></td><td class="buff"><span class="tag b-def">ぼうぎょ</span>ひんやり装備<span class="eff">ぼうぎょ +2</span></td></tr></tbody></table>
+
+<div class="note">※ 上記に無いNPCと親友になった場合は共通報酬（🎁手作りのおべんとう／🏅町の人の信頼）になります。</div>
+</body></html>
