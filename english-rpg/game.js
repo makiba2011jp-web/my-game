@@ -962,6 +962,13 @@ if (sfxBtn) {
   updateSfxBtn();
   sfxBtn.addEventListener("click", (e) => { e.preventDefault(); if (window.Sfx) { const on = Sfx.toggle(); if (on) Sfx.play("confirm"); } updateSfxBtn(); });
 }
+// BGMのON/OFF
+const bgmBtn = document.getElementById("bgm-btn");
+function updateBgmBtn() { if (bgmBtn) bgmBtn.textContent = (window.Bgm && Bgm.isEnabled()) ? "🎵 BGM: ON" : "🔇 BGM: OFF"; }
+if (bgmBtn) {
+  updateBgmBtn();
+  bgmBtn.addEventListener("click", (e) => { e.preventDefault(); if (window.Bgm) Bgm.toggle(); updateBgmBtn(); });
+}
 
 
 // 画面上の情報パネル(Lv/HP・いまの目的・もちもの・ギルド依頼)の表示/非表示
@@ -3358,12 +3365,9 @@ function winBattle() {
   else leveled = gainExp(battle.exp);
   sfx("win"); if (leveled.length) setTimeout(() => sfx("levelup"), 550);
   const wasBoss = battle.isBoss;
-  const bossKind = battle.bossKind;
   showMessage([...lines, ...leveled], () => {
     battle = null;
-    if (wasBoss && bossKind === "maou") { afterMaouDefeated(); return; }        // 魔王撃破→真魔王へ
-    if (wasBoss && bossKind === "shinmaou") { afterShinMaouDefeated(); return; } // 真魔王撃破→エンディング
-    if (wasBoss) { state = STATE.CLEAR; }
+    if (wasBoss) { state = STATE.CLEAR; } // ※現在ストーリーの魔王戦はコマンド式(beginBossBattle)を使用
     else if (autoEncounter) { startBattle(false); } // オート: 即・次の戦闘(フィールドでも洞窟/塔でも)
     else if (zone) { state = STATE.TOWN; } // 手動: 洞窟/塔に戻る
     else { state = STATE.FIELD; }
@@ -3379,26 +3383,28 @@ function startMaouEncounter() {
     { who: "魔王", lines: ["無限に続く 単語の海…。"] },
     { who: "魔王", lines: ["ネイティブスピーカーの速さに ついていけない…。"] },
     { who: "魔王", lines: ["いやだ…。 もう…。 英語は 嫌だーーー！"] },
-  ], () => { cutsceneDraw = null; messageSpeaker = null; startBattle(true, BOSS, "maou"); });
+  ], () => { cutsceneDraw = null; messageSpeaker = null; beginBossBattle("maou", { returnState: STATE.TOWN, onWin: afterMaouDefeated }); });
 }
 // 魔王撃破 → セリフ → 真魔王へ変身して再戦
-function afterMaouDefeated() {
+function afterMaouDefeated(leveled) {
   for (const k in keys) keys[k] = false;
   player.hp = player.maxhp; // 最終決戦: 第2形態の前に立て直す
   cutsceneDraw = drawArea;
   playCutscene([
+    ...((leveled && leveled.length) ? [{ who: null, lines: leveled }] : []),
     { who: "魔王", lines: ["Can't... I can't...  永遠に Can't のまま…。"] },
     { who: "魔王", lines: ["単語は覚えた。 文法も勉強した。 なのに…喉から出てこない！！"] },
     { who: "魔王", lines: ["悔しい…悔しい…悔しい！！", "世界は英語であふれているのに、俺は 何も言えずに消えた！"] },
     { who: null, lines: ["魔王の怨念が ふくれ上がり、", "“真魔王” へと 姿を変えた——！"] },
     { who: "コトハ", lines: ["まだ終わってない…！ HPを立て直したよ、いくよ相棒！"] },
-  ], () => { cutsceneDraw = null; messageSpeaker = null; startBattle(true, TRUE_BOSS, "shinmaou"); });
+  ], () => { cutsceneDraw = null; messageSpeaker = null; beginBossBattle("shinmaou", { returnState: STATE.TOWN, onWin: afterShinMaouDefeated }); });
 }
 // 真魔王撃破 → セリフ → ゲート崩壊 → エンディング
-function afterShinMaouDefeated() {
+function afterShinMaouDefeated(leveled) {
   for (const k in keys) keys[k] = false;
   cutsceneDraw = drawArea;
   playCutscene([
+    ...((leveled && leveled.length) ? [{ who: null, lines: leveled }] : []),
     { who: "真魔王", lines: ["あの人は なんと言ったんだ…。 最後の言葉…。", "理解できずに 死ぬなんて。"] },
     { who: "真魔王", lines: ["発音…むずかしかった…。 でも…。", "もっと 努力すべきだった…。"] },
     { who: null, lines: ["真魔王は 静かに消えていった。", "積もった 転生者たちの魂が、光となって 解き放たれる——"] },
@@ -3437,6 +3443,8 @@ const AREA_BOSSES = {
   icequeen: { name: "氷の女王の亡霊", color: "#8ac8e8", hp: 340, atk: 26, exp: 170 }, // 氷の遺跡の碑文を守るボス(ストーリー)
   fireemperor: { name: "炎の皇帝の亡霊", color: "#e0552a", hp: 420, atk: 30, exp: 240 }, // 炎の遺跡の碑文を守るボス(ストーリー)
   wraith: { name: "嘆きの亡霊", color: "#7a6a9a", hp: 480, atk: 33, exp: 300 }, // 天空の塔の祭壇を守るボス(ストーリー)
+  maou:     { name: "魔王",   color: "#c0392b", hp: 500, atk: 34, exp: 400 }, // 最終決戦(第1形態)
+  shinmaou: { name: "真魔王", color: "#7a1f2b", hp: 620, atk: 40, exp: 600 }, // 最終決戦(第2形態)
 };
 // 古代の遺跡(最初のダンジョン)の碑文の位置。ここにエンシェントドラゴンが待つ。
 const ANCIENT_TILE = { tx: 7, ty: 1 };
@@ -3468,6 +3476,7 @@ function beginBossBattle(bossKey, opts) {
   const bl = (mealBuff.atk || mealBuff.def) ? [`料理の効果！ ${mealBuff.atk ? `こうげき+${mealBuff.atk} ` : ""}${mealBuff.def ? `ぼうぎょ+${mealBuff.def}` : ""}`] : [];
   mealBuff = { atk: 0, def: 0 };
   bossBattle = {
+    bossKey, // BGM/演出の出し分け用
     name: b.name, color: b.color, ehp: b.hp, emaxhp: b.hp, eatk: b.atk, exp: b.exp,
     questId: opts.questId || null, onWin: opts.onWin || null, returnState: opts.returnState || STATE.FIELD,
     sel: 0, itemSel: 0, summonSel: 0, phase: "resolve", guard: false,
@@ -3587,7 +3596,7 @@ function bossCommand(cmd) {
   }
   bb.phase = "resolve"; bb.guard = false;
   if (cmd === "flee") {
-    if (rnd() < 0.5) { cutsceneDraw = null; bossBattle = null; battleBuff = { atk: 0, def: 0 }; showMessage([`${player.name}は うまく にげだした！`], () => { state = STATE.FIELD; }); return; }
+    if (rnd() < 0.5) { const rs = bb.returnState || STATE.FIELD; cutsceneDraw = null; bossBattle = null; battleBuff = { atk: 0, def: 0 }; showMessage([`${player.name}は うまく にげだした！`], () => { state = rs; }); return; }
     bossSay([`${player.name}は にげようとした… でも回りこまれた！`], () => bossBeastPhase());
     return;
   }
@@ -3799,9 +3808,33 @@ function shuffle(arr) {
 
 // ===== 更新ループ =====
 let last = 0;
+// ===== BGM: 今の状況に合った曲を選ぶ(毎フレーム呼んでOK。同じ曲なら何もしない) =====
+let bgmAreaKey = "field"; // 直前にいた探索エリア(メッセージ/店などの一時画面でも曲を保つ)
+function currentBgmKey() {
+  if (state === STATE.TITLE || state === STATE.NAME) return "title";
+  if (state === STATE.CLEAR) return "ending";
+  if (state === STATE.GAMEOVER) return null; // 無音
+  if (bossBattle) {
+    const k = bossBattle.bossKey;
+    // ストーリーボスは専用曲、ギルド討伐依頼のエリアボスはエリア別の大討伐曲
+    if (["ancient", "icequeen", "fireemperor", "wraith", "maou", "shinmaou"].includes(k)) return "story_" + k;
+    return "areaboss_" + (zone || "field");
+  }
+  if (battle) return "battle_" + (zone || "field");
+  // 探索エリアを記憶(一時画面ではここを通らず直前の曲を維持)
+  if (zone) bgmAreaKey = zone;
+  else if (state === STATE.FIELD) bgmAreaKey = "field";
+  else if (state === STATE.TOWN) bgmAreaKey = "town";
+  return bgmAreaKey;
+}
+function updateBgm() {
+  if (!window.Bgm) return;
+  const k = currentBgmKey();
+  if (k) Bgm.play(k); else Bgm.stop();
+}
 function loop(t) {
   const dt = Math.min(40, t - last); last = t;
-  try { update(dt); render(); }
+  try { update(dt); render(); updateBgm(); }
   catch (e) { drawFatal(e); }
   requestAnimationFrame(loop); // 例外が出ても次フレームは必ず予約(固まり防止)
 }
