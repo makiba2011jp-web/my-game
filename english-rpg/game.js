@@ -3820,7 +3820,7 @@ function currentBgmKey() {
     if (["ancient", "icequeen", "fireemperor", "wraith", "maou", "shinmaou"].includes(k)) return "story_" + k;
     return "areaboss_" + (zone || "field");
   }
-  if (battle) return "battle_" + (zone || "field");
+  // ※通常の単語/文法バトルは専用BGMなし。フィールド(エリア)の曲をそのまま流し続ける
   // 探索エリアを記憶(一時画面ではここを通らず直前の曲を維持)
   if (zone) bgmAreaKey = zone;
   else if (state === STATE.FIELD) bgmAreaKey = "field";

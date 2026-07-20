@@ -20,7 +20,7 @@ const Bgm = (() => {
     dungeon:  "フィールド古代の遺跡.mp3",
     dungeon2: "フィールド氷の遺跡.mp3",
     castle:   "フィールド魔王城.mp3",
-    // 通常バトル(英単語/英文法)
+    // 通常バトル(英単語/英文法) ※現在は未使用: 戦闘中もエリアの曲を流し続ける設定
     battle_field:    "バトルフィールド単語.mp3",
     battle_dungeon:  "バトル古代の遺跡単語.mp3",
     battle_dungeon2: "バトル氷の遺跡単語.mp3",
