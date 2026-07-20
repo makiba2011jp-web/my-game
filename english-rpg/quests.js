@@ -11,6 +11,17 @@ const QUEST_POOL = [
   { type: "areaboss", boss: "ogre",   zone: "field", title_ja: "オーガ将軍の討伐",   desc_ja: "フィールドに現れたオーガ将軍を討伐しよう。受けるとフィールドに出現する。", flavor_en: "A brutish ogre general is rampaging in the fields. Take it down!" },
   { type: "areaboss", boss: "golem",  zone: "field", title_ja: "石巨人の討伐",       desc_ja: "フィールドをさまよう石巨人ゴーレムを討伐しよう。受けるとフィールドに出現する。", flavor_en: "A stone golem blocks the road. Smash it to pieces!" },
   { type: "areaboss", boss: "wyvern", zone: "field", title_ja: "ワイバーンの討伐",   desc_ja: "フィールドの空を舞うワイバーンを討伐しよう。受けるとフィールドに出現する。", flavor_en: "A fierce wyvern hunts travelers from the sky. Bring it down!" },
+  // 各エリアの大討伐依頼。そのエリアに行けるようになるとボードに並ぶ。
+  { type: "areaboss", boss: "ruinguard",   zone: "dungeon",  title_ja: "遺跡の守護像の討伐",   desc_ja: "古代の遺跡をさまよう守護像を討伐しよう。受けると古代の遺跡に出現する。", flavor_en: "An ancient statue guards the ruins and attacks explorers. Destroy it!" },
+  { type: "areaboss", boss: "spiderqueen", zone: "dungeon",  title_ja: "大蜘蛛の女王の討伐", desc_ja: "古代の遺跡に巣くう大蜘蛛の女王を討伐しよう。受けると古代の遺跡に出現する。", flavor_en: "A giant spider queen nests in the ruins. Clear her out!" },
+  { type: "areaboss", boss: "frostgiant",  zone: "dungeon2", title_ja: "フロストジャイアントの討伐", desc_ja: "氷の遺跡の巨人を討伐しよう。受けると氷の遺跡に出現する。", flavor_en: "A frost giant blocks the icy halls. Bring it down!" },
+  { type: "areaboss", boss: "icewyvern",   zone: "dungeon2", title_ja: "氷結のワイバーンの討伐", desc_ja: "氷の遺跡を舞う氷結のワイバーンを討伐しよう。受けると氷の遺跡に出現する。", flavor_en: "A frozen wyvern rules the ice ruins. Take it down!" },
+  { type: "areaboss", boss: "magmalord",   zone: "fire",     title_ja: "マグマロードの討伐",   desc_ja: "炎の遺跡の溶岩の主を討伐しよう。受けると炎の遺跡に出現する。", flavor_en: "The lord of magma burns everything near. Extinguish it!" },
+  { type: "areaboss", boss: "behemoth",    zone: "fire",     title_ja: "業火のベヒーモスの討伐", desc_ja: "炎の遺跡の巨獣ベヒーモスを討伐しよう。受けると炎の遺跡に出現する。", flavor_en: "A blazing behemoth rampages in the fire ruins. Stop it!" },
+  { type: "areaboss", boss: "archdemon",   zone: "tower",    title_ja: "アークデーモンの討伐", desc_ja: "天空の塔に巣くうアークデーモンを討伐しよう。受けると天空の塔に出現する。", flavor_en: "An archdemon haunts the sky tower. Banish it!" },
+  { type: "areaboss", boss: "skywarden",   zone: "tower",    title_ja: "天空の番人の討伐",     desc_ja: "天空の塔の番人を討伐しよう。受けると天空の塔に出現する。", flavor_en: "The warden of the tower bars the way. Defeat it!" },
+  { type: "areaboss", boss: "darkgeneral", zone: "castle",   title_ja: "魔王軍の将軍の討伐",   desc_ja: "魔王城に残る将軍を討伐しよう。受けると魔王城に出現する。", flavor_en: "A general of the demon army still holds the castle. Defeat him!" },
+  { type: "areaboss", boss: "blackknight", zone: "castle",   title_ja: "漆黒の騎士団長の討伐", desc_ja: "魔王城の騎士団長を討伐しよう。受けると魔王城に出現する。", flavor_en: "The black knight commander awaits in the castle. Bring him down!" },
 
   // ===== 討伐(hunt) =====
   { type: "hunt", enemy: "スライム",     count: 3, title_ja: "スライム退治",       desc_ja: "フィールドでスライムを3体たおそう。",       flavor_en: "Slimes are everywhere lately. Can you thin them out?" },

@@ -1481,8 +1481,8 @@ function tryMove(dir) {
   let nx = player.tx, ny = player.ty;
   if (dir === "up") ny--; else if (dir === "down") ny++;
   else if (dir === "left") nx--; else if (dir === "right") nx++;
-  // フィールドのボスにぶつかる → ボス戦開始(マスには乗らない)
-  if (state === STATE.FIELD && fieldBoss && nx === fieldBoss.tx && ny === fieldBoss.ty) { startBossBattle(); return; }
+  // 出現中の大討伐ボスにぶつかる → ボス戦開始(マスには乗らない)
+  if (inBossArea() && nx === fieldBoss.tx && ny === fieldBoss.ty) { startBossBattle(); return; }
   const ok = state === STATE.TOWN ? areaWalkable(nx, ny) : walkable(nx, ny);
   if (!ok) return;
   player.moving = true;
@@ -2043,11 +2043,28 @@ const QUEST_TYPE_WEIGHTS = [
   { type: "talk",     w: 55 },
 ];
 // 依頼プール(QUEST_POOL)からn件(重複なし)を、種類の重みに従って選んで実体化
+// そのエリアに行けるようになっているか(大討伐依頼の出現条件)
+function areaUnlockedForBoss(z) {
+  const st = quest ? quest.stage : 0;
+  switch (z) {
+    case "dungeon":  return st >= 17;                      // 古代の遺跡(碑文の依頼で解放)
+    case "dungeon2": return st >= 20;                      // 氷の遺跡(碑文の依頼で解放)
+    case "fire":     return st >= 23;                      // 炎の遺跡(碑文の依頼のころ)
+    case "tower":    return st >= 26;                      // 天空の塔(祭壇の依頼のころ)
+    case "castle":   return !!(quest && quest.castleUnsealed); // 魔王城(封印が解けてから)
+    default:         return true;                          // フィールド
+  }
+}
+// 依頼がいま出せるか(行けないエリアの大討伐依頼はボードに出さない)
+function questAvailable(def) {
+  if (def.type === "areaboss") return areaUnlockedForBoss(def.zone || "field");
+  return true;
+}
 function pickQuestsFromPool(n) {
-  // 種類ごとに分類してシャッフル
+  // 種類ごとに分類してシャッフル(いま出せる依頼だけ)
   const byType = { areaboss: [], hunt: [], talk: [] };
   for (const q of (typeof QUEST_POOL !== "undefined" ? QUEST_POOL : [])) {
-    if (byType[q.type]) byType[q.type].push(q);
+    if (byType[q.type] && questAvailable(q)) byType[q.type].push(q);
   }
   for (const t in byType) {
     const a = byType[t];
@@ -2096,7 +2113,7 @@ function boardSelect(row) {
     }
     boardCache.splice(row.idx, 1);
     sideQuests.push(q);
-    if (q.type === "areaboss") { spawnFieldBoss(q); board.msg = `『${q.title_ja}』受注！ フィールドにボスが出現！`; }
+    if (q.type === "areaboss") { spawnFieldBoss(q); board.msg = `『${q.title_ja}』受注！ ${AREA_BOSS_ZONE_JA[q.zone] || "フィールド"}にボスが出現！`; }
     else board.msg = `依頼『${q.title_ja}』を受けた！`;
     board.msgT = 260;
     if (board.sel >= boardRows().length) board.sel = boardRows().length - 1;
@@ -2136,7 +2153,7 @@ function cancelSideQuest(idx) {
 // 依頼1件の詳細テキスト行
 function questDetailLines(q) {
   const lines = [q.desc_ja];
-  if (q.type === "areaboss") lines.push(q.progress >= 1 ? "討伐完了！ ギルド受付に報告しよう" : `${q.bossName || "ボス"}がフィールドに出現中。会いに行ってたおそう！`);
+  if (q.type === "areaboss") lines.push(q.progress >= 1 ? "討伐完了！ ギルド受付に報告しよう" : `${q.bossName || "ボス"}が${AREA_BOSS_ZONE_JA[q.zone] || "フィールド"}に出現中。会いに行ってたおそう！`);
   else if (q.type === "hunt") lines.push(`進行: ${q.enemy === "any" ? "モンスター" : q.enemy} ${q.progress}/${q.count} 体`);
   else if (q.type === "fetch") lines.push("※アイテムを持って対象の人に話しかけよう");
   else if (q.type === "talk") lines.push(`お題: ${q.goal_ja || "英語で話す"}（英語で伝えよう）`);
@@ -3439,6 +3456,17 @@ const AREA_BOSSES = {
   ogre:    { name: "オーガ将軍",       color: "#7a4a2a", hp: 120, atk: 15, exp: 40 },
   golem:   { name: "ストーンゴーレム", color: "#7a7a86", hp: 165, atk: 13, exp: 46 },
   wyvern:  { name: "ワイバーン",       color: "#3a7a4a", hp: 140, atk: 18, exp: 52 },
+  // ===== 各エリアの大討伐依頼ボス(ギルド依頼。ストーリーボスとは別) =====
+  ruinguard:  { name: "遺跡の守護像",       color: "#8a7a6a", hp: 200, atk: 18, exp: 70 },  // 古代の遺跡
+  spiderqueen:{ name: "大蜘蛛の女王",       color: "#6a8a3a", hp: 185, atk: 20, exp: 76 },  // 古代の遺跡
+  frostgiant: { name: "フロストジャイアント", color: "#6aa0c0", hp: 250, atk: 21, exp: 96 },  // 氷の遺跡
+  icewyvern:  { name: "氷結のワイバーン",   color: "#3a8ac0", hp: 225, atk: 24, exp: 104 }, // 氷の遺跡
+  magmalord:  { name: "マグマロード",       color: "#d0402a", hp: 290, atk: 24, exp: 124 }, // 炎の遺跡
+  behemoth:   { name: "業火のベヒーモス",   color: "#b03828", hp: 315, atk: 26, exp: 136 }, // 炎の遺跡
+  archdemon:  { name: "アークデーモン",     color: "#5a2a8a", hp: 340, atk: 27, exp: 156 }, // 天空の塔
+  skywarden:  { name: "天空の番人",         color: "#7a4ad6", hp: 365, atk: 29, exp: 168 }, // 天空の塔
+  darkgeneral:{ name: "魔王軍の将軍",       color: "#4a5a6a", hp: 400, atk: 30, exp: 190 }, // 魔王城
+  blackknight:{ name: "漆黒の騎士団長",     color: "#3a3a5a", hp: 430, atk: 32, exp: 210 }, // 魔王城
   ancient: { name: "エンシェントドラゴン", color: "#b03a2a", hp: 260, atk: 22, exp: 120 }, // 古代の遺跡の碑文を守るボス(ストーリー)
   icequeen: { name: "氷の女王の亡霊", color: "#8ac8e8", hp: 340, atk: 26, exp: 170 }, // 氷の遺跡の碑文を守るボス(ストーリー)
   fireemperor: { name: "炎の皇帝の亡霊", color: "#e0552a", hp: 420, atk: 30, exp: 240 }, // 炎の遺跡の碑文を守るボス(ストーリー)
@@ -3454,8 +3482,29 @@ const ICE_TILE = { tx: 4, ty: 1 };
 const FIRE_INSCRIPTION_TILE = { tx: 7, ty: 1 };
 // 天空の塔(tower)の祭壇の位置。ここに嘆きの亡霊が待つ。
 const ALTAR_TILE = { tx: 6, ty: 1 };
-// 受注時: フィールドにボスを出現させる(草地の固定マス)
-function spawnFieldBoss(q) { fieldBoss = { tx: 7, ty: 11, boss: q.boss, questId: q.id }; }
+// エリアごとの大討伐ボスの出現マス(入口の通路上=見つけやすい場所)
+const AREA_BOSS_SPAWN = {
+  field:    { tx: 7, ty: 11 },
+  dungeon:  { tx: 3, ty: 9 },
+  dungeon2: { tx: 3, ty: 9 },
+  fire:     { tx: 3, ty: 9 },
+  tower:    { tx: 3, ty: 11 },
+  castle:   { tx: 3, ty: 10 },
+};
+const AREA_BOSS_ZONE_JA = { field: "フィールド", dungeon: "古代の遺跡", dungeon2: "氷の遺跡", fire: "炎の遺跡", tower: "天空の塔", castle: "魔王城" };
+// 受注時: 対象エリアにボスを出現させる
+function spawnFieldBoss(q) {
+  const z = q.zone || "field";
+  const s = AREA_BOSS_SPAWN[z] || AREA_BOSS_SPAWN.field;
+  fieldBoss = { tx: s.tx, ty: s.ty, boss: q.boss, questId: q.id, zone: z };
+}
+// いまプレイヤーがいるエリア(大討伐ボスの判定用)
+function currentBossZone() {
+  if (zone) return zone;                          // dungeon / dungeon2 / fire / tower / castle
+  return state === STATE.FIELD ? "field" : "town"; // 町の中にはボスは出さない
+}
+// 出現中のボスと同じエリアにいるか
+function inBossArea() { return !!fieldBoss && (fieldBoss.zone || "field") === currentBossZone(); }
 // 討伐済みをギルド受付に報告→達成
 function reportAreaBoss(q) {
   for (const k in keys) keys[k] = false;
@@ -3466,7 +3515,10 @@ function reportAreaBoss(q) {
 function bossSay(lines, after) { showMessage(lines, after); }
 function bossMenu() { bossBattle.phase = "menu"; bossBattle.sel = 0; state = STATE.BOSSBATTLE; }
 // エリアボス戦(依頼)を開始
-function startBossBattle() { beginBossBattle(fieldBoss.boss, { questId: fieldBoss.questId, returnState: STATE.FIELD }); }
+function startBossBattle() {
+  const z = fieldBoss.zone || "field";
+  beginBossBattle(fieldBoss.boss, { questId: fieldBoss.questId, returnState: z === "field" ? STATE.FIELD : STATE.TOWN });
+}
 // ボス戦の共通開始処理。opts: { questId, onWin(leveled), returnState }
 function beginBossBattle(bossKey, opts) {
   opts = opts || {};
@@ -4032,7 +4084,7 @@ function drawField() {
     }
   }
   // フィールドのボス(出現中)
-  if (fieldBoss) drawFieldBossMarker(fieldBoss.tx * TILE, fieldBoss.ty * TILE);
+  if (fieldBoss && (fieldBoss.zone || "field") === "field") drawFieldBossMarker(fieldBoss.tx * TILE, fieldBoss.ty * TILE);
   // プレイヤー
   drawHero(player.px - camX, player.py - camY, player.dir, player.anim);
   drawKotoha(player.px - camX + 30, player.py - camY + 8, 0.6); // 相棒コトハが隣を飛ぶ
@@ -4358,6 +4410,10 @@ function drawArea() {
   }
   if (a.castle) { // 玉座の奥に、元の世界へ帰る「帰還のゲート」
     drawReturnGate(6 * TILE - camX, 1 * TILE - camY);
+  }
+  // 遺跡/塔/城に出現中の大討伐ボス
+  if (inBossArea() && (fieldBoss.zone || "field") !== "field") {
+    drawFieldBossMarker(fieldBoss.tx * TILE - camX, fieldBoss.ty * TILE - camY);
   }
   // 扉ラベル(でぐち／家の名前)
   ctx.textAlign = "center"; ctx.font = "11px 'MS Gothic', monospace";
