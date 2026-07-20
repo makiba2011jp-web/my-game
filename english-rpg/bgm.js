@@ -51,9 +51,10 @@ const Bgm = (() => {
   }
 
   let enabled = localStorage.getItem("bgm") !== "off"; // 既定ON
-  const DEFAULT_VOL = 0.07; // BGMはかなり控えめ(効果音や読み上げの邪魔をしない音量)
-  let volume = parseFloat(localStorage.getItem("bgmvol") || String(DEFAULT_VOL));
-  if (!(volume >= 0 && volume <= 1)) volume = DEFAULT_VOL;
+  // BGMはかなり控えめ(効果音や読み上げの邪魔をしない音量)。
+  // ※音量スライダーが無いうちは localStorage を読まない(古い保存値で上書きされるのを防ぐ)
+  const DEFAULT_VOL = 0.05;
+  let volume = DEFAULT_VOL;
   let curKey = null;    // いま鳴らしたい曲(解決済みキー)
   let audio = null;     // 再生中の Audio
   let unlocked = false; // 初回ユーザー操作で解錠(ブラウザの自動再生制限)

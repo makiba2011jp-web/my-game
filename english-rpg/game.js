@@ -3378,7 +3378,7 @@ function startMaouEncounter() {
   for (const k in keys) keys[k] = false;
   cutsceneDraw = drawArea;
   playCutscene([
-    { who: "魔王", lines: ["……よく ここまで来たな。"] },
+    { who: "魔王", lines: ["つらい……。"] },
     { who: "魔王", lines: ["発音が…通じない悔しさ。"] },
     { who: "魔王", lines: ["無限に続く 単語の海…。"] },
     { who: "魔王", lines: ["ネイティブスピーカーの速さに ついていけない…。"] },
