@@ -64,16 +64,59 @@ const Bgm = (() => {
     if (!cache[key]) {
       const a = new Audio(BASE + encodeURIComponent(TRACKS[key]));
       a.loop = true; a.preload = "none";
+      a.crossOrigin = "anonymous";
       cache[key] = a;
     }
     return cache[key];
   }
+
+  // ===== 音量制御 =====
+  // iOS など一部のモバイルは audio.volume を無視する(端末の音量ボタンでしか変わらない)。
+  // そこで Web Audio の GainNode を経由させて、どの端末でも同じ音量になるようにする。
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let actx = null, gainNode = null;
+  let useGain = false;             // GainNode経由で音量制御できているか
+  const routed = new WeakSet();    // 既に GainNode に接続済みの Audio
+  function ensureCtx() {
+    if (!AC) return null;
+    if (!actx) {
+      try {
+        actx = new AC();
+        gainNode = actx.createGain();
+        gainNode.gain.value = volume;
+        gainNode.connect(actx.destination);
+      } catch (_) { actx = null; return null; }
+    }
+    if (actx.state === "suspended") { try { actx.resume(); } catch (_) {} }
+    return actx;
+  }
+  // Audio要素を GainNode に繋ぐ(成功したら true)
+  function route(a) {
+    if (routed.has(a)) return true;
+    if (!ensureCtx()) return false;
+    try {
+      actx.createMediaElementSource(a).connect(gainNode);
+      routed.add(a);
+      return true;
+    } catch (_) { return false; }
+  }
+  function applyVolume(a) {
+    if (route(a)) {
+      useGain = true;
+      a.volume = 1;                 // 音量は GainNode 側で制御(二重に下げない)
+      gainNode.gain.value = volume;
+    } else {
+      a.volume = volume;            // Web Audio が使えない環境はこちら
+    }
+  }
+
   // curKey/enabled/unlocked に合わせて再生状態を整える
   function apply() {
     if (!enabled || !curKey || !unlocked) { if (audio) audio.pause(); return; }
     const a = el(curKey);
     if (audio && audio !== a) { audio.pause(); try { audio.currentTime = 0; } catch (_) {} }
-    audio = a; a.volume = volume;
+    audio = a;
+    applyVolume(a);
     if (a.paused) { const p = a.play(); if (p && p.catch) p.catch(() => {}); }
   }
   // 曲を切り替える(同じ曲なら何もしない=毎フレーム呼んでOK)
@@ -96,12 +139,12 @@ const Bgm = (() => {
   function toggle() { setEnabled(!enabled); return enabled; }
   function setVolume(v) {
     volume = Math.max(0, Math.min(1, v));
-    localStorage.setItem("bgmvol", String(volume));
-    if (audio) audio.volume = volume;
+    if (useGain && gainNode) gainNode.gain.value = volume;
+    else if (audio) audio.volume = volume;
   }
 
-  // モバイル/自動再生対策: 最初のユーザー操作で解錠して再生開始
-  const onFirst = () => { if (!unlocked) { unlocked = true; apply(); } };
+  // モバイル/自動再生対策: 最初のユーザー操作で解錠して再生開始(AudioContextもここで起動)
+  const onFirst = () => { ensureCtx(); if (!unlocked) { unlocked = true; apply(); } };
   ["pointerdown", "touchend", "mousedown", "keydown"].forEach((ev) =>
     window.addEventListener(ev, onFirst, { passive: true }));
 
