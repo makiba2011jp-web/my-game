@@ -51,8 +51,9 @@ const Bgm = (() => {
   }
 
   let enabled = localStorage.getItem("bgm") !== "off"; // 既定ON
-  let volume = parseFloat(localStorage.getItem("bgmvol") || "0.35");
-  if (!(volume >= 0 && volume <= 1)) volume = 0.35;
+  const DEFAULT_VOL = 0.16; // BGMは控えめ(効果音や読み上げの邪魔をしない音量)
+  let volume = parseFloat(localStorage.getItem("bgmvol") || String(DEFAULT_VOL));
+  if (!(volume >= 0 && volume <= 1)) volume = DEFAULT_VOL;
   let curKey = null;    // いま鳴らしたい曲(解決済みキー)
   let audio = null;     // 再生中の Audio
   let unlocked = false; // 初回ユーザー操作で解錠(ブラウザの自動再生制限)
