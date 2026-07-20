@@ -2357,42 +2357,176 @@ window.getAffectionTone = (id) => {
 // chat.js から: 会話開始時に「単調判定」の直近履歴をリセット
 window.affectionOpen = (id) => { if (id) affectionRecent[id] = []; };
 // ===== 好感度の節目ごほうび =====
-// 50: そのNPCらしい「食べ物」をプレゼント(料理としてもちものに入り、タップで食べられる)
-// 100: 「永続バフ」を獲得(以後ずっと有効。装備とは別枠でステータス/獲得量に加算)
+// 50 : そのNPCらしい「食べ物」＋「小さな永続バフ」
+// 100: さらに豪華な「食べ物」＋「大きな永続バフ」
+//   f50/f100 = 料理(もちものからタップで食べられる) / b50/b100 = 永続バフ(装備とは別枠で常時加算)
 const AFFECTION_REWARDS = {
-  innkeeper:          { food: { name: "Marianの朝食プレート", heal: 60, atk: 0, def: 0 }, buff: { label: "女将のまかない", hp: 10 } },
-  restaurant:         { food: { name: "Tom特製シチュー",     heal: 55, atk: 3, def: 0 }, buff: { label: "料理人の推し", atk: 2 } },
-  bar:                { food: { name: "Salの夜のひと皿",     heal: 45, atk: 0, def: 2 }, buff: { label: "バーの常連", def: 2 } },
-  bank:               { food: { name: "Gretaの金貨クッキー", heal: 35, atk: 0, def: 0 }, buff: { label: "銀行の優遇（ゴールド+10%）", goldPct: 10 } },
-  school:             { food: { name: "Edwinの勉強サンド",   heal: 40, atk: 0, def: 0 }, buff: { label: "先生の教え（経験値+10%）", expPct: 10 } },
-  hospital:           { food: { name: "Haleの薬草スープ",     heal: 70, atk: 0, def: 0 }, buff: { label: "医者のケア", hp: 10 } },
-  church:             { food: { name: "Claraの祝福のパン",   heal: 50, atk: 0, def: 2 }, buff: { label: "聖なる加護", def: 2 } },
-  salon:              { food: { name: "Cocoのベリータルト",   heal: 45, atk: 0, def: 0 }, buff: { label: "美容の秘訣", hp: 8 } },
-  police:             { food: { name: "Brunoの携行食",       heal: 50, atk: 0, def: 3 }, buff: { label: "衛兵の守り", def: 3 } },
-  florist:            { food: { name: "Lilyの花のはちみつ",   heal: 45, atk: 2, def: 0 }, buff: { label: "花の癒し", hp: 8 } },
-  smith:              { food: { name: "Borinの鉄板串焼き",   heal: 55, atk: 3, def: 0 }, buff: { label: "鍛冶の心得", atk: 3 } },
-  bard:               { food: { name: "Lyraの旅のパイ",       heal: 45, atk: 0, def: 0 }, buff: { label: "詩人の記憶術（経験値+10%）", expPct: 10 } },
-  weaponshop:         { food: { name: "Dunnの豪快な肉焼き",   heal: 55, atk: 3, def: 0 }, buff: { label: "武器屋の目利き", atk: 2 } },
-  matshop:            { food: { name: "Gilの行商ミックス",     heal: 40, atk: 0, def: 0 }, buff: { label: "商人の目利き（ゴールド+10%）", goldPct: 10 } },
-  guild_receptionist: { food: { name: "Fiaのギルド弁当",       heal: 50, atk: 0, def: 0 }, buff: { label: "ギルドの後押し（経験値+10%）", expPct: 10 } },
-  adv_rex:            { food: { name: "Rexの肉の宴",           heal: 60, atk: 4, def: 0 }, buff: { label: "歴戦の構え", atk: 3 } },
-  adv_mina:           { food: { name: "Minaの魔力の茶",       heal: 45, atk: 0, def: 0 }, buff: { label: "魔力循環", hp: 8 } },
-  adv_pip:            { food: { name: "Pipの幸運おにぎり",     heal: 40, atk: 0, def: 0 }, buff: { label: "新人の幸運（ゴールド+10%）", goldPct: 10 } },
-  fish:               { food: { name: "Finnの活き造り",       heal: 55, atk: 2, def: 0 }, buff: { label: "海の恵み", atk: 2 } },
-  green:              { food: { name: "Veraの畑のサラダ",     heal: 50, atk: 0, def: 2 }, buff: { label: "野菜の力", hp: 8 } },
-  meat:               { food: { name: "OttoのBBQ盛り",         heal: 65, atk: 4, def: 0 }, buff: { label: "肉の力", atk: 3 } },
-  grocery:            { food: { name: "Marcoの食料品セット",   heal: 45, atk: 0, def: 0 }, buff: { label: "常連割引（ゴールド+10%）", goldPct: 10 } },
-  realestate:         { food: { name: "Estelleの新築祝いケーキ", heal: 50, atk: 0, def: 0 }, buff: { label: "我が家の安心", hp: 10 } },
-  appliance:          { food: { name: "Denの冷たいデザート",   heal: 45, atk: 0, def: 2 }, buff: { label: "ひんやり装備", def: 2 } },
+  innkeeper: {
+    f50:  { name: "Marianの朝食プレート", heal: 60 },
+    b50:  { label: "女将の気づかい", hp: 4 },
+    f100: { name: "Marianの特製フルコース", heal: 90, def: 2 },
+    b100: { label: "女将のまかない", hp: 10 },
+  },
+  restaurant: {
+    f50:  { name: "Tom特製シチュー", heal: 55, atk: 3 },
+    b50:  { label: "料理人の応援", atk: 1 },
+    f100: { name: "Tomの本気のフルコース", heal: 85, atk: 5 },
+    b100: { label: "料理人の推し", atk: 2 },
+  },
+  bar: {
+    f50:  { name: "Salの夜のひと皿", heal: 45, def: 2 },
+    b50:  { label: "バーの顔なじみ", def: 1 },
+    f100: { name: "Salの秘蔵つまみ盛り", heal: 75, def: 4 },
+    b100: { label: "バーの常連", def: 2 },
+  },
+  bank: {
+    f50:  { name: "Gretaの金貨クッキー", heal: 35 },
+    b50:  { label: "銀行のポイント（ゴールド+3%）", goldPct: 3 },
+    f100: { name: "Greta秘蔵の高級菓子", heal: 65 },
+    b100: { label: "銀行の優遇（ゴールド+10%）", goldPct: 10 },
+  },
+  school: {
+    f50:  { name: "Edwinの勉強サンド", heal: 40 },
+    b50:  { label: "先生のヒント（経験値+3%）", expPct: 3 },
+    f100: { name: "Edwinの合格弁当", heal: 70 },
+    b100: { label: "先生の教え（経験値+10%）", expPct: 10 },
+  },
+  hospital: {
+    f50:  { name: "Haleの薬草スープ", heal: 70 },
+    b50:  { label: "医者の見立て", hp: 4 },
+    f100: { name: "Hale特製の万能薬膳", heal: 110 },
+    b100: { label: "医者のケア", hp: 10 },
+  },
+  church: {
+    f50:  { name: "Claraの祝福のパン", heal: 50, def: 2 },
+    b50:  { label: "小さな祈り", def: 1 },
+    f100: { name: "Claraの聖餐スープ", heal: 80, def: 4 },
+    b100: { label: "聖なる加護", def: 2 },
+  },
+  salon: {
+    f50:  { name: "Cocoのベリータルト", heal: 45 },
+    b50:  { label: "美容の心得", hp: 3 },
+    f100: { name: "Cocoのごほうびパフェ", heal: 75 },
+    b100: { label: "美容の秘訣", hp: 8 },
+  },
+  police: {
+    f50:  { name: "Brunoの携行食", heal: 50, def: 3 },
+    b50:  { label: "衛兵の目配り", def: 1 },
+    f100: { name: "Brunoの精鋭レーション", heal: 80, def: 5 },
+    b100: { label: "衛兵の守り", def: 3 },
+  },
+  florist: {
+    f50:  { name: "Lilyの花のはちみつ", heal: 45, atk: 2 },
+    b50:  { label: "花の香り", hp: 3 },
+    f100: { name: "Lilyの花束ケーキ", heal: 75, atk: 3 },
+    b100: { label: "花の癒し", hp: 8 },
+  },
+  smith: {
+    f50:  { name: "Borinの鉄板串焼き", heal: 55, atk: 3 },
+    b50:  { label: "鍛冶場の熱", atk: 1 },
+    f100: { name: "Borinの豪火焼き", heal: 85, atk: 5 },
+    b100: { label: "鍛冶の心得", atk: 3 },
+  },
+  bard: {
+    f50:  { name: "Lyraの旅のパイ", heal: 45 },
+    b50:  { label: "詩の記憶（経験値+3%）", expPct: 3 },
+    f100: { name: "Lyraの祝祭のごちそう", heal: 75 },
+    b100: { label: "詩人の記憶術（経験値+10%）", expPct: 10 },
+  },
+  weaponshop: {
+    f50:  { name: "Dunnの豪快な肉焼き", heal: 55, atk: 3 },
+    b50:  { label: "武器屋の助言", atk: 1 },
+    f100: { name: "Dunnの勝利の宴", heal: 85, atk: 4 },
+    b100: { label: "武器屋の目利き", atk: 2 },
+  },
+  matshop: {
+    f50:  { name: "Gilの行商ミックス", heal: 40 },
+    b50:  { label: "商人のおまけ（ゴールド+3%）", goldPct: 3 },
+    f100: { name: "Gilの秘蔵珍味セット", heal: 70 },
+    b100: { label: "商人の目利き（ゴールド+10%）", goldPct: 10 },
+  },
+  guild_receptionist: {
+    f50:  { name: "Fiaのギルド弁当", heal: 50 },
+    b50:  { label: "ギルドの助言（経験値+3%）", expPct: 3 },
+    f100: { name: "Fiaの祝勝ディナー", heal: 80 },
+    b100: { label: "ギルドの後押し（経験値+10%）", expPct: 10 },
+  },
+  adv_rex: {
+    f50:  { name: "Rexの肉の宴", heal: 60, atk: 4 },
+    b50:  { label: "歴戦の助言", atk: 1 },
+    f100: { name: "Rexの伝説の丸焼き", heal: 95, atk: 6 },
+    b100: { label: "歴戦の構え", atk: 3 },
+  },
+  adv_mina: {
+    f50:  { name: "Minaの魔力の茶", heal: 45 },
+    b50:  { label: "魔力の巡り", hp: 3 },
+    f100: { name: "Minaの秘薬ポトフ", heal: 75 },
+    b100: { label: "魔力循環", hp: 8 },
+  },
+  adv_pip: {
+    f50:  { name: "Pipの幸運おにぎり", heal: 40 },
+    b50:  { label: "新人のお裾分け（ゴールド+3%）", goldPct: 3 },
+    f100: { name: "Pipの手作り弁当", heal: 70 },
+    b100: { label: "新人の幸運（ゴールド+10%）", goldPct: 10 },
+  },
+  fish: {
+    f50:  { name: "Finnの活き造り", heal: 55, atk: 2 },
+    b50:  { label: "海の香り", atk: 1 },
+    f100: { name: "Finnの大漁舟盛り", heal: 85, atk: 4 },
+    b100: { label: "海の恵み", atk: 2 },
+  },
+  green: {
+    f50:  { name: "Veraの畑のサラダ", heal: 50, def: 2 },
+    b50:  { label: "野菜のちから", hp: 3 },
+    f100: { name: "Veraの収穫祭サラダ", heal: 80, def: 4 },
+    b100: { label: "野菜の力", hp: 8 },
+  },
+  meat: {
+    f50:  { name: "OttoのBBQ盛り", heal: 65, atk: 4 },
+    b50:  { label: "肉の活力", atk: 1 },
+    f100: { name: "Ottoの超豪快BBQ", heal: 100, atk: 6 },
+    b100: { label: "肉の力", atk: 3 },
+  },
+  grocery: {
+    f50:  { name: "Marcoの食料品セット", heal: 45 },
+    b50:  { label: "常連のおまけ（ゴールド+3%）", goldPct: 3 },
+    f100: { name: "Marcoの特選食材箱", heal: 75 },
+    b100: { label: "常連割引（ゴールド+10%）", goldPct: 10 },
+  },
+  realestate: {
+    f50:  { name: "Estelleの新築祝いケーキ", heal: 50 },
+    b50:  { label: "住まいの安心", hp: 4 },
+    f100: { name: "Estelleの豪邸パーティー料理", heal: 85 },
+    b100: { label: "我が家の安心", hp: 10 },
+  },
+  appliance: {
+    f50:  { name: "Denの冷たいデザート", heal: 45, def: 2 },
+    b50:  { label: "ひんやり一息", def: 1 },
+    f100: { name: "Denの極冷スペシャル", heal: 75, def: 4 },
+    b100: { label: "ひんやり装備", def: 2 },
+  },
 };
-const DEFAULT_AFFECTION_REWARD = { food: { name: "手作りのおべんとう", heal: 45, atk: 1, def: 1 }, buff: { label: "町の人の信頼", hp: 6 } };
+const DEFAULT_AFFECTION_REWARD = {
+  f50:  { name: "手作りのおべんとう", heal: 45, atk: 1, def: 1 },
+  b50:  { label: "町の人の信頼", hp: 3 },
+  f100: { name: "心づくしのごちそう", heal: 75, atk: 2, def: 2 },
+  b100: { label: "町の人の厚い信頼", hp: 6 },
+};
 function affectionRewardOf(id) { return AFFECTION_REWARDS[id] || DEFAULT_AFFECTION_REWARD; }
+// permaBuffs の要素は "npcId@50" / "npcId@100"(旧セーブの "npcId" は @100 扱い)
+function permaBuffOf(key) {
+  const at = String(key).indexOf("@");
+  const id = at < 0 ? String(key) : String(key).slice(0, at);
+  const lv = at < 0 ? 100 : parseInt(String(key).slice(at + 1), 10);
+  const r = affectionRewardOf(id);
+  return lv >= 100 ? r.b100 : r.b50;
+}
 // 獲得済み永続バフの合計(ステータス加算＆獲得量%)
 function permaTotals() {
   const t = { atk: 0, def: 0, hp: 0, expPct: 0, goldPct: 0 };
   if (typeof AFFECTION_REWARDS === "undefined" || !permaBuffs) return t;
-  for (const id of permaBuffs) {
-    const b = affectionRewardOf(id).buff; if (!b) continue;
+  for (const key of permaBuffs) {
+    const b = permaBuffOf(key); if (!b) continue;
     t.atk += b.atk || 0; t.def += b.def || 0; t.hp += b.hp || 0;
     t.expPct += b.expPct || 0; t.goldPct += b.goldPct || 0;
   }
@@ -2403,39 +2537,43 @@ function addGold(n) {
   const v = Math.round(n * (1 + permaTotals().goldPct / 100));
   player.gold += v; return v;
 }
-// 節目(50/100)のごほうび。50=食べ物プレゼント / 100=永続バフ獲得
+function buffEffText(b) {
+  const e = [];
+  if (b.atk) e.push(`こうげき+${b.atk}`);
+  if (b.def) e.push(`ぼうぎょ+${b.def}`);
+  if (b.hp) e.push(`さいだいHP+${b.hp}`);
+  if (b.expPct) e.push(`経験値+${b.expPct}%`);
+  if (b.goldPct) e.push(`ゴールド+${b.goldPct}%`);
+  return e.join(" / ");
+}
+function foodEffText(f) {
+  const e = [`HP+${f.heal}`];
+  if (f.atk || f.def) e.push(`次の戦闘 ${f.atk ? `こうげき+${f.atk} ` : ""}${f.def ? `ぼうぎょ+${f.def}` : ""}`.trim());
+  return e.join(" ／ ");
+}
+// 節目(50/100)のごほうび。どちらも「食べ物プレゼント＋永続バフ」がもらえる
 function affectionMilestone(id, short, level) {
   const r = affectionRewardOf(id);
-  if (level === 100) {
-    if (permaBuffs.includes(id)) return [`🎉 ${short}と大の親友になった！`];
-    permaBuffs.push(id);
-    recomputeStats();
-    const b = r.buff;
-    const eff = [];
-    if (b.atk) eff.push(`こうげき+${b.atk}`);
-    if (b.def) eff.push(`ぼうぎょ+${b.def}`);
-    if (b.hp) eff.push(`さいだいHP+${b.hp}`);
-    if (b.expPct) eff.push(`経験値+${b.expPct}%`);
-    if (b.goldPct) eff.push(`ゴールド+${b.goldPct}%`);
-    if (canSave()) saveGame();
-    return [
-      `🎉 ${short}と大の親友になった！`,
-      `🏅 永続バフ「${b.label}」を獲得！（${eff.join(" / ")}）`,
-      "※ この効果はこれからずっと続くよ！",
-    ];
+  const isMax = level >= 100;
+  const f = isMax ? r.f100 : r.f50;
+  const b = isMax ? r.b100 : r.b50;
+  const lines = [isMax ? `🎉 ${short}と大の親友になった！` : `✨ ${short}とすっかり仲良し！`];
+  // 食べ物のプレゼント
+  if (f) {
+    dishes.push({ name: f.name, score: 100, heal: f.heal, atk: f.atk || 0, def: f.def || 0 });
+    if (dishes.length > 12) dishes.shift();
+    lines.push(`🎁 ${short}から「${f.name}」をもらった！（${foodEffText(f)}）`);
   }
-  // level 50: 食べ物のプレゼント
-  const f = r.food;
-  dishes.push({ name: f.name, score: 100, heal: f.heal, atk: f.atk || 0, def: f.def || 0 });
-  if (dishes.length > 12) dishes.shift();
+  // 永続バフ
+  const key = `${id}@${isMax ? 100 : 50}`;
+  if (b && !permaBuffs.includes(key)) {
+    permaBuffs.push(key);
+    recomputeStats();
+    lines.push(`🏅 永続バフ「${b.label}」を獲得！（${buffEffText(b)}）`);
+  }
+  lines.push(isMax ? "※ 料理は「もちもの」から、バフはずっと続くよ！" : "※「もちもの」からタップで食べられるよ");
   if (canSave()) saveGame();
-  const eff = [`HP+${f.heal}`];
-  if (f.atk || f.def) eff.push(`次の戦闘 ${f.atk ? `こうげき+${f.atk} ` : ""}${f.def ? `ぼうぎょ+${f.def}` : ""}`.trim());
-  return [
-    `✨ ${short}とすっかり仲良し！`,
-    `🎁 ${short}から「${f.name}」をもらった！（${eff.join(" ／ ")}）`,
-    "※「もちもの」からタップで食べられるよ",
-  ];
+  return lines;
 }
 // chat.js から毎ターン: 英語の質に応じて好感度を加算。文脈外/単調/短すぎは無効点。
 // 返り値 { lines:[表示文...] } または null。
