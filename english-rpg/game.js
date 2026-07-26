@@ -432,8 +432,8 @@ const DUNGEON_ENEMIES = [
   { name: "どくグモ",     hp: 24, atk: 6,  exp: 14, color: "#6a8a3a", drop: "Spider Silk" },
   { name: "ヘドロ",       hp: 28, atk: 6,  exp: 16, color: "#5a6a3a", drop: "Sludge Ooze" },
   { name: "がいこつ兵",   hp: 32, atk: 7,  exp: 19, color: "#e8e0c8", drop: "Old Bone" },
-  { name: "いわゴーレム", hp: 42, atk: 9,  exp: 27, color: "#8a7a6a", drop: "Mana Shard" },
-  { name: "ドラゴンの子", hp: 52, atk: 11, exp: 35, color: "#b0402a", drop: "Dragon Flame" },
+  { name: "デビルキノコ", hp: 42, atk: 9,  exp: 27, color: "#8a5a7a", drop: "Devil Spore" },
+  { name: "地獄イカ",     hp: 52, atk: 11, exp: 35, color: "#7a2a4a", drop: "Hell Ink" },
 ];
 
 // ===== タワー(フィールドの入口 Y から入る。熟語が出る) =====
@@ -461,7 +461,7 @@ AREAS.tower = {
 };
 // タワー専用の敵(魔法系・最も手強い)
 const TOWER_ENEMIES = [
-  { name: "まどうし",     hp: 30, atk: 8,  exp: 20, color: "#7a4ad6", drop: "Mana Powder" },
+  { name: "エビルパンプキン", hp: 30, atk: 8,  exp: 20, color: "#e08a2a", drop: "Cursed Pumpkin" },
   { name: "ガーゴイル",   hp: 36, atk: 8,  exp: 24, color: "#9a9aa6", drop: "Demon Guts" },
   { name: "よろいの亡霊", hp: 44, atk: 10, exp: 30, color: "#c0c0d4", drop: "Wraith Eye" },
   { name: "キメラ",       hp: 50, atk: 11, exp: 38, color: "#c08a3a", drop: "Chimera Meat" },
@@ -493,10 +493,10 @@ AREAS.castle = {
 };
 // 魔王城の敵(配下)。魔王(BOSS)は玉座Bで出現
 const CASTLE_ENEMIES = [
-  { name: "小悪魔",     hp: 34, atk: 8,  exp: 22, color: "#b04a6a", drop: "Devil Horn" },
+  { name: "バフォメット", hp: 34, atk: 8,  exp: 22, color: "#8a3a3a", drop: "Baphomet Horn" },
   { name: "ダークナイト", hp: 46, atk: 10, exp: 30, color: "#3a3a5a", drop: "Dark Metal" },
   { name: "魔導兵",     hp: 40, atk: 11, exp: 32, color: "#6a3a8a", drop: "Arcane Powder" },
-  { name: "デュラハン", hp: 54, atk: 12, exp: 40, color: "#4a5a6a", drop: "Dullahan Bone" },
+  { name: "ダークマター", hp: 54, atk: 12, exp: 40, color: "#2a2a3a", drop: "Dark Matter" },
 ];
 
 // ===== ダンジョン2 / 氷の洞窟(フィールドの Z から入る。専用単語が出る) =====
@@ -524,7 +524,7 @@ AREAS.dungeon2 = {
 const DUNGEON2_ENEMIES = [
   { name: "こおりスライム", hp: 30, atk: 7,  exp: 18, color: "#7ad0e0", drop: "Ancient Ice" },
   { name: "フロストウルフ", hp: 38, atk: 9,  exp: 24, color: "#aab8d8", drop: "Frost Meat" },
-  { name: "ゆきおんな",     hp: 44, atk: 10, exp: 30, color: "#dfeefc", drop: "Ice Soul" },
+  { name: "デビルスノーマン", hp: 44, atk: 10, exp: 30, color: "#cfe0ee", drop: "Devil Coal" },
   { name: "アイスゴーレム", hp: 56, atk: 12, exp: 40, color: "#6aa0c0", drop: "Ice Shard" },
   { name: "ブリザードドラゴン", hp: 66, atk: 14, exp: 52, color: "#3a8ac0", drop: "Ice Dragon Heart" },
 ];
@@ -553,7 +553,7 @@ AREAS.fire = {
 // 炎の遺跡の敵(氷の洞窟と同格〜やや上)
 const FIRE_ENEMIES = [
   { name: "ヒートスライム",   hp: 34, atk: 8,  exp: 20, color: "#ff8a5a", drop: "Ember Ash" },
-  { name: "マグマスライム",   hp: 40, atk: 10, exp: 26, color: "#e0552a", drop: "Cinder Shard" },
+  { name: "フレイムタイガー", hp: 40, atk: 10, exp: 26, color: "#e0552a", drop: "Flame Fang" },
   { name: "サラマンダー",     hp: 48, atk: 11, exp: 33, color: "#d0402a", drop: "Salamander Scale" },
   { name: "フレイムゴーレム", hp: 60, atk: 13, exp: 44, color: "#b03828", drop: "Magma Core" },
   { name: "フェニックス",     hp: 70, atk: 15, exp: 56, color: "#ff6a30", drop: "Phoenix Feather" },
@@ -621,7 +621,7 @@ function updateCamera(cols, rows) {
 const MATERIAL_PRICE = {
   "Slime Ooze": 8, "Bat Wing": 10, "Ghost Soul": 14, "Rusty Metal": 18,
   // 炎の遺跡のドロップ
-  "Ember Ash": 20, "Cinder Shard": 24, "Magma Core": 30, "Salamander Scale": 36, "Phoenix Feather": 48,
+  "Ember Ash": 20, "Flame Fang": 24, "Magma Core": 30, "Salamander Scale": 36, "Phoenix Feather": 48,
 };
 const SHOP_ITEMS = [
   { name: "Copper Sword", slot: "weapon", atk: 4, price: 30 },
@@ -3541,12 +3541,12 @@ const AREA_BOSSES = {
   ruinguard:  { name: "遺跡の守護像",       color: "#8a7a6a", hp: 200, atk: 18, exp: 70 },  // 古代の遺跡
   spiderqueen:{ name: "大蜘蛛の女王",       color: "#6a8a3a", hp: 185, atk: 20, exp: 76 },  // 古代の遺跡
   frostgiant: { name: "フロストジャイアント", color: "#6aa0c0", hp: 250, atk: 21, exp: 96 },  // 氷の遺跡
-  icewyvern:  { name: "氷結のワイバーン",   color: "#3a8ac0", hp: 225, atk: 24, exp: 104 }, // 氷の遺跡
+  icewyvern:  { name: "氷結の九尾狐",       color: "#3a8ac0", hp: 225, atk: 24, exp: 104 }, // 氷の遺跡
   magmalord:  { name: "マグマロード",       color: "#d0402a", hp: 290, atk: 24, exp: 124 }, // 炎の遺跡
   behemoth:   { name: "業火のベヒーモス",   color: "#b03828", hp: 315, atk: 26, exp: 136 }, // 炎の遺跡
   archdemon:  { name: "アークデーモン",     color: "#5a2a8a", hp: 340, atk: 27, exp: 156 }, // 天空の塔
   skywarden:  { name: "天空の番人",         color: "#7a4ad6", hp: 365, atk: 29, exp: 168 }, // 天空の塔
-  darkgeneral:{ name: "魔王軍の将軍",       color: "#4a5a6a", hp: 400, atk: 30, exp: 190 }, // 魔王城
+  darkgeneral:{ name: "ブラックドラゴン",   color: "#2a2a3a", hp: 400, atk: 30, exp: 190 }, // 魔王城
   blackknight:{ name: "漆黒の騎士団長",     color: "#3a3a5a", hp: 430, atk: 32, exp: 210 }, // 魔王城
   ancient: { name: "エンシェントドラゴン", color: "#b03a2a", hp: 260, atk: 22, exp: 120 }, // 古代の遺跡の碑文を守るボス(ストーリー)
   icequeen: { name: "氷の女王の亡霊", color: "#8ac8e8", hp: 340, atk: 26, exp: 170 }, // 氷の遺跡の碑文を守るボス(ストーリー)
