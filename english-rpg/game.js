@@ -570,8 +570,7 @@ function tileAtArea(tx, ty) {
 }
 // 素材屋は「トイレから出てくる」まで非表示。黒ネコは捜索中(目的⑩〜⑫)だけ出現。
 function npcVisible(n) {
-  if (n.id === "matshop") return !!(quest && quest.shopRevealed);
-  if (n.id === "cat") return !!(quest && quest.stage >= 9 && quest.stage <= 11);
+  if (n.id === "cat") return false; // 迷いネコクエストは廃止(新シナリオ)
   return true;
 }
 function npcAt(tx, ty) {
@@ -726,6 +725,7 @@ function shopRows() {
     rows.push({ kind: "sell", enabled: sv > 0, label: sv > 0 ? `素材を ぜんぶ売る（+${sv}G）` : "売る素材がない" });
   } else if (shop.type === "home") {
     HOME_PROPERTIES.forEach((p, i) => {
+      if (p.id === "cottage") return; // ボロ小屋はギルドから無料で入手するため販売しない
       const owned = ownedHome === p.id;
       const nm = `${p.en}（${p.name}）`;
       rows.push({
@@ -779,12 +779,7 @@ function shopSelect(row) {
   if (row.kind === "sell") {
     const v = addGold(materialsValue()); // 永続バフ(ゴールド+%)を反映
     materials = {};
-    if (quest && quest.stage === 3) {
-      quest.stage = 4; // 素材を売った→次は宿屋に泊まる
-      shop.msg = `素材を売って ${v}G！ コトハ「次は宿屋に泊まって休もう」`; shop.msgT = 300;
-    } else {
-      shop.msg = `素材を売って ${v}G 手に入れた！`; shop.msgT = 220;
-    }
+    shop.msg = `素材を売って ${v}G 手に入れた！`; shop.msgT = 220;
   } else if (row.kind === "buy") {
     const it = SHOP_ITEMS[row.idx];
     player.gold -= it.price; boughtItems.add(row.idx);
@@ -912,39 +907,31 @@ function wrapText(text, x, y, maxW, lineH) {
 }
 
 // ===== クエスト(目的)管理 =====
-function setupFirstQuest() { quest = { stage: 0, kills: 0, goal: 3, shopRevealed: false }; }
+function setupFirstQuest() { quest = { stage: 0, kills: 0 }; }
 function addMaterial(name) { materials[name] = (materials[name] || 0) + 1; }
 function questLines() {
   if (!quest) return null;
-  if (quest.stage === 0) return ["① 素材を3つ あつめる", `素材あつめ ${quest.kills}/${quest.goal}`];
-  if (quest.stage === 1) return ["② 町(赤い屋根)へ向かう", "素材あつめ 達成！"];
-  if (quest.stage === 2) return ["③ 素材屋の場所を町の人に聞く", '"Where is the material shop?"'];
-  if (quest.stage === 3) return ["④ 素材屋で素材を売る"];
-  if (quest.stage === 4) return ["⑤ 宿屋に泊まる"];
-  if (quest.stage === 5) return ["⑥ ギルドに登録する", "町中央のギルドの受付へ"];
-  if (quest.stage === 6) return ["⑦ ギルドの依頼を受ける", "ギルド受付に依頼を受けたいと伝えよう"];
-  if (quest.stage === 7) return ["⑧ 美容院の人に話を聞く", "迷いネコの特徴を聞き出そう"];
-  if (quest.stage === 8) return ["⑨ 町の人に迷いネコのことを聞く", "目撃情報をあつめよう"];
-  if (quest.stage === 9) return ["⑩ 迷いネコをとらえる", "教会の裏にネコがいるみたい"];
-  if (quest.stage === 10) return ["⑪ ネコの好きな食べ物を手に入れる", "食料品店の魚屋でTuna（マグロ）を買おう"];
-  if (quest.stage === 11) return ["⑫ Tuna（マグロ）で迷いネコをとらえる", "教会の裏のネコに近づこう"];
-  if (quest.stage === 12) return ["⑬ 迷いネコを美容院の人に届ける", "美容師Cocoに話しかけよう"];
-  if (quest.stage === 13) return ["⑭ ギルドに報告する", "ギルド受付に達成を報告しよう"];
-  if (quest.stage === 14) return ["⑮ ギルド依頼ボードが解放！", "依頼で力をつけよう"];
-  if (quest.stage === 15) return ["⑯ ギルドランク2を目指す", `いまランク${player.guildLevel}／依頼をこなそう`];
-  if (quest.stage === 16) return ["⑰ ギルドへ行く", "受付Fiaに話しかけよう"];
-  if (quest.stage === 17) return ["⑱ 古代の遺跡の碑文を調査する", "遺跡の奥のエンシェントドラゴンを倒そう"];
-  if (quest.stage === 18) return ["⑲ ギルドランク3を目指す", `いまランク${player.guildLevel}／依頼をこなそう`];
-  if (quest.stage === 19) return ["⑳ ギルドへ行く", "受付Fiaに話しかけよう"];
-  if (quest.stage === 20) return ["㉑ 氷の遺跡の碑文を調査する", "遺跡の奥の氷の女王の亡霊を倒そう"];
-  if (quest.stage === 21) return ["㉒ ギルドランク4を目指す", `いまランク${player.guildLevel}／依頼をこなそう`];
-  if (quest.stage === 22) return ["㉓ ギルドへ行く", "受付Fiaに話しかけよう"];
-  if (quest.stage === 23) return ["㉔ 炎の遺跡の碑文を調査する", "遺跡の奥の炎の皇帝の亡霊を倒そう"];
-  if (quest.stage === 24) return ["㉕ ギルドランク5を目指す", `いまランク${player.guildLevel}／依頼をこなそう`];
-  if (quest.stage === 25) return ["㉖ ギルドへ行く", "受付Fiaに話しかけよう"];
-  if (quest.stage === 26) return ["㉗ 天空の塔の祭壇を調査する", "塔の最上部の嘆きの亡霊を倒そう"];
-  if (quest.stage === 27) return ["㉘ 魔王城へ向かう", "封印が解けた！ 魔王城(C)へ乗り込もう"];
-  if (quest.stage === 28) return ["㉙ 魔王を倒して魂を解放する", "奥の玉座の魔王に挑もう"];
+  if (quest.stage === 0) return ["① 町(赤い屋根)へ向かう", "ギルドに登録しに行こう"];
+  if (quest.stage === 1) return ["② ギルドに登録する", "受付のFiaに話しかけよう"];
+  if (quest.stage === 2) return ["③ 南西のマイホームへ行く", "町の左下にもらった家があるよ"];
+  if (quest.stage === 3) return ["④ 机で勉強する", "家の机に近づいて話しかけよう"];
+  if (quest.stage === 4) return ["⑤ ギルドの依頼を受ける", "受付のFiaに話しかけよう"];
+  if (quest.stage === 5) return ["⑥ スライムを3体たおす", `フィールドで討伐 ${quest.kills || 0}/3`];
+  if (quest.stage === 6) return ["⑦ ギルドに報告する", "受付のFiaに話しかけよう"];
+  if (quest.stage === 15) return ["⑧ ギルドランク2を目指す", `いまランク${player.guildLevel}／依頼をこなそう`];
+  if (quest.stage === 16) return ["⑨ ギルドへ行く", "受付Fiaに話しかけよう"];
+  if (quest.stage === 17) return ["⑩ 古代の遺跡の碑文を調査する", "遺跡の奥のエンシェントドラゴンを倒そう"];
+  if (quest.stage === 18) return ["⑪ ギルドランク3を目指す", `いまランク${player.guildLevel}／依頼をこなそう`];
+  if (quest.stage === 19) return ["⑫ ギルドへ行く", "受付Fiaに話しかけよう"];
+  if (quest.stage === 20) return ["⑬ 氷の遺跡の碑文を調査する", "遺跡の奥の氷の女王の亡霊を倒そう"];
+  if (quest.stage === 21) return ["⑭ ギルドランク4を目指す", `いまランク${player.guildLevel}／依頼をこなそう`];
+  if (quest.stage === 22) return ["⑮ ギルドへ行く", "受付Fiaに話しかけよう"];
+  if (quest.stage === 23) return ["⑯ 炎の遺跡の碑文を調査する", "遺跡の奥の炎の皇帝の亡霊を倒そう"];
+  if (quest.stage === 24) return ["⑰ ギルドランク5を目指す", `いまランク${player.guildLevel}／依頼をこなそう`];
+  if (quest.stage === 25) return ["⑱ ギルドへ行く", "受付Fiaに話しかけよう"];
+  if (quest.stage === 26) return ["⑲ 天空の塔の祭壇を調査する", "塔の最上部の嘆きの亡霊を倒そう"];
+  if (quest.stage === 27) return ["⑳ 魔王城へ向かう", "封印が解けた！ 魔王城(C)へ乗り込もう"];
+  if (quest.stage === 28) return ["㉑ 魔王を倒して魂を解放する", "奥の玉座の魔王に挑もう"];
   return ["クエスト達成！ つづきは準備中…"];
 }
 
@@ -1163,9 +1150,9 @@ function onInput(k) {
     return;
   }
   if (state === STATE.QUIZ && quiz) {
-    if (k === "up") quiz.sel = (quiz.sel + 3) % 4;
-    else if (k === "down") quiz.sel = (quiz.sel + 1) % 4;
-    else if (k === "left" || k === "right") quiz.sel = (quiz.sel + 2) % 4;
+    const n = quiz.choices.length;
+    if (k === "up" || k === "left") quiz.sel = (quiz.sel - 1 + n) % n;
+    else if (k === "down" || k === "right") quiz.sel = (quiz.sel + 1) % n;
     else if (k === "confirm") answerQuiz(quiz.sel);
     return;
   }
@@ -1281,7 +1268,7 @@ function onTap(x, y) {
   }
   if (state === STATE.MESSAGE) { advanceMessage(); return; }
   if (state === STATE.QUIZ && quiz) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < quiz.choices.length; i++) {
       const col = i % 2, row = (i / 2) | 0;
       const bx = 16 + col * 232, by = 312 + row * 76;
       if (x >= bx && x <= bx + 216 && y >= by && y <= by + 64) { answerQuiz(i); return; }
@@ -1501,7 +1488,7 @@ function startGame(level) {
 function resetEncounter() { stepsToEncounter = 4 + Math.floor(rnd() * 6); }
 
 // ===== 開発用: 指定の目的(ステージ)から開始 =====
-// stage 0=①最初 1=②町へ 2=③聞込 3=④売る 4=⑤宿 5=⑥ギルド登録 6=⑦後
+// 序盤: 0=①町へ 1=②登録 2=③家 3=④勉強 4=⑤依頼 5=⑥スライム 6=⑦報告 / 15以降=⑧ランク2〜
 function devJump(stage) {
   if (!toeicLevel) toeicLevel = 500;
   updateLevelBtn();
@@ -1511,20 +1498,17 @@ function devJump(stage) {
   player.level = 3; player.baseMaxhp = 32; player.baseAtk = 10; player.baseDef = 0; player.hp = 32;
   equipped = { weapon: null, head: null, armor: null, shield: null, accessory: null }; recomputeStats();
   player.exp = 0; player.nextExp = 26; player.wins = 5;
-  player.guildLevel = stage >= 25 ? 5 : stage >= 22 ? 4 : stage >= 19 ? 3 : stage >= 16 ? 2 : stage >= 6 ? 1 : 0; player.guildPoints = 0;
+  player.guildLevel = stage >= 25 ? 5 : stage >= 22 ? 4 : stage >= 19 ? 3 : stage >= 16 ? 2 : stage >= 1 ? 1 : 0; player.guildPoints = 0;
   boughtItems = new Set();
-  quest = { stage, kills: stage === 0 ? 0 : 3, goal: 3, shopRevealed: stage >= 3 };
-  if (stage >= 27) quest.castleUnsealed = true; // ㉘以降: 魔王城の封印は解除済み
-  reconcileGuildStory(); // 新ステージ(⑯以降)でもランク整合をとる
-  materials = (stage === 2 || stage === 3) ? { "Slime Ooze": 3, "Bat Wing": 1, "Ghost Soul": 1 } : {};
-  player.gold = stage >= 4 ? 80 : 0;
-  // 迷いネコクエストの持ち物・ネコ位置を段階に合わせて用意
+  quest = { stage, kills: 0 };
+  if (stage >= 27) quest.castleUnsealed = true; // ⑳以降: 魔王城の封印は解除済み
+  reconcileGuildStory(); // 新ステージ(⑧以降)でもランク整合をとる
+  materials = stage >= 6 ? { "Slime Ooze": 3, "Bat Wing": 1 } : {};
+  player.gold = stage >= 6 ? 80 : 0;
   bag = {};
-  if (stage === 11) bag["Tuna"] = 1;          // ⑫: Tuna(マグロ)所持済みで開始(捕獲を試せる)
-  if (stage === 12) bag["迷いネコ"] = 1;        // ⑬: 捕獲済みのネコを所持(届けられる)
-  catSpot = 0; CAT.tx = CAT_SPOTS[0][0]; CAT.ty = CAT_SPOTS[0][1];
   board = null; boardCache = null; sideQuests = []; questLog = null;
-  wordCorrect = {}; metNPCs = new Set(); npcAffection = {}; permaBuffs = []; affectionRecent = {}; ownedHome = null; refreshHome();
+  wordCorrect = {}; metNPCs = new Set(); npcAffection = {}; permaBuffs = []; affectionRecent = {};
+  ownedHome = stage >= 2 ? "cottage" : null; refreshHome(); // ③以降は家をもらった状態
   kotoha = { level: 1, exp: 0, nextExp: 12 };
   dishes = []; tributes = []; summonCards = []; pendingTribute = null; mealBuff = { atk: 0, def: 0 }; battleBuff = { atk: 0, def: 0 };
   ownedFridge = false; ownedTV = false; fridge = {}; fridgeDishes = []; whBag = {}; whMat = {}; storageUI = null; bagPage = 0;
@@ -1582,7 +1566,16 @@ function deskAt(tx, ty) {
 // 勉強机: コトハと和文英訳の英語学習(出題→英訳→添削の繰り返し)
 function startDeskStudy() {
   for (const k in keys) keys[k] = false;
-  Chat.openStudy(toeicLevel, () => { /* 終了後は家に留まる */ });
+  Chat.openStudy(toeicLevel, () => {
+    // 目的④達成 → ⑤: 初めて机で勉強したら、ギルドの依頼を勧める
+    if (quest && quest.stage === 3) {
+      quest.stage = 4;
+      playTownCutscene([
+        { who: "コトハ", lines: ["いい調子！ 勉強は これくらいにしておこう。", "そろそろ ギルドで 依頼を受けてみよう！"] },
+        { who: "コトハ", lines: ["ギルドの受付 Fiaさんに 話しかけてね。", "依頼をこなせば お金がもらえるよ。"] },
+      ]);
+    }
+  });
 }
 // マイホームの台所(コンロ/流し/作業台)が指定マスにあるか
 function kitchenAt(tx, ty) {
@@ -1859,34 +1852,69 @@ function eatDish(i) {
   showMessage(lines, () => { state = back; });
 }
 
-// 宿屋に泊まる(HP全回復＋クエスト進行)。泊まったらコトハがギルド登録を提案。
+// 宿屋に泊まる(HP全回復)
 function restAtInn() {
   player.hp = player.maxhp;
   for (const k in keys) keys[k] = false;
-  const advanced = quest && quest.stage === 4;
-  if (advanced) quest.stage = 5;
-  playTownCutscene([{
-    who: "コトハ",
-    lines: advanced
-      ? ["ぐっすり眠った…。HPが全回復したよ！", "ねぇ相棒、もっとお金を稼ぐなら『ギルド』に登録しよう！", "町の中央の大きい建物がギルド。受付で登録できるよ。"]
-      : ["ぐっすり眠った…。HPが全回復したよ！"],
-  }]);
+  playTownCutscene([{ who: "コトハ", lines: ["ぐっすり眠った…。HPが全回復したよ！"] }]);
 }
 
 // ギルドに登録する
+// 目的②: ギルドに登録。Fiaに登録され、異世界から来たのか問われる(YES/NO)→家をもらう
 function registerGuild() {
   if (player.guildLevel > 0) return;
   player.guildLevel = 1; player.guildPoints = 0;
-  if (quest && quest.stage === 5) quest.stage = 6; // 目的⑥達成
-  playTownCutscene([{
-    who: "コトハ",
-    lines: [
-      "ギルドに登録できたね！ これでギルドランク1の冒険者だよ。",
-      "依頼をこなすとギルドポイントとお金がもらえるの。",
-      "ポイントが貯まるとランクが上がって、行ける場所も増えるよ！",
-      "さっそく依頼を受けてみよう！ もう一度ギルド受付に話しかけて、依頼を受けたいと伝えてね。",
-    ],
-  }]);
+  playTownCutscene([
+    { who: "受付 Fia", lines: ["Welcome! You're now a Rank 1 adventurer."] },
+    { who: "コトハ", lines: ["登録できたね！ これでランク1の冒険者だよ。"] },
+    { who: "受付 Fia", lines: ["...By the way. You are, perhaps, from another world?"] },
+    { who: "コトハ", lines: ["Fiaさん『ところで あなた…もしかして 異世界から来たの？』だって。", "（コトハが通訳するね。どう答える？）"] },
+  ], () => askIsekaiChoice());
+}
+// 異世界から来たか？の選択(どちらを選んでも同じ方向へ)
+function askIsekaiChoice() {
+  cutsceneDraw = drawArea; // 背景に町(ギルド内)を出したままにする
+  askQuiz({ q: "Fia「異世界から 来たの？」 — どう答える？", en: "", choices: ["はい（YES）", "いいえ（NO）"], any: true }, () => afterIsekaiAnswer());
+}
+function afterIsekaiAnswer() {
+  cutsceneDraw = null;
+  if (quest && quest.stage === 1) quest.stage = 2; // 目的②達成 → ③
+  ownedHome = "cottage"; refreshHome();            // Fiaが空き家をくれる(南西のマイホーム)
+  if (canSave()) saveGame();
+  playTownCutscene([
+    { who: "コトハ", lines: ["Fiaさん、なんだか やさしい目をしてる…。"] },
+    { who: "受付 Fia", lines: ["I see. Rarely, someone wanders in from another world. You must be worried."] },
+    { who: "コトハ", lines: ["『ごくまれに、異界から迷い込む人がいるの』", "『きっと お困りでしょう。よければ この町の南西にある、", "誰も使っていない家を 使ってちょうだい』だって！"] },
+    { who: "コトハ", lines: ["やったね、住む家がもらえたよ！", "町の南西(左下)の マイホームへ 行ってみよう。"] },
+    { who: "受付 Fia", lines: ["Oh, and — defeat monsters, gather materials, and sell them at the material shop next door."] },
+    { who: "コトハ", lines: ["『魔物を倒して 素材を手に入れたら、", "隣のマテリアルショップで 売れるわ』って。おぼえておこう！"] },
+  ]);
+}
+// 目的⑤: スライム3体討伐の依頼を受ける
+function proposeSlimeQuest() {
+  if (!quest || quest.stage !== 4) return;
+  quest.stage = 5; quest.kills = 0;
+  playTownCutscene([
+    { who: "受付 Fia", lines: ["Your first job: defeat 3 slimes out in the field."] },
+    { who: "コトハ", lines: ["Fiaさんが 初めての依頼をくれたよ！", "『フィールドで スライムを3体 たおしてほしい』だって。"] },
+    { who: "コトハ", lines: ["町の外(でぐち)に出て、緑のスライムを 3体たおそう！", "たおしたら ギルドに 報告しにこよう。"] },
+  ]);
+}
+// 目的⑦: スライム討伐を報告→報酬→ギルドランク2を目指す(以降は既存フロー)
+function completeFirstRequest() {
+  if (!quest || quest.stage !== 6) return;
+  quest.stage = 15; // ⑧ ギルドランク2を目指す(既存アークへ接続)
+  const goldReward = 80, gpReward = 40;
+  player.gold += goldReward;
+  const ups = addGuildPoints(gpReward);
+  const lines = [
+    "依頼達成おめでとう、相棒！",
+    `報酬として ${goldReward}ゴールド と ギルドポイント${gpReward} をもらったよ！`,
+  ];
+  if (ups > 0) lines.push(`やったね、ギルドランクが ${player.guildLevel} に上がったよ！`);
+  lines.push("これでギルドの依頼ボードも自由に使えるよ。");
+  lines.push("この調子で いろんな依頼をこなして、ギルドランク2を目指そう！");
+  playTownCutscene([{ who: "コトハ", lines }]);
 }
 // 依頼などでギルドポイントを加算(貯まるとランクアップ)。返り値=上がったランク数
 function addGuildPoints(gp) {
@@ -1910,17 +1938,11 @@ function interactNPC(n) {
   if (sf && hasItem(sf.item)) { deliverSideFetch(sf, n); return; }
   const st = sideQuests.find((q) => q.status === "active" && q.type === "talk" && q.npcId === n.id);
   if (st) { talkSideChallenge(st, n); return; }
-  if (quest && quest.stage === 2) {                            // 素材屋の場所を尋ねるイベント(町の全NPCに適用)
-    if (Chat.aiReady()) talkAskDirections(n);
-    else askDirections(n);
-    return;
-  }
   if (n.id === "innkeeper") { talkInn(n); return; }            // 宿屋: 泊まりたい→泊まる
   if (n.id === "guild_receptionist") { talkGuild(n); return; } // ギルド受付: 登録/依頼/報告
-  if (n.id === "salon") { talkSalon(n); return; }              // 美容師Coco: 特徴を聞く/ネコを届ける
+  if (n.id === "salon") { talkSalon(n); return; }              // 美容師Coco: 会話
   if (n.id === "realestate") { talkRealEstate(n); return; }    // 不動産屋: 家を買う
   if (n.shop) { talkShop(n); return; }                         // 店: 売りたい/買いたい→メニュー
-  if (quest && quest.stage === 8) { talkCatInfo(n); return; }  // 町の人に迷いネコの聞き込み
   talkToNPC(n);
 }
 
@@ -1941,24 +1963,24 @@ function talkGuild(n) {
   // エリアボス討伐の報告(討伐済み=progress>=1)
   const doneBoss = sideQuests.find((q) => q.type === "areaboss" && q.status === "active" && q.progress >= 1);
   if (doneBoss) { reportAreaBoss(doneBoss); return; }
-  // 目的⑦: 依頼を受ける
-  if (quest && quest.stage === 6) {
-    if (!Chat.aiReady()) { proposeRequest(); return; }
+  // 目的⑤: 依頼を受ける(スライム3体)
+  if (quest && quest.stage === 4) {
+    if (!Chat.aiReady()) { proposeSlimeQuest(); return; }
     Chat.setQuest({
-      note: "the traveler asks to take on a job, quest, or request from the guild (e.g. \"I want to take a request\", \"Do you have any jobs?\", \"I'd like to accept a quest\"). When they do, happily tell them you have a perfect request for them.",
+      note: "the traveler asks to take on a job, quest, or request from the guild (e.g. \"I want to take a request\", \"Do you have any jobs?\", \"I'd like to accept a quest\"). When they do, happily tell them you have a perfect first request for them.",
       flagMessage: "コトハ「依頼を受けられるって！ × でとじて話を聞こう」",
-      onClose: () => proposeRequest(),
+      onClose: () => proposeSlimeQuest(),
     });
     Chat.open(n, toeicLevel, () => {});
     return;
   }
-  // 目的⑭: 達成を報告する
-  if (quest && quest.stage === 13) {
-    if (!Chat.aiReady()) { completeRequest(); return; }
+  // 目的⑦: 達成を報告する(スライム討伐)
+  if (quest && quest.stage === 6) {
+    if (!Chat.aiReady()) { completeFirstRequest(); return; }
     Chat.setQuest({
-      note: "the traveler reports that they completed the request and found the lost cat (e.g. \"I found the cat\", \"The request is done\", \"I completed the quest\"). When they do, congratulate them warmly and tell them their reward is ready.",
+      note: "the traveler reports that they completed the request and defeated the slimes (e.g. \"I defeated the slimes\", \"The request is done\", \"I completed the quest\"). When they do, congratulate them warmly and tell them their reward is ready.",
       flagMessage: "コトハ「報告できたね！ × でとじて報酬を受け取ろう」",
-      onClose: () => completeRequest(),
+      onClose: () => completeFirstRequest(),
     });
     Chat.open(n, toeicLevel, () => {});
     return;
@@ -2072,6 +2094,8 @@ function checkGuildStoryProgress() {
 // ロード時などに、クエスト段階を現在のギルドランクと整合させる(旧セーブ救済)
 function reconcileGuildStory() {
   if (!quest) return;
+  // 旧シナリオ(素材集め/迷いネコ)のセーブ救済: 登録済みで途中なら新ランク2フェーズへ寄せる
+  if (player.guildLevel >= 1 && quest.stage >= 7 && quest.stage <= 14) quest.stage = 15;
   if (quest.stage === 14) quest.stage = 15;                                   // ⑮→⑯フェーズへ
   if (quest.stage === 15 && player.guildLevel >= 2) quest.stage = 16;         // ランク2到達済み→ギルドへ
   if (quest.stage === 18 && player.guildLevel >= 3) quest.stage = 19;         // ランク3到達済み→ギルドへ
@@ -2985,11 +3009,6 @@ function playTownCutscene(steps, onDone) {
 // 扉を通る(家の中へ／町へ／フィールドへ)
 function goThroughDoor(d) {
   if (d.to === "field") { leaveTown(); return; }
-  // 目的①: 素材を3つ集めるまではどの建物にも入れない
-  if (quest && quest.stage === 0 && d.to !== "town") {
-    playTownCutscene([{ who: "コトハ", lines: ["まだ建物には入れないよ！", `まずはモンスターをたおして素材を${quest.goal}つ集めよう。（いま ${quest.kills}/${quest.goal}）`] }]);
-    return;
-  }
   if (d.to === "home") { enterHome(d.spawn); return; }
   enterArea(d.to, d.spawn);
 }
@@ -2997,13 +3016,25 @@ function goThroughDoor(d) {
 function enterHome(spawn) {
   for (const k in keys) keys[k] = false;
   if (!ownedHome) {
-    playTownCutscene([{ who: "コトハ", lines: ["ここは売りに出てる家だね。", "不動産屋さんで買えるみたい。自分の家、ほしいね!"] }]);
+    playTownCutscene([{ who: "コトハ", lines: ["ここは まだ 誰の家でもないみたい。", "…ギルドで登録すれば、住む家をもらえるかも？"] }]);
     return;
   }
   refreshHome();
   enterArea("home", spawn);
   player.hp = player.maxhp;
   const saved = canSave() && saveGame();
+  // 目的③達成 → ④: 初めて我が家に入ったら、寝る→翌朝→勉強を勧める
+  if (quest && quest.stage === 2) {
+    quest.stage = 3;
+    playTownCutscene([
+      { who: "コトハ", lines: ["わあ、ここが もらった家だね！", "せまいけど…なんだか 落ち着く。"] },
+      { who: "コトハ", lines: ["今日は いろいろあって つかれたね。", "もう遅いし、今日はここで 寝よう。おやすみ、相棒。"] },
+      { who: null, lines: ["——ぐっすり——", "……翌朝。"] },
+      { who: "コトハ", lines: ["おはよう！ よく眠れた？", "あっ、部屋に 机があるよ。少し 英語を勉強してみよう！"] },
+      { who: "コトハ", lines: ["机に近づいて 話しかけてみてね。", "私が 先生になって 出題するよ！"] },
+    ]);
+    return;
+  }
   playTownCutscene([{ who: "コトハ", lines: ["ただいま! 我が家はやっぱり落ち着くね。", `HPが全回復したよ!${saved ? " 冒険も記録(セーブ)しておいたね。" : ""}`] }]);
 }
 function enterArea(id, spawn) {
@@ -3013,28 +3044,9 @@ function enterArea(id, spawn) {
   player.dir = curArea.indoor ? "up" : "down";
   player.moving = false;
   for (const k in keys) keys[k] = false;
-  // 素材屋がまだいない(リビール前)演出
-  if (id === "material" && !(quest && quest.shopRevealed)) {
-    playTownCutscene([{ who: "コトハ", lines: ["あれ？ 素材屋さん、お店にいないね…。", "どこに行ったんだろ？ 町の人に聞いてみよう。"] }]);
-  }
 }
 
 function enterTown() {
-  // 目的①: 素材を3つ集めるまでは町に入れない(入口の手前で引き返す)
-  if (quest && quest.stage === 0) {
-    if (player.dir === "up") player.ty += 1;
-    else if (player.dir === "down") player.ty -= 1;
-    else if (player.dir === "left") player.tx += 1;
-    else if (player.dir === "right") player.tx -= 1;
-    player.px = player.tx * TILE; player.py = player.ty * TILE; player.moving = false;
-    for (const k in keys) keys[k] = false;
-    cutsceneDraw = drawField;
-    playCutscene(
-      [{ who: "コトハ", lines: ["まだ町に行くのは早いよ！", `まずはモンスターをたおして素材を${quest.goal}つ集めよう。（いま ${quest.kills}/${quest.goal}）`] }],
-      () => { cutsceneDraw = null; messageSpeaker = null; state = STATE.FIELD; }
-    );
-    return;
-  }
   savedOverworld = { tx: player.tx, ty: player.ty };
   zone = "";
   curArea = AREAS.town;
@@ -3042,13 +3054,12 @@ function enterTown() {
   player.px = player.tx * TILE; player.py = player.ty * TILE;
   player.dir = "up"; player.moving = false;
   state = STATE.TOWN;
-  // 素材を集めて初めて町に来たら、コトハが素材屋探しを提案
-  if (quest && quest.stage === 1) {
-    quest.stage = 2;
+  // 目的①達成 → ②: 初めて町に来たら、コトハがギルド登録を勧める
+  if (quest && quest.stage === 0) {
+    quest.stage = 1;
     playTownCutscene([
-      { who: "コトハ", lines: ["ここが町だね！ 素材を売れる「素材屋」を探そう。"] },
-      { who: "コトハ", lines: ["…でも見当たらないなぁ。町の人に場所を聞いてみよう！", "英語で \"Where is the material shop?\" って聞くんだよ。"] },
-      { who: "コトハ", lines: ["（material shop ＝ 素材屋、Where is 〜? ＝ 〜はどこ？）", "だれかに話しかけてみて！"] },
+      { who: "コトハ", lines: ["ここが町だね！ 人がいっぱい…でも みんな英語で話してる。"] },
+      { who: "コトハ", lines: ["あっ、すぐそこに 冒険者ギルドがあるよ。", "まずは行って 登録しよう！ 受付の人に話しかけてね。"] },
     ]);
   }
 }
@@ -3436,15 +3447,15 @@ function winBattle() {
     addMaterial(battle.drop);
     lines.push(`「${battle.drop}」を 手に入れた！`);
   }
-  // クエスト①(素材あつめ)進行: 素材を1つ手に入れるごとにカウント
-  if (!battle.isBoss && battle.drop && quest && quest.stage === 0) {
-    quest.kills++;
-    if (quest.kills >= quest.goal) {
-      quest.stage = 1;
-      lines.push(`コトハ「素材が${quest.goal}つ集まったね！`);
-      lines.push(`　町(赤い屋根)へ向かって換金しよう！」`);
+  // 目的⑥: 最初の依頼(スライムを3体たおす)の進行
+  if (!battle.isBoss && quest && quest.stage === 5 && battle.name === "スライム") {
+    quest.kills = (quest.kills || 0) + 1;
+    if (quest.kills >= 3) {
+      quest.stage = 6;
+      lines.push("コトハ「スライムを3体たおした！");
+      lines.push("　ギルドに 報告しに行こう！」");
     } else {
-      lines.push(`コトハ「素材あつめ ${quest.kills}/${quest.goal}」`);
+      lines.push(`コトハ「スライム討伐 ${quest.kills}/3」`);
     }
   }
   // ギルド討伐依頼(サブクエスト)の進行
@@ -5063,12 +5074,13 @@ function advanceCutscene() {
 
 // ===== クイズ(チュートリアル等の選択) =====
 function askQuiz(q, onCorrect) {
-  quiz = { en: q.en, question: q.q, choices: q.choices, answer: q.answer, sel: 0, wrong: 0, onCorrect };
+  quiz = { en: q.en, question: q.q, choices: q.choices, answer: q.answer, any: !!q.any, sel: 0, wrong: 0, onCorrect };
   state = STATE.QUIZ;
 }
 function answerQuiz(idx) {
   if (!quiz) return;
-  if (idx === quiz.answer) {
+  if (idx < 0 || idx >= quiz.choices.length) return;
+  if (quiz.any || idx === quiz.answer) { // any=どちらを選んでも正解扱い(YES/NO等)
     const cb = quiz.onCorrect; quiz = null;
     if (cb) cb();
   } else {
@@ -5078,12 +5090,14 @@ function answerQuiz(idx) {
 function drawQuizUI() {
   drawWindow(16, 250, 448, 54, false);
   ctx.fillStyle = "#fff"; ctx.textAlign = "center";
-  ctx.font = "13px 'MS Gothic', monospace";
-  ctx.fillText(quiz.question, W / 2, 270);
-  ctx.font = "bold 26px 'MS Gothic', monospace"; ctx.fillStyle = "#ffe082";
-  ctx.fillText(quiz.en, W / 2, 297);
+  ctx.font = quiz.en ? "13px 'MS Gothic', monospace" : "15px 'MS Gothic', monospace";
+  ctx.fillText(quiz.question, W / 2, quiz.en ? 270 : 282);
+  if (quiz.en) {
+    ctx.font = "bold 26px 'MS Gothic', monospace"; ctx.fillStyle = "#ffe082";
+    ctx.fillText(quiz.en, W / 2, 297);
+  }
   ctx.font = "15px 'MS Gothic', monospace";
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < quiz.choices.length; i++) {
     const col = i % 2, row = (i / 2) | 0;
     const bx = 16 + col * 232, by = 312 + row * 76;
     drawWindow(bx, by, 216, 64, quiz.sel === i);
@@ -5104,8 +5118,8 @@ function startOpening() {
     { who: "コトハ", lines: [`起きた、${player.name}！ キミ、転生しちゃったみたいだね。`, "私はコトハ、言葉の精霊！ これからよろしくね。"] },
     { who: "コトハ", lines: ["この世界の人は英語しか話さないの。", "でも大丈夫、私が相棒になるから。", "英語を覚えるほど、キミはどんどん強くなるよ。"] },
     { who: "コトハ", lines: ["元の世界に帰る手がかりも、きっと人との会話の中にあるはず。", "少しずつ、いっしょに言葉を覚えよう。"] },
-    { who: "コトハ", lines: ["でもまずは旅の資金！ 宿屋に泊まるにもお金がいるの。", "モンスターをたおすと素材が手に入るから、それを町で換金しよう。"] },
-    { who: "コトハ", lines: ["まずはモンスターをたおして素材を3つ集めよう！", "それから町(赤い屋根の建物)へ向かおう。さ、行くよ相棒！"] },
+    { who: "コトハ", lines: ["でもまずは 生活の資金だね。", "こういうときは 冒険者ギルドに登録するのが いちばん！"] },
+    { who: "コトハ", lines: ["まずは町(赤い屋根の建物)へ向かおう。", "町でギルドに登録すれば、依頼をこなして お金を稼げるよ。さ、行こう相棒！"] },
   ], () => { setupFirstQuest(); cutsceneDraw = null; messageSpeaker = null; state = STATE.FIELD; });
 }
 
