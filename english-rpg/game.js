@@ -1886,8 +1886,9 @@ function afterIsekaiAnswer() {
     { who: "受付 Fia", lines: ["I see. Rarely, someone wanders in from another world. You must be worried."] },
     { who: "コトハ", lines: ["『ごくまれに、異界から迷い込む人がいるの』", "『きっと お困りでしょう。よければ この町の南西にある、", "誰も使っていない家を 使ってちょうだい』だって！"] },
     { who: "コトハ", lines: ["やったね、住む家がもらえたよ！", "町の南西(左下)の マイホームへ 行ってみよう。"] },
-    { who: "受付 Fia", lines: ["Oh, and — defeat monsters, gather materials, and sell them at the material shop next door."] },
-    { who: "コトハ", lines: ["『魔物を倒して 素材を手に入れたら、", "隣のマテリアルショップで 売れるわ』って。おぼえておこう！"] },
+    { who: "受付 Fia", lines: ["Oh, and — defeat monsters and gather materials. You can sell them here at the guild, or at the material shop next door."] },
+    { who: "コトハ", lines: ["『魔物を倒して 素材を手に入れたら、", "ここギルドの受付でも、隣のマテリアルショップでも 売れるわ』って！"] },
+    { who: "コトハ", lines: ["ギルドで売るときは、受付のFiaさんに話しかけて", "『素材を売る』を選べばいいんだね。おぼえておこう！"] },
   ]);
 }
 // 目的⑤: スライム3体討伐の依頼を受ける
@@ -1953,9 +1954,11 @@ function talkGuild(n) {
   if (player.guildLevel === 0) {
     if (!Chat.aiReady()) { registerGuild(); return; }
     Chat.setQuest({
+      intro: "コトハ「ここはギルドの受付だよ。『登録したい』って英語で伝えてみよう！」\n💬 例: I want to register.（登録したいです）\n💬 例: I'd like to join the guild.（ギルドに入りたいです）",
       note: "the traveler asks to register, join, or sign up as an adventurer at the guild (e.g. \"I want to register\", \"I'd like to join the guild\", \"Can I sign up as an adventurer?\"). When they do, warmly welcome them as a new guild member.",
-      flagMessage: "コトハ「登録できるって！ × でとじて登録しよう」",
+      flagMessage: "コトハ「登録したいって伝わったよ！ このまま自動でとじるね。」",
       onClose: () => registerGuild(),
+      autoClose: true,
     });
     Chat.open(n, toeicLevel, () => {});
     return;
@@ -1967,9 +1970,11 @@ function talkGuild(n) {
   if (quest && quest.stage === 4) {
     if (!Chat.aiReady()) { proposeSlimeQuest(); return; }
     Chat.setQuest({
+      intro: "コトハ「依頼を受けたいと 英語で伝えてみよう！」\n💬 例: I want to take a request.（依頼を受けたいです）\n💬 例: Do you have any jobs?（依頼はありますか）",
       note: "the traveler asks to take on a job, quest, or request from the guild (e.g. \"I want to take a request\", \"Do you have any jobs?\", \"I'd like to accept a quest\"). When they do, happily tell them you have a perfect first request for them.",
-      flagMessage: "コトハ「依頼を受けられるって！ × でとじて話を聞こう」",
+      flagMessage: "コトハ「依頼を受けられるって！ このまま自動でとじるね。」",
       onClose: () => proposeSlimeQuest(),
+      autoClose: true,
     });
     Chat.open(n, toeicLevel, () => {});
     return;
@@ -1978,9 +1983,11 @@ function talkGuild(n) {
   if (quest && quest.stage === 6) {
     if (!Chat.aiReady()) { completeFirstRequest(); return; }
     Chat.setQuest({
+      intro: "コトハ「スライムを倒したと 報告しよう！」\n💬 例: I defeated the slimes.（スライムを倒しました）\n💬 例: The request is done.（依頼は完了です）",
       note: "the traveler reports that they completed the request and defeated the slimes (e.g. \"I defeated the slimes\", \"The request is done\", \"I completed the quest\"). When they do, congratulate them warmly and tell them their reward is ready.",
-      flagMessage: "コトハ「報告できたね！ × でとじて報酬を受け取ろう」",
+      flagMessage: "コトハ「報告できたね！ このまま自動でとじるね。」",
       onClose: () => completeFirstRequest(),
+      autoClose: true,
     });
     Chat.open(n, toeicLevel, () => {});
     return;
@@ -2193,6 +2200,8 @@ function boardRows() {
   const rows = [];
   if (boardCache) boardCache.forEach((q, i) => rows.push({ kind: "quest", idx: i, label: `${questIcon(q.type)} ${q.title_ja}（+${q.gold}G/GP${q.gp}）` }));
   rows.push({ kind: "refresh", label: "🔄 新しい依頼をさがす" });
+  const mv = materialsValue();
+  rows.push({ kind: "sellmat", enabled: mv > 0, label: mv > 0 ? `💰 素材を売る（+${mv}G）` : "💰 素材を売る（売る素材がない）" });
   rows.push({ kind: "exit", label: "ボードを閉じる" });
   return rows;
 }
@@ -2201,6 +2210,14 @@ function boardSelect(row) {
   if (!row || board.loading) return;
   if (row.kind === "exit") { board = null; state = STATE.TOWN; return; }
   if (row.kind === "refresh") { refreshBoard(); return; }
+  if (row.kind === "sellmat") { // ギルドでも素材を売れる
+    const v = addGold(materialsValue());
+    if (v > 0) { materials = {}; sfx("coin"); board.msg = `素材を売って ${v}G 手に入れた！`; if (canSave()) saveGame(); }
+    else { board.msg = "売れる素材がないよ。モンスターをたおして集めよう。"; }
+    board.msgT = 240;
+    if (board.sel >= boardRows().length) board.sel = boardRows().length - 1;
+    return;
+  }
   if (row.kind === "quest") {
     if (sideQuests.length >= 3) { board.msg = "受注中の依頼が多すぎるよ(最大3件)"; board.msgT = 220; return; }
     const q = boardCache[row.idx];
@@ -2857,9 +2874,11 @@ function talkInn(n) {
   for (const k in keys) keys[k] = false;
   if (!Chat.aiReady()) { restAtInn(); return; }
   Chat.setQuest({
+    intro: "コトハ「泊まりたいと 英語で伝えてみよう！」\n💬 例: I want to stay the night.（泊まりたいです）\n💬 例: Can I rent a room?（部屋を借りられますか）",
     note: "the traveler asks to stay the night, sleep, rest, or rent a room at the inn (e.g. \"I want to stay the night\", \"Can I rent a room?\", \"I'd like to rest here\"). When they do, warmly welcome them and tell them to sleep well.",
-    flagMessage: "コトハ「泊めてくれるって！ × でとじてやすもう」",
+    flagMessage: "コトハ「泊めてくれるって！ このまま自動でとじるね。」",
     onClose: () => restAtInn(),
+    autoClose: true,
   });
   Chat.open(n, toeicLevel, () => {});
 }

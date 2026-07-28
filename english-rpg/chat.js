@@ -1035,6 +1035,7 @@ const Chat = (() => {
           if (h.flagMessage) addInfo(h.flagMessage);
           if (h.onFlag) h.onFlag();              // 即時(会話は続ける)
           if (h.onClose) pendingClose = h.onClose; // 会話を閉じたら実行
+          if (h.autoClose) setTimeout(() => { if (opened) close(); }, 1200); // フラグ後に自動でとじる
         }
       }
     } catch (err) {
@@ -1082,7 +1083,7 @@ const Chat = (() => {
       turn(true);
       return;
     }
-    if (questHook && questHook.intro) addInfo(questHook.intro); // 会話チャレンジ等のミッション説明
+    if (questHook && questHook.intro) String(questHook.intro).split("\n").forEach((ln) => addInfo(ln)); // ミッション説明(改行対応)
     addInfo("コトハ「英語で話しかけてみて！ 変なところは私が直すから！」");
     history.push({ role: "user", content: "(The traveler walks up and greets you.)" });
     turn(true);
