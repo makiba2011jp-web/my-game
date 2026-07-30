@@ -81,6 +81,179 @@ const NPC_PERSONA = {
   realestate: "You are Estelle, the polished and friendly owner of the town's real estate agency (不動産屋). You sell houses and properties to travelers who want a home of their own — a small cottage, a stone house, or a grand manor. You love talking about rooms, gardens, and the perfect place to live. You do NOT run an inn and do NOT offer rooms for the night or food; you sell houses to OWN.",
   appliance: "You are Den, the cheerful owner of the town's appliance shop (家電屋). You sell home appliances — refrigerators and televisions — and love explaining their features. A fridge keeps food fresh; a TV shows news, anime and variety programs. You do NOT run an inn and do not offer rooms or food.",
 };
+// 会話開始の“最初の一言”を定型文からランダムに出すNPC(AI呼び出しを省いてトークン節約)。
+// { en:英語のあいさつ, ja:その和訳 }。2ターン目以降はいつもどおりAIが応答する。
+const NPC_GREETINGS = {
+  bard: [
+    { en: "Well met, traveler! I'm Lyra, a wandering bard. Care to hear a song or a rumor?", ja: "やあ旅人さん！ 私はさすらいの吟遊詩人ライラ。歌か噂話、聞いていく？" },
+    { en: "Oh, a new face! Or... have we met before? Either way, welcome! What shall we talk about?", ja: "あら、新しい顔！ …それとも前に会ったかな？ どちらにせよ、ようこそ！ 何を話そうか？" },
+    { en: "Greetings! The road is long, but a good chat makes it feel shorter. What's on your mind?", ja: "こんにちは！ 旅は長いけど、いいおしゃべりは道を短く感じさせるの。何か話したいことは？" },
+    { en: "Hello there! I collect songs and stories from every town. Do you have one to share?", ja: "どうも！ 私はどの町でも歌や物語を集めているの。あなたのお話も聞かせてくれる？" },
+    { en: "Ah, a traveler with brave eyes! Come now — what brings you to me today?", ja: "おお、勇敢な目をした旅人だね！ さあ、今日はどうして私のところへ？" },
+    { en: "Nice to see you! Lately I've heard whispers about the Demon King... but first, how are you?", ja: "会えてうれしい！ 最近、魔王の噂を耳にするの…でもまずは、調子はどう？" },
+  ],
+  innkeeper: [
+    { en: "Welcome, traveler! I'm Marian. Come in and rest — are you hungry, or looking for a room?", ja: "ようこそ旅人さん！ 女将のマリアンよ。入って休んでいって。お腹すいてる？ それともお部屋かしら？" },
+    { en: "Oh, hello there! You look tired. A warm meal and a soft bed will fix that. What do you need?", ja: "あら、こんにちは！ 疲れた顔ね。温かい食事とふかふかのベッドがあれば大丈夫。何が必要？" },
+    { en: "Welcome back to my inn! The fire's warm and the soup's ready. How was your journey?", ja: "宿へおかえりなさい！ 暖炉は暖かいし、スープもできてるわ。旅はどうだった？" },
+    { en: "Come in, come in! Travelers always have the best stories. Where are you headed?", ja: "さあ入って入って！ 旅人さんはいつも面白い話を持ってるのよね。どこへ向かってるの？" },
+    { en: "Hello, dear! You're just in time for supper. Would you like something to eat?", ja: "こんにちは、あなた！ ちょうど夕食どきよ。何か食べていく？" },
+  ],
+  smith: [
+    { en: "Hmph. A customer. I'm Borin. Need a sword sharpened, or armor mended?", ja: "ふん、客か。俺はボリンだ。剣を研ぐか、鎧を直すか？" },
+    { en: "Welcome to my forge. Steel protects those who fight. What are you after?", ja: "俺の鍛冶場へようこそ。鋼は戦う者を守る。何が欲しい？" },
+    { en: "So, you're an adventurer? Good. Show me your blade and I'll judge it.", ja: "冒険者か？ いい。剣を見せろ、使い物になるか見てやる。" },
+    { en: "Back again? Hah. A warrior who cares for their gear lives longer. What do you need?", ja: "また来たか。ふっ、装備を大事にする戦士は長生きする。何が要る？" },
+    { en: "Careful with that armor. Monsters bite hard out there. Need something forged?", ja: "その鎧、気をつけろよ。外の魔物の牙は鋭い。何か打とうか？" },
+  ],
+  matshop: [
+    { en: "Ah, a supplier! I'm Gil. Got any monster materials to sell? I pay fair prices.", ja: "おっ、仕入れ先だ！ 俺はギル。魔物の素材、売りに来たか？ ちゃんと払うぜ。" },
+    { en: "Welcome! Slime jelly, bat wings, ghost shards — I buy it all. What have you got?", ja: "いらっしゃい！ スライムゼリー、コウモリの羽、ゴーストのかけら、なんでも買うぞ。何がある？" },
+    { en: "Hey there, adventurer! Gathered anything good out there? Let's talk business.", ja: "よう冒険者！ 外でいいもん集めてきたか？ 商売の話といこう。" },
+    { en: "Come in, come in! A good deal makes my day. What materials are you carrying?", ja: "入った入った！ いい取引は俺の一日を最高にするんだ。どんな素材を持ってる？" },
+    { en: "Welcome back! Business is business. Show me what you found on your travels.", ja: "おかえり！ 商売は商売だ。旅で見つけたもんを見せてくれ。" },
+  ],
+  weaponshop: [
+    { en: "Welcome! I'm Dunn. Looking for a new sword, or a sturdy shield?", ja: "いらっしゃい！ 俺はダン。新しい剣か、頑丈な盾をお探しかい？" },
+    { en: "Step right up! Every blade here is forged with pride. What catches your eye?", ja: "さあ寄ってって！ ここの剣はどれも誇りを込めて打ったものだ。どれが気になる？" },
+    { en: "Ah, an adventurer! Good gear keeps you alive. Sword, shield, or armor today?", ja: "お、冒険者だな！ いい装備が命を守る。今日は剣か、盾か、鎧か？" },
+    { en: "Welcome back! Ready to upgrade your equipment? I've got some fine pieces.", ja: "おかえり！ 装備を新調する気か？ いいのが揃ってるぜ。" },
+    { en: "Come and see! A warrior is only as good as their steel. What'll it be?", ja: "見ていきな！ 戦士の強さは持つ鋼で決まる。どうする？" },
+  ],
+  guild_receptionist: [
+    { en: "Welcome to the Adventurers' Guild! I'm Fia. How can I help you today?", ja: "冒険者ギルドへようこそ！ 受付のフィアです。今日はどうしましたか？" },
+    { en: "Hello, adventurer! Looking for a quest, or is there something I can do for you?", ja: "こんにちは、冒険者さん！ 依頼をお探しですか？ それとも何かご用でしょうか？" },
+    { en: "Welcome back to the guild! Your hard work is always appreciated. What do you need?", ja: "ギルドへおかえりなさい！ いつも頑張ってくれて感謝です。ご用件は？" },
+    { en: "Good day! The guild is here to support you. Feel free to ask me anything.", ja: "こんにちは！ ギルドはあなたを応援します。何でも聞いてくださいね。" },
+    { en: "Hello there! Every great adventurer started small. How can I assist you?", ja: "こんにちは！ 偉大な冒険者もみんな最初は小さな一歩から。今日はどんなご用ですか？" },
+  ],
+  adv_rex: [
+    { en: "Ha! Another rookie, eh? I'm Rex, the greatest warrior you'll meet. Want advice?", ja: "はっ！ また新人か？ 俺はレックス、お前が会う中で最強の戦士だ。助言でも欲しいか？" },
+    { en: "You there! You've got the look of a fighter. Sit — let me tell you about my battles!", ja: "そこのお前！ 戦士の顔つきだな。座れ、俺の武勇伝を聞かせてやる！" },
+    { en: "Hah, back for more of my wisdom? Smart. Ask me anything about slaying monsters!", ja: "はは、また俺の知恵が欲しくて来たか？ 賢いな。魔物退治のことなら何でも聞け！" },
+    { en: "Welcome, welcome! A true hero always makes time for fans. What do you want to know?", ja: "よう、よう！ 真の英雄はファンのために時間を作るもんだ。何が知りたい？" },
+    { en: "You look strong, kid — almost as strong as me! Ha! Come, let's talk fighting.", ja: "強そうだな小僧、俺に迫るくらいにな！ はは！ さあ、戦いの話をしようぜ。" },
+  ],
+  adv_mina: [
+    { en: "Oh, hello. I'm Mina. I was just reading. Is there something you'd like to ask?", ja: "あら、こんにちは。ミナよ。ちょうど本を読んでいたの。何か聞きたいこと？" },
+    { en: "Greetings, adventurer. A calm mind wins battles. What's on yours today?", ja: "ごきげんよう、冒険者さん。冷静な心が戦いを制するの。今日は何を考えているの？" },
+    { en: "Welcome. Knowledge is a fine weapon. Feel free to ask me anything you wish.", ja: "ようこそ。知識は立派な武器よ。何でも遠慮なく聞いてね。" },
+    { en: "Ah, it's you again. Good. I always enjoy a thoughtful conversation. What is it?", ja: "あら、またあなたね。いいわ。私は考え深い会話がいつも好きなの。どうしたの？" },
+    { en: "Hello there. Magic and books — those are my world. Care to talk for a while?", ja: "こんにちは。魔法と本、それが私の世界。少しおしゃべりしていく？" },
+  ],
+  adv_pip: [
+    { en: "Oh! H-hello! I'm Pip. I'm still new here... are you an adventurer too?", ja: "わっ！ こ、こんにちは！ 僕はピップ。まだ新人で…あなたも冒険者？" },
+    { en: "Um, hi! You look really brave. I hope I can be strong like you someday!", ja: "えっと、こんにちは！ すごく勇敢そうだね。僕もいつかあなたみたいに強くなれたらな！" },
+    { en: "Oh, it's you! Phew, a friendly face. This guild can be a little scary sometimes...", ja: "あっ、君だ！ ふう、優しい人でよかった。このギルド、時々ちょっと怖くて…" },
+    { en: "H-hello again! Um, do you have any tips for a rookie like me?", ja: "ま、また会ったね！ えっと、僕みたいな新人にコツを教えてくれない？" },
+    { en: "Hi there! I'm trying to be brave today. Talking to you helps. What's up?", ja: "こんにちは！ 今日は勇気を出そうとしてるんだ。君と話すと楽になる。どうしたの？" },
+  ],
+  restaurant: [
+    { en: "Welcome to my restaurant! I'm Tom. Hungry? Today's special is amazing!", ja: "うちのレストランへようこそ！ 俺はトム。腹ペコか？ 今日のおすすめは最高だぜ！" },
+    { en: "Ah, a hungry traveler! Sit down. Good food fuels great adventures. What'll you have?", ja: "お、腹をすかせた旅人だな！ さあ座って。うまい飯が冒険の力になる。何にする？" },
+    { en: "Welcome back! My kitchen's always busy. Care to hear today's menu?", ja: "おかえり！ 厨房はいつも大忙しだ。今日のメニュー、聞いていくかい？" },
+    { en: "Come in, come in! The smell of good cooking says it all. What are you craving?", ja: "入って入って！ うまい料理の匂いが全てを語るだろ。何が食べたい気分だ？" },
+    { en: "Hey there! A cook loves a good appetite. What sounds delicious to you?", ja: "よう！ 料理人はいい食欲が大好物だ。何がうまそうに聞こえる？" },
+  ],
+  bar: [
+    { en: "Welcome to the tavern! I'm Sal. Take a seat — drink, rumor, or a good chat?", ja: "酒場へようこそ！ 俺はサル。座りな、酒か、噂話か、それともおしゃべりか？" },
+    { en: "Ah, a new face at the bar! Pull up a stool. What's your story, traveler?", ja: "お、バーに新顔だな！ 椅子を引きな。あんたの話を聞かせてくれ、旅人さん。" },
+    { en: "Welcome back, friend! The drinks are cold and the talk is free. What's on your mind?", ja: "おかえり、あんた！ 酒は冷えてるし話はタダだ。何か気がかりでも？" },
+    { en: "Evening! Nothing beats a good chat over a drink. How's the road treating you?", ja: "よう！ 一杯やりながらのおしゃべりに勝るものはないね。で、旅はどうだい？" },
+    { en: "Come on in! I hear all kinds of rumors in here. Want to swap a few stories?", ja: "入んなよ！ ここじゃいろんな噂が耳に入る。話でも交換するか？" },
+  ],
+  bank: [
+    { en: "Welcome to the bank. I'm Greta. Would you like to make a deposit today?", ja: "銀行へようこそ。グレタと申します。本日はご入金ですか？" },
+    { en: "Good day. Keeping your gold safe is wise. How may I assist you?", ja: "こんにちは。お金を安全に保管するのは賢明です。ご用件を承ります。" },
+    { en: "Hello. A steady saver is a wise adventurer. Is there something I can help with?", ja: "こんにちは。こつこつ貯める人は賢い冒険者です。何かお手伝いできますか？" },
+    { en: "Welcome back. Your account is in good order. What can I do for you today?", ja: "おかえりなさいませ。口座は良好です。本日はどのようなご用件でしょう？" },
+    { en: "Good day to you. Money managed well grows well. How can I be of service?", ja: "ごきげんよう。上手に管理したお金はよく増えます。どうなさいますか？" },
+  ],
+  school: [
+    { en: "Hello there! I'm Edwin, a teacher. Learning something new today? I'd love to help!", ja: "こんにちは！ 教師のエドウィンです。今日は何か新しいことを学ぶ日かな？ 喜んで手伝うよ！" },
+    { en: "Welcome! There's no question too small. What would you like to learn about?", ja: "ようこそ！ どんな小さな質問でも大歓迎だ。何を学びたいのかな？" },
+    { en: "Ah, a curious mind! That's the best kind. What's on your mind today?", ja: "お、好奇心のある子だね！ それが一番いい。今日は何を考えているのかな？" },
+    { en: "Good to see you again! Every bit of effort counts. What shall we talk about?", ja: "また会えてうれしいよ！ どんな努力も無駄にならない。何について話そうか？" },
+    { en: "Hello, student! Practice makes progress, not perfection. How can I help you learn?", ja: "やあ、生徒さん！ 練習は完璧じゃなく前進を生むんだ。学ぶお手伝いをしようか？" },
+  ],
+  hospital: [
+    { en: "Hello. I'm Hale, the town doctor. Are you feeling well today?", ja: "こんにちは。町医者のヘイルです。今日は体調はいかがですか？" },
+    { en: "Welcome. Health comes first, always. Is anything troubling you?", ja: "ようこそ。健康が何より大切です。どこか気になるところは？" },
+    { en: "Ah, come in. Rest and care heal most things. How are you feeling?", ja: "ああ、どうぞ。休息と手当てでたいていは治ります。気分はどうです？" },
+    { en: "Good to see you. Take care of your body — it carries you far. What brings you in?", ja: "お会いできてよかった。体を大事にね、遠くまで運んでくれるのだから。どうされました？" },
+    { en: "Hello there. A healthy adventurer is a strong one. Do you need any advice?", ja: "こんにちは。健康な冒険者は強い冒険者です。何か助言が必要ですか？" },
+  ],
+  church: [
+    { en: "Welcome, traveler. I'm Clara. May you find peace here. Is your heart heavy?", ja: "ようこそ旅人さん。シスターのクララです。ここで安らぎを得られますように。心に重いものが？" },
+    { en: "Peace be with you. This is a quiet place to rest your soul. What troubles you?", ja: "あなたに平安を。ここは魂を休める静かな場所です。何かお悩みが？" },
+    { en: "Hello, dear one. A gentle word can lighten any burden. Would you like to talk?", ja: "こんにちは、いとしい人。優しい一言はどんな重荷も軽くします。お話ししますか？" },
+    { en: "Welcome back. The door is always open to you. How does your spirit fare today?", ja: "おかえりなさい。扉はいつもあなたに開かれています。今日、心の調子はいかが？" },
+    { en: "Bless you, traveler. Take a moment to breathe. Is there anything on your mind?", ja: "祝福を、旅人さん。少し息をつきましょう。何か心にかかることは？" },
+  ],
+  salon: [
+    { en: "Hi hi! Welcome to my salon! I'm Coco. Ooh, your hair has such potential!", ja: "はいはーい！ サロンへようこそ！ ココよ。おお、あなたの髪、すっごく可能性あるわ！" },
+    { en: "Hello, gorgeous! Ready for a new look? Or just here for a fun chat?", ja: "こんにちは、素敵さん！ イメチェンの準備はいい？ それともおしゃべりしに来た？" },
+    { en: "Welcome back, darling! My cat missed you, and so did I! What can I do for you?", ja: "おかえり、あなた！ うちの猫も私もあなたに会いたかったの！ どうしてほしい？" },
+    { en: "Ooh, hi! Looking fabulous as always. Want to talk hair, fashion, or my cute kitty?", ja: "おお、こんにちは！ 相変わらず素敵ね。髪の話、ファッション、それともうちの可愛い猫の話する？" },
+    { en: "Hi there! A great style starts with a smile. What's making you smile today?", ja: "こんにちは！ 素敵なスタイルは笑顔から。で、今日は何があなたを笑顔にしてる？" },
+  ],
+  police: [
+    { en: "Halt — just kidding. I'm Bruno, town guard. All's well? Need directions?", ja: "止まれ…なんてな。町の衛兵ブルーノだ。異常ないか？ 道案内でもいるか？" },
+    { en: "Good day, citizen. I keep the peace around here. Is everything all right?", ja: "こんにちは、市民。この辺の平和は俺が守ってる。何も問題ないか？" },
+    { en: "Welcome. The town's safe, but the roads outside aren't. Need a warning or two?", ja: "よう。町は安全だが外の道はそうじゃない。忠告のひとつでもいるか？" },
+    { en: "Ah, it's you. Staying out of trouble, I hope? What can I do for you?", ja: "お、お前か。厄介ごとには近寄ってないだろうな？ 何か用か？" },
+    { en: "Hello there. A watchful guard makes a safe town. Anything you need to report?", ja: "こんにちは。警戒を怠らぬ衛兵が安全な町を作る。何か報告でもあるか？" },
+  ],
+  florist: [
+    { en: "Oh! W-welcome... I'm Lily. These flowers... um, would you like to see them?", ja: "わっ！ い、いらっしゃいませ…リリィです。このお花…えっと、見ていきますか？" },
+    { en: "H-hello... The flowers are happy today. I hope they make you smile too.", ja: "こ、こんにちは…お花たちは今日ご機嫌です。あなたも笑顔になれますように。" },
+    { en: "Oh, it's you... Um, thank you for coming back. Which flower do you like best?", ja: "あっ、あなた…えっと、また来てくれてありがとうございます。どのお花が一番好きですか？" },
+    { en: "Welcome... A kind word makes flowers bloom brighter. Shall we chat?", ja: "いらっしゃい…優しい言葉はお花をもっと綺麗に咲かせるんですよ。少しお話ししますか？" },
+    { en: "H-hi... Please take your time. The roses are lovely today. Do you have a favorite?", ja: "こ、こんにちは…ごゆっくりどうぞ。今日はバラが素敵なんです。お気に入りはありますか？" },
+  ],
+  fish: [
+    { en: "Welcome! I'm Finn! Fresh fish today — tuna, sardines, you name it! What'll it be?", ja: "いらっしゃい！ フィンだ！ 今日は新鮮な魚だぞ、マグロにイワシ、なんでもある！ 何にする？" },
+    { en: "Hey hey! The catch came in this morning and it's beautiful! Want a look?", ja: "よっ、よっ！ 今朝の水揚げが最高でな！ 見ていくかい？" },
+    { en: "Welcome back! Nothing beats fresh fish, I tell ya. What can I get for you today?", ja: "おかえり！ 新鮮な魚に勝るものはないぜ。今日は何にする？" },
+    { en: "Ahoy, customer! Fish is brain food, they say. Smart choice coming here! What'd you like?", ja: "よう客人！ 魚は頭にいいって言うだろ。ここに来たのは賢い選択だ！ 何が欲しい？" },
+    { en: "Come see the catch of the day! It's practically still swimming. What sounds good?", ja: "今日の水揚げを見てけ！ まだ泳いでそうなくらいピチピチだ。何がいい？" },
+  ],
+  green: [
+    { en: "Welcome! I'm Vera. Fresh veggies and fruit today! What's cooking at your place?", ja: "いらっしゃい！ ヴェラよ。今日は新鮮な野菜と果物があるわ！ おうちで何作るの？" },
+    { en: "Hello there! Everything's ripe and ready. Want to know what's in season?", ja: "こんにちは！ どれも食べ頃よ。旬のものが知りたい？" },
+    { en: "Welcome back! Eat your greens and stay strong, I always say. What do you need?", ja: "おかえり！ 野菜を食べて元気でいなさい、が私の口癖よ。何が要る？" },
+    { en: "Come in, come in! These tomatoes are the best of the bunch. What can I get you?", ja: "さあ入って！ このトマト、今日一番の出来なの。何にする？" },
+    { en: "Hi! Good food starts with good ingredients. What are you shopping for today?", ja: "こんにちは！ いい料理はいい素材から。今日は何をお探し？" },
+  ],
+  meat: [
+    { en: "Welcome! I'm Otto. Best meat in town, right here! Planning a feast?", ja: "いらっしゃい！ オットーだ。町一番の肉はここにあるぞ！ ごちそうでも作るのか？" },
+    { en: "Ah, a hungry look! Fresh cuts today, perfect for a barbecue. What'll you have?", ja: "お、腹をすかせた顔だな！ 今日は新鮮な肉だ、バーベキューにぴったりだぞ。何にする？" },
+    { en: "Welcome back! Meat gives you muscle, and muscle wins fights. What do you need?", ja: "おかえり！ 肉は筋肉を作る、筋肉は戦いに勝つ。今日は何が要る？" },
+    { en: "Step up! Nothing makes a meal like good meat. What are you cooking?", ja: "寄ってきな！ いい肉ほど食事を引き立てるものはない。何を作るんだ？" },
+    { en: "Hey there! A big appetite deserves a big steak. What sounds good to you?", ja: "よう！ 旺盛な食欲には大きなステーキだ。何がうまそうだ？" },
+  ],
+  grocery: [
+    { en: "Welcome! I'm Marco. Eggs, oil, salt — all your pantry needs right here! What'll it be?", ja: "いらっしゃい！ マルコです。卵に油に塩、台所に必要なものは全部ここに！ 何にします？" },
+    { en: "Hi there! Stocking up? I've got a little cooking tip for whatever you buy!", ja: "こんにちは！ 買い出しですか？ 何を買っても、ちょっとした料理のコツを教えますよ！" },
+    { en: "Welcome back! The little things make the meal, I always say. What do you need?", ja: "おかえりなさい！ 小さな材料が料理を決める、が私の持論です。何が要りますか？" },
+    { en: "Come in! Salt, sugar, soy sauce — the basics matter most. How can I help?", ja: "どうぞ！ 塩、砂糖、しょうゆ、基本こそ大事です。何かお探し？" },
+    { en: "Hello! Every great dish starts here on my shelves. What are you cooking today?", ja: "こんにちは！ 素晴らしい料理はみんなこの棚から始まるんです。今日は何を作ります？" },
+  ],
+  realestate: [
+    { en: "Welcome! I'm Estelle. Dreaming of a home of your own? I have wonderful properties!", ja: "ようこそ！ エステルと申します。ご自分の家をお探し？ 素敵な物件がございますよ！" },
+    { en: "Hello there! A cozy cottage or a grand manor — which suits you? Let's find out!", ja: "こんにちは！ 居心地のいい小屋か、立派な屋敷か、どちらがお好み？ 一緒に探しましょう！" },
+    { en: "Welcome back! Location, comfort, charm — I have it all. What are you looking for?", ja: "おかえりなさい！ 立地、快適さ、魅力、全部揃っています。何をお探しですか？" },
+    { en: "Ah, do come in! Everyone deserves a place to call home. Shall I show you around?", ja: "ああ、どうぞお入りください！ 誰もが帰る場所を持つべきです。ご案内しましょうか？" },
+    { en: "Good day! The right home changes everything. Tell me about your dream house!", ja: "ごきげんよう！ 理想の家は全てを変えます。あなたの夢のおうちを聞かせて！" },
+  ],
+  appliance: [
+    { en: "Welcome! I'm Den. Fridges, TVs — modern magic for your home! What can I show you?", ja: "いらっしゃい！ デンだよ。冷蔵庫にテレビ、暮らしの魔法をどうぞ！ 何をお見せしようか？" },
+    { en: "Hey there! A fridge keeps food fresh, a TV brings the world in. Curious about either?", ja: "やあ！ 冷蔵庫は食べ物を新鮮に、テレビは世界を届ける。どっちか気になる？" },
+    { en: "Welcome back! Technology makes life easier, I promise. What are you after today?", ja: "おかえり！ 技術は暮らしを楽にするんだ、本当だよ。今日は何をお探し？" },
+    { en: "Come see! These gadgets are the pride of my shop. Want a demonstration?", ja: "見ていって！ この家電たちは店の自慢なんだ。実演してみようか？" },
+    { en: "Hi! News, anime, cold drinks — I've got the appliance for it. How can I help?", ja: "こんにちは！ ニュース、アニメ、冷たい飲み物、なんでも家電にお任せ。何かお手伝いは？" },
+  ],
+};
 const LEVEL_GUIDE = {
   500: "Use very simple words and short sentences (around CEFR A2 / TOEIC 500). Avoid difficult vocabulary and complex grammar.",
   700: "Use clear everyday and light business English (around CEFR B1-B2 / TOEIC 700).",
@@ -1085,6 +1258,14 @@ const Chat = (() => {
     }
     if (questHook && questHook.intro) String(questHook.intro).split("\n").forEach((ln) => addInfo(ln)); // ミッション説明(改行対応)
     addInfo("コトハ「英語で話しかけてみて！ 変なところは私が直すから！」");
+    // 定型あいさつがあるNPC(例: ライラ)は、最初の一言だけAIを呼ばず定型文からランダムに出す(トークン節約)
+    const greetings = (!questHook || !questHook.note) ? NPC_GREETINGS[npc.id] : null; // クエスト連動の会話中は通常どおりAI
+    if (greetings && greetings.length) {
+      const g = greetings[Math.floor(Math.random() * greetings.length)];
+      addNpcLine(g.en, g.ja);
+      history.push({ role: "assistant", content: g.en }); // 2ターン目以降の文脈として履歴に残す
+      return;
+    }
     history.push({ role: "user", content: "(The traveler walks up and greets you.)" });
     turn(true);
   }

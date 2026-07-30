@@ -45,7 +45,7 @@ let autoEncounter = false; // オート戦闘(フィールドで歩かず自動�
 let autoTimer = 0;         // 次の自動エンカウントまでの残り時間(ms)
 let msgAutoTimer = 0;      // オート時のメッセージ自動送りタイマー(ms)
 const AUTO_MSG_DELAY = 700; // メッセージ1枚あたりの自動送り間隔(ms)
-let wordCorrect = {};     // 単語ごとの正解回数(en -> 回数)。出題ウェイト計算に使用
+let wordCorrect = {};     // 単語の習得状態(en -> 0:未習得 / 3:習得=再出題なし)。正解後の「覚えた」で3にする
 let npcAffection = {};    // NPCごとの好感度(id -> 0〜100)。良い英語の会話で上がる
 let permaBuffs = [];      // 好感度100で獲得した永続バフのNPC id一覧(装備とは別枠でずっと有効)
 let affectionRecent = {}; // NPCごとの直近発言(正規化)。単調/繰り返しの無効点判定用(会話ごとにリセット)
@@ -1221,6 +1221,11 @@ function onInput(k) {
     else if (k === "confirm") chooseAnswer(menuSel);
     return;
   }
+  if (state === STATE.BATTLE && battle.phase === "memorize") {
+    if (["up", "down", "left", "right"].includes(k)) menuSel = (menuSel + 1) % 2;
+    else if (k === "confirm") memorizeChoose(menuSel);
+    return;
+  }
   if (state === STATE.GAMEOVER || state === STATE.CLEAR) {
     if (k === "confirm") { state = STATE.TITLE; menuSel = 0; }
     return;
@@ -1371,6 +1376,13 @@ function onTap(x, y) {
       const col = i % 2, row = (i / 2) | 0;
       const bx = 16 + col * 232, by = 312 + row * 76;
       if (x >= bx && x <= bx + 216 && y >= by && y <= by + 64) { chooseAnswer(i); return; }
+    }
+    return;
+  }
+  if (state === STATE.BATTLE && battle.phase === "memorize") {
+    for (let i = 0; i < 2; i++) {
+      const bx = 16 + i * 232, by = 340;
+      if (x >= bx && x <= bx + 216 && y >= by && y <= by + 64) { memorizeChoose(i); return; }
     }
     return;
   }
@@ -3382,15 +3394,17 @@ function chooseAnswer(idx) {
     ngLines = [`ざんねん… "${w.en}" は ${w.ja}`];
   }
   if (correct) {
-    wordCorrect[w.en] = (wordCorrect[w.en] || 0) + 1; // 正解→次回以降の出題確率を下げる
     const dmg = player.atk + battleBuff.atk + Math.floor(rnd() * 4);
     battle.ehp = Math.max(0, battle.ehp - dmg);
     battle.ehurt = 12; battle.shake = 8;
     sfx("correct"); sfx("hit");
     state = STATE.BATTLE;
+    const en = w.en, isWord = !w.grammar;
+    const cont = () => { if (battle.ehp <= 0) return winBattle(); enemyTurnOrNext(); };
     queueResolve([...okLines, `${battle.name}に ${dmg} のダメージ！`], () => {
-      if (battle.ehp <= 0) return winBattle();
-      enemyTurnOrNext();
+      // 単語バトルのみ: 「覚えた/まだ」を選ばせる(覚えた→習得=再出題なし。自動習得はしない)
+      if (isWord && (wordCorrect[en] || 0) < 3) openMemorize(en, cont);
+      else cont();
     });
   } else {
     const dmg = Math.max(1, battle.eatk + Math.floor(rnd() * 3) - (player.def + battleBuff.def));
@@ -3405,6 +3419,20 @@ function chooseAnswer(idx) {
   }
 }
 
+// 正解後、その単語を「覚えた/まだ」で仕分ける(覚えた=習得で再出題なし)
+function openMemorize(en, cont) {
+  battle.phase = "memorize";
+  battle.memoEn = en; battle.memoCont = cont;
+  menuSel = 0; state = STATE.BATTLE;
+}
+function memorizeChoose(idx) {
+  if (!battle || battle.phase !== "memorize") return;
+  const en = battle.memoEn, cont = battle.memoCont;
+  if (idx === 0) { wordCorrect[en] = 3; sfx("confirm"); }  // 覚えた → 習得(もう出ない。習得リストで元に戻せる)
+  else { wordCorrect[en] = 0; sfx("select"); }             // まだ → また出題される
+  battle.phase = "resolve"; battle.memoEn = null; battle.memoCont = null;
+  if (cont) cont();
+}
 // 正解後、ときどき敵の反撃を挟む
 function enemyTurnOrNext() {
   if (battle.isBoss && rnd() < 0.5) {
@@ -4986,6 +5014,7 @@ function drawBattleScene() {
 }
 
 function drawBattleUI() {
+  if (battle.phase === "memorize") { drawMemorizeUI(); return; }
   const w = battle.word;
   // 出題ウィンドウ
   drawWindow(16, 248, 448, 58, false);
@@ -5018,6 +5047,25 @@ function drawBattleUI() {
     ctx.fillText(w.choices[i], bx + 108, by + 39);
   }
   // プレイヤーHP小表示
+  ctx.textAlign = "left"; ctx.font = "13px 'MS Gothic', monospace"; ctx.fillStyle = "#fff";
+  ctx.fillText(`${player.name} HP ${player.hp}/${player.maxhp}`, 20, 244);
+  ctx.textAlign = "center";
+}
+
+// 正解後の「覚えた/まだ」プロンプト
+function drawMemorizeUI() {
+  drawWindow(16, 248, 448, 58, false);
+  ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = "16px 'MS Gothic', monospace";
+  ctx.fillText(`「${battle.memoEn}」を 覚えた？`, W / 2, 274);
+  ctx.fillStyle = "#9fd6ff"; ctx.font = "11px 'MS Gothic', monospace";
+  ctx.fillText("「覚えた」を選ぶと この単語はもう出題されません（習得リストで元に戻せます）", W / 2, 296);
+  const opts = ["✓ 覚えた（もう出ない）", "🔁 まだ（また出す）"];
+  for (let i = 0; i < 2; i++) {
+    const bx = 16 + i * 232, by = 340;
+    drawWindow(bx, by, 216, 64, menuSel === i);
+    ctx.fillStyle = i === 0 ? "#9fe0c0" : "#fff"; ctx.font = "15px 'MS Gothic', monospace"; ctx.textAlign = "center";
+    ctx.fillText(opts[i], bx + 108, by + 39);
+  }
   ctx.textAlign = "left"; ctx.font = "13px 'MS Gothic', monospace"; ctx.fillStyle = "#fff";
   ctx.fillText(`${player.name} HP ${player.hp}/${player.maxhp}`, 20, 244);
   ctx.textAlign = "center";
