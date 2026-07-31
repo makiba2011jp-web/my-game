@@ -23,6 +23,14 @@ const QUEST_POOL = [
   { type: "areaboss", boss: "darkgeneral", zone: "castle",   title_ja: "魔王軍の将軍の討伐",   desc_ja: "魔王城に残る将軍を討伐しよう。受けると魔王城に出現する。", flavor_en: "A general of the demon army still holds the castle. Defeat him!" },
   { type: "areaboss", boss: "blackknight", zone: "castle",   title_ja: "漆黒の騎士団長の討伐", desc_ja: "魔王城の騎士団長を討伐しよう。受けると魔王城に出現する。", flavor_en: "The black knight commander awaits in the castle. Bring him down!" },
 
+  // ===== ストーリーボスの再討伐(areaboss) ===== 一度物語で倒すと、その幻影がギルド依頼として並ぶ。require=その撃破フラグ。
+  { type: "areaboss", boss: "ancient",     zone: "dungeon",  require: "ancientDefeated",     title_ja: "エンシェントドラゴンの再討伐", desc_ja: "古代の遺跡に再びエンシェントドラゴンの幻影が現れた。討伐しよう。受けると古代の遺跡に出現する。", flavor_en: "The ancient dragon's phantom stirs again in the ruins. Slay it once more!" },
+  { type: "areaboss", boss: "icequeen",    zone: "dungeon2", require: "iceQueenDefeated",    title_ja: "氷の女王の亡霊の再討伐", desc_ja: "氷の遺跡に氷の女王の亡霊がまた現れた。討伐しよう。受けると氷の遺跡に出現する。", flavor_en: "The ice queen's ghost lingers in the ice ruins. Lay her to rest again!" },
+  { type: "areaboss", boss: "fireemperor", zone: "fire",     require: "fireEmperorDefeated", title_ja: "炎の皇帝の亡霊の再討伐", desc_ja: "炎の遺跡に炎の皇帝の亡霊が再び燃え上がった。討伐しよう。受けると炎の遺跡に出現する。", flavor_en: "The fire emperor's ghost blazes anew in the fire ruins. Extinguish it again!" },
+  { type: "areaboss", boss: "wraith",      zone: "tower",    require: "wraithDefeated",      title_ja: "嘆きの亡霊の再討伐", desc_ja: "天空の塔の祭壇に嘆きの亡霊がまた現れた。討伐しよう。受けると天空の塔に出現する。", flavor_en: "The wailing wraith haunts the tower altar once more. Silence it again!" },
+  { type: "areaboss", boss: "maou",        zone: "castle",   require: "cleared",             title_ja: "魔王の残滓の討伐", desc_ja: "砕けた魔王の怨念の残滓が魔王城に凝った。討伐しよう。受けると魔王城に出現する。", flavor_en: "A remnant of the Demon King's malice gathers in the castle. Destroy it!" },
+  { type: "areaboss", boss: "shinmaou",    zone: "castle",   require: "cleared",             title_ja: "真魔王の残滓の討伐", desc_ja: "真魔王の怨念の残滓が魔王城の奥で渦巻いている。討伐しよう。受けると魔王城に出現する。", flavor_en: "The true Demon King's lingering fury coils deep in the castle. Put it down!" },
+
   // ===== 討伐(hunt) =====
   { type: "hunt", enemy: "スライム",     count: 3, title_ja: "スライム退治",       desc_ja: "フィールドでスライムを3体たおそう。",       flavor_en: "Slimes are everywhere lately. Can you thin them out?" },
   { type: "hunt", enemy: "スライム",     count: 5, title_ja: "大量発生のスライム",   desc_ja: "フィールドでスライムを5体たおそう。",       flavor_en: "There's a slime outbreak! Five should do it." },

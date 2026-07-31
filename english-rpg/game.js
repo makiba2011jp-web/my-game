@@ -2172,7 +2172,11 @@ function areaUnlockedForBoss(z) {
 }
 // 依頼がいま出せるか(行けないエリアの大討伐依頼はボードに出さない)
 function questAvailable(def) {
-  if (def.type === "areaboss") return areaUnlockedForBoss(def.zone || "field");
+  if (def.type === "areaboss") {
+    if (!areaUnlockedForBoss(def.zone || "field")) return false;
+    if (def.require && !(quest && quest[def.require])) return false; // ストーリーボスは撃破後のみ
+    return true;
+  }
   return true;
 }
 function pickQuestsFromPool(n) {
@@ -2186,7 +2190,9 @@ function pickQuestsFromPool(n) {
     for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   }
   const picked = [];
-  for (let k = 0; k < n; k++) {
+  // 討伐依頼(エリア/ストーリーボス)が出せるときは必ず1件ボードに載せる(解放・撃破のタイミングで見つけやすく)
+  if (byType.areaboss.length) picked.push(byType.areaboss.pop());
+  for (let k = picked.length; k < n; k++) {
     const avail = QUEST_TYPE_WEIGHTS.filter((w) => byType[w.type].length > 0);
     if (!avail.length) break; // もう出せる依頼がない
     const total = avail.reduce((s, w) => s + w.w, 0);
