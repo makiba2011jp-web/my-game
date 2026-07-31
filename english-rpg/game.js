@@ -2473,6 +2473,7 @@ function talkSideChallenge(q, n) {
   Chat.setQuest({
     note: q.note_en,
     intro: `コトハ「依頼ミッション：${q.goal_ja || "この人と英語で話す"}　英語で伝えてみよう！」`,
+    hintGoal: q.goal_ja || "この人と英語で話して目標を達成する", // 「🎯依頼のヒント」ボタン用(英語での言い方をコトハが助言)
     flagMessage: "コトハ「依頼を達成できそう！ × でとじよう」",
     onClose: () => completeSideQuest(q),
   });

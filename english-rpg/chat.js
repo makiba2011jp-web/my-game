@@ -829,6 +829,14 @@ const Chat = (() => {
     }], 600);
   }
 
+  // 依頼ミッションの達成に向けて、英語での言い方をコトハが助言(例フレーズ＋使える表現)
+  async function callQuestHint(goalJa) {
+    const who = (npc && npc.name) ? npc.name.split(" ").pop() : "この人";
+    return callKotoha(level, null, [{
+      role: "user",
+      content: `いま受けている依頼のミッションは「${goalJa}」だよ。相手は ${who}。これを達成するには英語でどう話しかければいい？ そのまま言える英語のフレーズ例を1〜2個と、使える単語・表現を、英語初心者の私にやさしく日本語で短く教えて。丸暗記じゃなく自分で言えるようにヒントにして。** などの記号装飾は使わないで。`,
+    }], 600);
+  }
   // コトハに英文を詳しく解説してもらう(その文専用の単発リクエスト)
   async function callExplain(en) {
     return callKotoha(level, null, [{
@@ -885,6 +893,37 @@ const Chat = (() => {
     scrollBottom();
   }
   function addInfo(text) { logEl.appendChild(el("div", "chat-info", text)); scrollBottom(); }
+
+  // 依頼ミッション中の「🎯依頼のヒント」ボタン(対象NPCとの会話開始時に出す)。押すとコトハが英語での言い方を助言。
+  function addQuestHintButton() {
+    if (!(questHook && questHook.hintGoal)) return;
+    const goal = questHook.hintGoal; // 会話中にquestHookがnullになっても効くようクロージャで保持
+    const wrap = el("div", "chat-info");
+    const box = el("div", "exp-text"); box.style.display = "none";
+    let loaded = false, loading = false;
+    const label = "🎯 依頼のヒント（英語での言い方）";
+    const btn = el("button", "tr-btn hint-btn", label);
+    btn.addEventListener("click", async () => {
+      if (loading) return;
+      if (loaded) {
+        const show = box.style.display === "none";
+        box.style.display = show ? "block" : "none";
+        btn.textContent = show ? "🔼 ヒントをかくす" : label;
+        return;
+      }
+      loading = true; btn.textContent = "🎯 コトハが考え中…";
+      try {
+        box.textContent = await callQuestHint(goal);
+        box.style.display = "block"; loaded = true; btn.textContent = "🔼 ヒントをかくす";
+      } catch (err) {
+        box.textContent = "⚠ " + errorMessage(err);
+        box.style.display = "block"; btn.textContent = "🎯 もう一度ヒント";
+      } finally { loading = false; scrollBottom(); }
+    });
+    wrap.appendChild(btn); wrap.appendChild(box);
+    logEl.appendChild(wrap);
+    scrollBottom();
+  }
 
   // コトハの返事(日本語の素テキスト。和訳ボタンなし)
   function addKotohaLine(text) {
@@ -1258,6 +1297,7 @@ const Chat = (() => {
     }
     if (questHook && questHook.intro) String(questHook.intro).split("\n").forEach((ln) => addInfo(ln)); // ミッション説明(改行対応)
     addInfo("コトハ「英語で話しかけてみて！ 変なところは私が直すから！」");
+    addQuestHintButton(); // 依頼ミッション中なら「🎯依頼のヒント」ボタンを出す
     // 定型あいさつがあるNPC(例: ライラ)は、最初の一言だけAIを呼ばず定型文からランダムに出す(トークン節約)
     const greetings = (!questHook || !questHook.note) ? NPC_GREETINGS[npc.id] : null; // クエスト連動の会話中は通常どおりAI
     if (greetings && greetings.length) {
