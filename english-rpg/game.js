@@ -164,8 +164,6 @@ const BUILDING_DEFS = {
   hospital:   { name: "Hospital",     npc: { id: "hospital",   name: "医者 Hale",         color: "#cfd8dc" }, decor: "hospital" },
   church:     { name: "Church",       npc: { id: "church",     name: "シスター Clara",    color: "#d0d0e8" }, decor: "church" },
   weapon:     { name: "Weapon Shop",  npc: { id: "weaponshop", name: "武器屋 Dunn",       color: "#8fa0c0", shop: "weapon" }, decor: "weapon" },
-  material:   { name: "Material Shop", npc: { id: "matshop",   name: "素材屋 Gil",        color: "#c08a3e", shop: "material" }, decor: "material" },
-  smith:      { name: "Smithy",       npc: { id: "smith",      name: "鍛冶屋 Borin",      color: "#9098b0" }, decor: "smith" },
   salon:      { name: "Salon",        npc: { id: "salon",      name: "美容師 Coco",       color: "#d07ab0" }, decor: "salon" },
   police:     { name: "Police",       npc: { id: "police",     name: "警官 Bruno",        color: "#3a5a8a" }, decor: "police" },
   florist:    { name: "Flower Shop",  npc: { id: "florist",    name: "花屋 リリィ",       color: "#e57aa0" }, decor: "florist" },
@@ -175,9 +173,7 @@ const BUILDING_DEFS = {
 // 内装(家具)テンプレ。中央列(列5の通路と店主(5,2))は空ける。
 const DECOR_TEMPLATES = {
   inn:        [{ tx: 8, ty: 2, kind: "bed" }, { tx: 8, ty: 4, kind: "bed" }, { tx: 2, ty: 2, kind: "table" }, { tx: 2, ty: 4, kind: "plant" }, { tx: 1, ty: 1, kind: "lamp" }, { tx: 9, ty: 1, kind: "lamp" }, { tx: 5, ty: 4, kind: "rug", solid: false }],
-  smith:      [{ tx: 1, ty: 1, kind: "forge" }, { tx: 2, ty: 3, kind: "anvil" }, { tx: 2, ty: 5, kind: "barrel" }, { tx: 8, ty: 2, kind: "weaponrack" }, { tx: 8, ty: 4, kind: "weaponrack" }],
   weapon:     [{ tx: 1, ty: 2, kind: "weaponrack" }, { tx: 1, ty: 4, kind: "weaponrack" }, { tx: 9, ty: 2, kind: "weaponrack" }, { tx: 9, ty: 4, kind: "weaponrack" }, { tx: 2, ty: 5, kind: "armorstand" }, { tx: 8, ty: 5, kind: "armorstand" }],
-  material:   [{ tx: 1, ty: 1, kind: "shelf" }, { tx: 9, ty: 1, kind: "shelf" }, { tx: 2, ty: 3, kind: "crate" }, { tx: 8, ty: 3, kind: "crate" }, { tx: 2, ty: 5, kind: "barrel" }, { tx: 8, ty: 5, kind: "barrel" }],
   restaurant: [{ tx: 2, ty: 2, kind: "table" }, { tx: 8, ty: 2, kind: "table" }, { tx: 2, ty: 5, kind: "table" }, { tx: 8, ty: 5, kind: "counter" }, { tx: 1, ty: 1, kind: "plant" }],
   bar:        [{ tx: 1, ty: 3, kind: "counter" }, { tx: 2, ty: 3, kind: "counter" }, { tx: 8, ty: 2, kind: "shelf" }, { tx: 8, ty: 5, kind: "barrel" }, { tx: 2, ty: 5, kind: "barrel" }, { tx: 9, ty: 1, kind: "lamp" }],
   bank:       [{ tx: 3, ty: 3, kind: "counter" }, { tx: 4, ty: 3, kind: "counter" }, { tx: 7, ty: 3, kind: "counter" }, { tx: 8, ty: 3, kind: "counter" }, { tx: 1, ty: 1, kind: "barrel" }, { tx: 9, ty: 1, kind: "barrel" }, { tx: 9, ty: 5, kind: "crate" }],
@@ -209,7 +205,7 @@ const HOME_GARDEN_DECOR = [
 const TOWN_BUILDINGS = [
   { id: "inn", col: 2, row: 2 }, { id: "restaurant", col: 6, row: 2 }, { id: "bar", col: 10, row: 2 },
   { id: "bank", col: 14, row: 2 }, { id: "school", col: 18, row: 2 }, { id: "hospital", col: 22, row: 2 }, { id: "church", col: 26, row: 2 },
-  { id: "weapon", col: 2, row: 6 }, { id: "material", col: 6, row: 6 }, { id: "smith", col: 10, row: 6 },
+  { id: "weapon", col: 2, row: 6 }, // (素材屋・鍛冶屋は廃止。跡地は更地)
   { id: "guild", col: 14, row: 6, w: 5, h: 3 }, { id: "salon", col: 20, row: 6 }, { id: "police", col: 24, row: 6 },
   // 食料品店(大きめ): 中に魚屋・八百屋・肉屋＋食料品店員がいる
   { id: "market", col: 8, row: 10, w: 7, h: 3 }, { id: "florist", col: 24, row: 10 },
@@ -259,7 +255,6 @@ const _town = (function buildTown() {
 })();
 const TOWN_MAP = _town.map;
 const TOWN_START = _town.start;
-const TOILET = { tx: 9, ty: 9 }; // 素材屋の家のそば(飾り)
 function townReturnOf(id) {
   const d = _town.doors.find((x) => x.to === id);
   return d && d.ret ? d.ret : { tx: TOWN_START.tx, ty: TOWN_START.ty };
@@ -269,7 +264,7 @@ const AREAS = {
   town: {
     id: "town", indoor: false, map: TOWN_MAP, cols: TOWN_COLS, rows: TOWN_ROWS,
     npcs: [{ id: "bard", name: "吟遊詩人 Lyra", tx: 15, ty: 14, color: "#6ab0e0" }, CAT],
-    decor: [{ tx: TOILET.tx, ty: TOILET.ty, kind: "toilet" }, ...HOME_YARD_DECOR],
+    decor: [...HOME_YARD_DECOR],
     doors: _town.doors.map((d) => ({ tx: d.tx, ty: d.ty, to: d.to, spawn: d.spawn })),
   },
   guild: {
@@ -568,7 +563,7 @@ function tileAtArea(tx, ty) {
   if (tx < 0 || ty < 0 || tx >= curArea.cols || ty >= curArea.rows) return "#";
   return curArea.map[ty][tx];
 }
-// 素材屋は「トイレから出てくる」まで非表示。黒ネコは捜索中(目的⑩〜⑫)だけ出現。
+// NPCの表示条件(いまは廃止した迷いネコのみ非表示)。
 function npcVisible(n) {
   if (n.id === "cat") return false; // 迷いネコクエストは廃止(新シナリオ)
   return true;
@@ -720,10 +715,7 @@ function effText(it) {
 }
 function shopRows() {
   const rows = [];
-  if (shop.type === "material") {
-    const sv = materialsValue();
-    rows.push({ kind: "sell", enabled: sv > 0, label: sv > 0 ? `素材を ぜんぶ売る（+${sv}G）` : "売る素材がない" });
-  } else if (shop.type === "home") {
+  if (shop.type === "home") {
     HOME_PROPERTIES.forEach((p, i) => {
       if (p.id === "cottage") return; // ボロ小屋はギルドから無料で入手するため販売しない
       const owned = ownedHome === p.id;
@@ -763,8 +755,7 @@ function shopRows() {
 function openShop(type) {
   shop = {
     type, sel: 0, msgT: 260,
-    msg: type === "material" ? "コトハ「集めた素材をお金に換えよう！」"
-      : type === "appliance" ? "コトハ「マイホームに置く家電を買おう！」"
+    msg: type === "appliance" ? "コトハ「マイホームに置く家電を買おう！」"
       : FOOD_SHOPS[type] ? "コトハ「ほしい食べ物を買おう！」"
       : "コトハ「武器や防具で強くなろう！」",
   };
@@ -775,12 +766,8 @@ function shopSelect(row) {
   if (row.kind === "exit") { sfx("cancel"); shop = null; state = STATE.TOWN; return; }
   if (row.kind === "prev" || row.kind === "next") { sfx("select"); }
   if (!row.enabled) { shop.msg = "コトハ「ゴールドが足りないみたい…」"; shop.msgT = 200; return; }
-  if (["sell", "buy", "buyhome", "buyfood", "buyappliance"].includes(row.kind)) sfx(row.kind === "buy" ? "item" : "coin");
-  if (row.kind === "sell") {
-    const v = addGold(materialsValue()); // 永続バフ(ゴールド+%)を反映
-    materials = {};
-    shop.msg = `素材を売って ${v}G 手に入れた！`; shop.msgT = 220;
-  } else if (row.kind === "buy") {
+  if (["buy", "buyhome", "buyfood", "buyappliance"].includes(row.kind)) sfx(row.kind === "buy" ? "item" : "coin");
+  if (row.kind === "buy") {
     const it = SHOP_ITEMS[row.idx];
     player.gold -= it.price; boughtItems.add(row.idx);
     if (equipped[it.slot] == null) { equipped[it.slot] = row.idx; recomputeStats(); shop.msg = `${it.name}を 買って そうびした！`; }
@@ -1898,9 +1885,9 @@ function afterIsekaiAnswer() {
     { who: "受付 Fia", lines: ["I see. Rarely, someone wanders in from another world. You must be worried."] },
     { who: "コトハ", lines: ["『ごくまれに、異界から迷い込む人がいるの』", "『きっと お困りでしょう。よければ この町の南西にある、", "誰も使っていない家を 使ってちょうだい』だって！"] },
     { who: "コトハ", lines: ["やったね、住む家がもらえたよ！", "町の南西(左下)の マイホームへ 行ってみよう。"] },
-    { who: "受付 Fia", lines: ["Oh, and — defeat monsters and gather materials. You can sell them here at the guild, or at the material shop next door."] },
-    { who: "コトハ", lines: ["『魔物を倒して 素材を手に入れたら、", "ここギルドの受付でも、隣のマテリアルショップでも 売れるわ』って！"] },
-    { who: "コトハ", lines: ["ギルドで売るときは、受付のFiaさんに話しかけて", "『素材を売る』を選べばいいんだね。おぼえておこう！"] },
+    { who: "受付 Fia", lines: ["Oh, and — defeat monsters and gather materials. You can sell them right here at the guild."] },
+    { who: "コトハ", lines: ["『魔物を倒して 素材を手に入れたら、", "ここギルドの受付で 売れるわ』って！"] },
+    { who: "コトハ", lines: ["素材を売るときは、受付のFiaさんに話しかけて", "『素材を売る』を選べばいいんだね。おぼえておこう！"] },
   ]);
 }
 // 目的⑤: スライム3体討伐の依頼を受ける
@@ -2177,6 +2164,8 @@ function questAvailable(def) {
     if (def.require && !(quest && quest[def.require])) return false; // ストーリーボスは撃破後のみ
     return true;
   }
+  // ダンジョン限定の討伐(hunt)は、そのエリアに入れるようになってから出す
+  if (def.type === "hunt" && def.unlock) return areaUnlockedForBoss(def.unlock);
   return true;
 }
 function pickQuestsFromPool(n) {
@@ -2577,12 +2566,6 @@ const AFFECTION_REWARDS = {
     f100: { name: "Lilyの花束ケーキ", heal: 75, atk: 3 },
     b100: { label: "花の癒し", hp: 8 },
   },
-  smith: {
-    f50:  { name: "Borinの鉄板串焼き", heal: 55, atk: 3 },
-    b50:  { label: "鍛冶場の熱", atk: 1 },
-    f100: { name: "Borinの豪火焼き", heal: 85, atk: 5 },
-    b100: { label: "鍛冶の心得", atk: 3 },
-  },
   bard: {
     f50:  { name: "Lyraの旅のパイ", heal: 45 },
     b50:  { label: "詩の記憶（経験値+3%）", expPct: 3 },
@@ -2594,12 +2577,6 @@ const AFFECTION_REWARDS = {
     b50:  { label: "武器屋の助言", atk: 1 },
     f100: { name: "Dunnの勝利の宴", heal: 85, atk: 4 },
     b100: { label: "武器屋の目利き", atk: 2 },
-  },
-  matshop: {
-    f50:  { name: "Gilの行商ミックス", heal: 40 },
-    b50:  { label: "商人のおまけ（ゴールド+3%）", goldPct: 3 },
-    f100: { name: "Gilの秘蔵珍味セット", heal: 70 },
-    b100: { label: "商人の目利き（ゴールド+10%）", goldPct: 10 },
   },
   guild_receptionist: {
     f50:  { name: "Fiaのギルド弁当", heal: 50 },
@@ -2944,39 +2921,12 @@ function drawNpcMenu() {
 }
 function talkShop(n) {
   for (const k in keys) keys[k] = false;
-  const isMat = n.shop === "material";
-  const buyLabel = isMat ? "🛒 素材を売る" : "🛒 買い物する";
   // AI会話が使えないなら従来どおり直接お店へ
   if (!Chat.aiReady()) { openShop(n.shop); return; }
   // まず「会話 / 買い物」を選択
-  openNpcMenu(n, buyLabel, () => talkToNPC(n), () => openShop(n.shop));
+  openNpcMenu(n, "🛒 買い物する", () => talkToNPC(n), () => openShop(n.shop));
   return;
 }
-// (旧)購入前にAIへ買い物意思を伝える会話。現在は未使用(メニューで直接お店へ)。
-function talkShopBuyChat(n) {
-  for (const k in keys) keys[k] = false;
-  if (!Chat.aiReady()) { openShop(n.shop); return; }
-  const isMat = n.shop === "material";
-  const isFood = !!FOOD_SHOPS[n.shop];
-  const isAppliance = n.shop === "appliance";
-  let note, flagMessage;
-  if (isMat) {
-    note = "the traveler says they want to sell their materials or items (e.g. \"I want to sell some materials\", \"Can I sell these?\", \"I'd like to sell my stuff\"). When they do, happily agree to take a look at their goods.";
-    flagMessage = "コトハ「売れるよ！ × でとじて売却画面へ」";
-  } else if (isFood) {
-    note = "the traveler says they want to buy food from your shop (e.g. \"I want to buy some tuna\", \"Can I buy fish?\", \"I'd like to buy food\"). When they do, happily agree to show them what you have for sale.";
-    flagMessage = "コトハ「買えるよ！ × でとじて購入画面へ」";
-  } else if (isAppliance) {
-    note = "the traveler says they want to buy an appliance, or specifically a fridge/refrigerator or a TV/television (e.g. \"I want to buy a fridge\", \"Can I buy a TV?\", \"Show me your appliances\", \"I'd like to buy a refrigerator\"). When they do, happily agree to show your appliances.";
-    flagMessage = "コトハ「買えるよ！ × でとじて購入画面へ」";
-  } else {
-    note = "the traveler says they want to buy a weapon, armor, or equipment (e.g. \"I want to buy a sword\", \"Show me your weapons\", \"I'd like to buy some armor\"). When they do, happily agree to show your wares.";
-    flagMessage = "コトハ「買えるよ！ × でとじて購入画面へ」";
-  }
-  Chat.setQuest({ note, flagMessage, onClose: () => openShop(n.shop) });
-  Chat.open(n, toeicLevel, () => {});
-}
-
 // 嘆きの亡霊: 話しかけるとランダムな苦悩のセリフ(AI会話ではない・こちらから話題は選べない・エリア別)
 function talkWail(area) {
   for (const k in keys) keys[k] = false;
@@ -3004,34 +2954,6 @@ function openHomeShop() {
     msg: ownedHome ? "コトハ「もっといい家に住み替える?」" : "コトハ「どの家を買う? 自分の家ができるよ!」",
   };
   state = STATE.SHOP;
-}
-
-// AI会話版: "Where is the material shop?" 等を聞けたら素材屋が出てくる
-function talkAskDirections(npc) {
-  for (const k in keys) keys[k] = false;
-  Chat.setQuest({
-    note: "the traveler asks where the material shop (素材屋) is, or how to find/reach it. In that situation your reply must tell them, in character and in English, that the material shop's owner is in the toilet right now.",
-    flagMessage: "コトハ「やった！ 素材屋さんがトイレから出てきたよ。素材屋の家に入ってみよう！」",
-    onFlag: () => revealMaterialShop(),
-  });
-  Chat.open(npc, toeicLevel, () => { /* 会話終了後は街に留まる */ });
-}
-
-function revealMaterialShop() {
-  if (!quest) return;
-  quest.shopRevealed = true;
-  if (quest.stage === 2) quest.stage = 3;
-}
-
-// 町の人に素材屋の場所を尋ねる → 素材屋がトイレから出てくる
-function askDirections(npc) {
-  const who = npc.name.split(" ").pop();
-  playTownCutscene([
-    { who: "コトハ", lines: ["いいね！ \"Where is the material shop?\" って聞いてみよう！"] },
-    { who: who, lines: ["The material shop? Hmm...", "The owner is in the toilet right now!"] },
-    { who: "コトハ", lines: ["『素材屋の店主なら、今トイレに行ってるよ』だって。", "なるほど、それで見つからなかったんだ！"] },
-    { action: () => { quest.shopRevealed = true; }, who: "コトハ", lines: ["あっ、トイレから出てきた！ あの人が素材屋さんだよ。", "話しかけて素材を売ろう！"] },
-  ], () => { quest.stage = 3; });
 }
 
 // 町/家の中を背景にしたカットシーン

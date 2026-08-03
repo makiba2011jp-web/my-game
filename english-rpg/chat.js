@@ -57,9 +57,7 @@ function aiReady() {
 // ===== NPCペルソナ / 難易度 / 出力スキーマ（プロンプトはブラウザ側で構築）=====
 const NPC_PERSONA = {
   innkeeper: "You are Marian, the warm and chatty innkeeper of a small fantasy town. You enjoy talking about food, cozy rooms, and the stories of travelers who pass through.",
-  smith: "You are Borin, a gruff but kind-hearted blacksmith. You talk about weapons, armor, and slaying monsters. You respect brave adventurers.",
   bard: "You are Lyra, a cheerful traveling bard. You love rumors, songs, and tales about the distant Demon King the hero must defeat.",
-  matshop: "You are Gil, the owner of the material shop (素材屋). You buy raw materials that adventurers gather from monsters — slime jelly, bat wings, ghost shards and the like. You are a practical, friendly trader who loves a good deal. You do NOT run an inn and do not offer rooms or food.",
   weaponshop: "You are Dunn, the owner of the weapon shop (武器屋). You sell swords, shields, and armor to adventurers and are proud of your craft. You do NOT run an inn and do not offer rooms or food.",
   guild_receptionist: "You are Fia, the cheerful and polite receptionist at the Adventurers' Guild. You register adventurers, post quests on the board, and explain how the guild works. You are warm and encouraging, especially to newcomers.",
   adv_rex: "You are Rex, a boastful veteran warrior relaxing in the Adventurers' Guild. You love bragging about the monsters you've slain and giving big-talking advice to rookies. You're loud but good-natured.",
@@ -98,20 +96,6 @@ const NPC_GREETINGS = {
     { en: "Welcome back to my inn! The fire's warm and the soup's ready. How was your journey?", ja: "宿へおかえりなさい！ 暖炉は暖かいし、スープもできてるわ。旅はどうだった？" },
     { en: "Come in, come in! Travelers always have the best stories. Where are you headed?", ja: "さあ入って入って！ 旅人さんはいつも面白い話を持ってるのよね。どこへ向かってるの？" },
     { en: "Hello, dear! You're just in time for supper. Would you like something to eat?", ja: "こんにちは、あなた！ ちょうど夕食どきよ。何か食べていく？" },
-  ],
-  smith: [
-    { en: "Hmph. A customer. I'm Borin. Need a sword sharpened, or armor mended?", ja: "ふん、客か。俺はボリンだ。剣を研ぐか、鎧を直すか？" },
-    { en: "Welcome to my forge. Steel protects those who fight. What are you after?", ja: "俺の鍛冶場へようこそ。鋼は戦う者を守る。何が欲しい？" },
-    { en: "So, you're an adventurer? Good. Show me your blade and I'll judge it.", ja: "冒険者か？ いい。剣を見せろ、使い物になるか見てやる。" },
-    { en: "Back again? Hah. A warrior who cares for their gear lives longer. What do you need?", ja: "また来たか。ふっ、装備を大事にする戦士は長生きする。何が要る？" },
-    { en: "Careful with that armor. Monsters bite hard out there. Need something forged?", ja: "その鎧、気をつけろよ。外の魔物の牙は鋭い。何か打とうか？" },
-  ],
-  matshop: [
-    { en: "Ah, a supplier! I'm Gil. Got any monster materials to sell? I pay fair prices.", ja: "おっ、仕入れ先だ！ 俺はギル。魔物の素材、売りに来たか？ ちゃんと払うぜ。" },
-    { en: "Welcome! Slime jelly, bat wings, ghost shards — I buy it all. What have you got?", ja: "いらっしゃい！ スライムゼリー、コウモリの羽、ゴーストのかけら、なんでも買うぞ。何がある？" },
-    { en: "Hey there, adventurer! Gathered anything good out there? Let's talk business.", ja: "よう冒険者！ 外でいいもん集めてきたか？ 商売の話といこう。" },
-    { en: "Come in, come in! A good deal makes my day. What materials are you carrying?", ja: "入った入った！ いい取引は俺の一日を最高にするんだ。どんな素材を持ってる？" },
-    { en: "Welcome back! Business is business. Show me what you found on your travels.", ja: "おかえり！ 商売は商売だ。旅で見つけたもんを見せてくれ。" },
   ],
   weaponshop: [
     { en: "Welcome! I'm Dunn. Looking for a new sword, or a sturdy shield?", ja: "いらっしゃい！ 俺はダン。新しい剣か、頑丈な盾をお探しかい？" },
